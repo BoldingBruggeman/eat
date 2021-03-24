@@ -1,0 +1,5 @@
+import xarray as xr
+ds_disk = xr.open_dataset("/data/kb/gotm-cases/devel/nns_annual/output.nc")
+T = ds_disk("temp")
+T.plot()
+matplotlib.pyplot.show()

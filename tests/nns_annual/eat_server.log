@@ -1,0 +1,57 @@
+ Intra-communicator: server-worker created
+ Intra-communicator: server-obs created
+Doing assimilation:
+ensemble(initialize)  -->    7 members
+ensemble(integrate)   -->    7 members - n=     0
+ server - recv state            1  0.50480967935311238     
+ server - recv state            2  0.49859305505254559     
+ server - recv state            3  0.48485632487567865     
+ server - recv state            4  0.48208681683606130     
+ server - recv state            5  0.48065905318599222     
+ server - recv state            6  0.50283144373088706     
+ server - recv state            7  0.49298354184026849     
+observations(receive) -->  10000
+ server - recv obs   0.50523092141280646     
+filter(calculate)
+ensemble(integrate)   -->    7 members - n=     0
+ server - recv state            1  0.50313251045738516     
+ server - recv state            2  0.49555448596131474     
+ server - recv state            3  0.49878207694367732     
+ server - recv state            4  0.50470651478360373     
+ server - recv state            5  0.50831686274300114     
+ server - recv state            6  0.51440267643339666     
+ server - recv state            7  0.50066324357814307     
+observations(receive) -->  20000
+ server - recv obs   0.50379569573875282     
+filter(calculate)
+ensemble(integrate)   -->    7 members - n=     0
+ server - recv state            1  0.49229735041593037     
+ server - recv state            2  0.51608384030229726     
+ server - recv state            3  0.48519622022910430     
+ server - recv state            4  0.50240087259332922     
+ server - recv state            5  0.49760902866832357     
+ server - recv state            6  0.48725944343571692     
+ server - recv state            7  0.49086957409704929     
+observations(receive) -->  30000
+ server - recv obs   0.50145081850526918     
+filter(calculate)
+ensemble(integrate)   -->    7 members - n=     0
+ server - recv state            1  0.48966388390557314     
+ server - recv state            2  0.49035215881089300     
+ server - recv state            3  0.50017167745765445     
+ server - recv state            4  0.50943034746404259     
+ server - recv state            5  0.49697594797780120     
+ server - recv state            6  0.50130520361811115     
+ server - recv state            7  0.51386528228012562     
+observations(receive) -->  40000
+ server - recv obs   0.49987787577298065     
+filter(calculate)
+ensemble(integrate)   -->    7 members - n=     0
+ensemble(finalize)    -->    7 members
+ server - recv state            1  0.49561414647491431     
+ server - recv state            2  0.50314800036098328     
+ server - recv state            3  0.49461133302881416     
+ server - recv state            4  0.49636077893692859     
+ server - recv state            5  0.50560051598591460     
+ server - recv state            6  0.50744798381169132     
+ server - recv state            7  0.50702949533454245     

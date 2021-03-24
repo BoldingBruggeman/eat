@@ -1,0 +1,3 @@
+[submodule "extern/gotm"]
+	path = extern/gotm
+	url = git@github.com:gotm-model/code.git
