@@ -1,5 +1,7 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
+#define _ASYNC_
+
 program eat_server
 
    !! A ensemble/assimilation server
@@ -16,8 +18,11 @@ program eat_server
    logical :: do_observations=.false.
    logical :: do_ensemble=.false.
    logical :: do_assimilation=.false.
+#ifdef _ASYNC_
    integer, allocatable :: state_reqs(:)
+   integer, dimension(MPI_STATUS_SIZE) :: stat
    integer, allocatable :: state_stats(:,:)
+#endif
 !-----------------------------------------------------------------------
    call init_server()
    call do_server()
@@ -83,8 +88,10 @@ subroutine init_server()
 
    if (do_assimilation) then
       allocate(all_states(state_size,nensemble))
+#ifdef _ASYNC_
       allocate(state_reqs(nensemble))
       allocate(state_stats(MPI_STATUS_SIZE,nensemble))
+#endif
    end if
    if (.not. do_ensemble .and. .not. do_assimilation) then
       write(error_unit,*) './server_handler -h'
@@ -134,10 +141,14 @@ subroutine do_server()
                write(error_unit,'(a,i6)') 'observations(receive) --> ',nobs
                write(error_unit,*) 'server - recv obs ',sum(obs)/nobs
             end if
+#ifdef _ASYNC_
             if (allocated(all_states)) then
-               !KBcall MPI_WAITALL(nensemble,state_reqs,state_stats,ierr)
-               call MPI_WAITALL(nensemble,state_reqs,MPI_STATUSES_IGNORE,ierr)
+               call MPI_WAITALL(nensemble,state_reqs,state_stats(:,:),ierr)
+               if (ierr /= MPI_SUCCESS) then
+                  call MPI_ABORT(MPI_COMM_WORLD,1,ierr)
+               end if
             end if
+#endif
             write(error_unit,'(a)') 'filter(calculate)'
             call do_filter(1,all_states,obs)
          end if
@@ -260,8 +271,11 @@ subroutine ensemble_integration(t1,t2,all_states)
    do member=1,nensemble
       call MPI_SEND(send_signal,6,MPI_INTEGER,member,member,MPI_COMM_model,ierr)
       if (present(all_states)) then
+#ifdef _ASYNC_
          call MPI_IRECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,state_reqs(member),ierr)
-!KB         call MPI_IRECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,state_stats(member),ierr)
+#else
+         call MPI_RECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,stat,ierr)
+#endif
          write(error_unit,*) 'server - recv state ',member,sum(all_states(:,member))/state_size
       end if
    end do

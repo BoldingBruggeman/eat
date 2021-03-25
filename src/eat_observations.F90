@@ -3,7 +3,7 @@
 program eat_observations
 
    !! A observation handler example program in Fortran.
-   !! No real observation handling but illustrates communication 
+   !! No real observation handling but illustrates communication
    !! with the server.
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
@@ -29,7 +29,7 @@ subroutine init_observations()
 
    !! Observations are obtained from an external file - prepare to send to the server
 
-   ! Local variables 
+   ! Local variables
    integer :: unit,ios
    character(len=32) :: buf
    integer :: i,n
@@ -59,7 +59,7 @@ subroutine do_observations()
 
    !! Handle observations and send size and observations to the server
 
-   ! Local variables 
+   ! Local variables
    integer :: stat(MPI_STATUS_SIZE)
    integer :: n,nobs
    real(real64), allocatable :: obs(:)
@@ -78,6 +78,7 @@ subroutine do_observations()
          CALL RANDOM_NUMBER(obs)
          call MPI_SEND(obs,nobs,MPI_DOUBLE,0,1,MPI_COMM_obs,ierr)
       end if
+      call sleep(1)
    end do
    call MPI_SEND(halt,16,MPI_CHARACTER,0,1,MPI_COMM_obs,ierr)
 end subroutine do_observations

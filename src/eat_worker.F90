@@ -1,6 +1,7 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
 #define NO_GOTM
+#define _ASYNC_
 
 program eat_worker
 
@@ -86,9 +87,12 @@ subroutine do_worker()
       if (iand(recv_signal(1),signal_send_state) == signal_send_state) then
          CALL RANDOM_NUMBER(state)
          state=state+rank-1
-!KB         call MPI_SEND(state,state_size,MPI_DOUBLE,0,member,MPI_COMM_model,ierr)
+#ifdef _ASYNC_
          call MPI_ISEND(state,state_size,MPI_DOUBLE,0,member,MPI_COMM_model,request,ierr)
-         call MPI_Wait(request,stat,ierr)
+         call MPI_WAIT(request,stat,ierr)
+#else
+         call MPI_SEND(state,state_size,MPI_DOUBLE,0,member,MPI_COMM_model,ierr)
+#endif
       end if
 
       if (iand(recv_signal(1),signal_finalize) == signal_finalize) then
@@ -118,6 +122,7 @@ end subroutine init_gotm
 subroutine time_loop()
    use time, only: MinN,MaxN
    write(error_unit,*) MinN,MaxN,MaxN-MinN+1
+   call sleep(1)
 end subroutine time_loop
 subroutine clean_up()
    write(error_unit,*) 'cleaning up'
