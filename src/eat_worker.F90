@@ -84,6 +84,7 @@ subroutine do_worker()
 
       if (iand(recv_signal(1),signal_send_state) == signal_send_state) then
          CALL RANDOM_NUMBER(state)
+         state=state+rank-1
          call MPI_SEND(state,state_size,MPI_DOUBLE,0,member,MPI_COMM_model,ierr)
       end if
 
