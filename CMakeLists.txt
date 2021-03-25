@@ -2,19 +2,12 @@
 
 cmake_minimum_required(VERSION 3.0)
 
-if(NOT PROJECT_NAME STREQUAL eat)
-   project(eat VERSION 0.1.0 LANGUAGES Fortran)
-endif()
+project(eat VERSION 0.1.0 LANGUAGES Fortran)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake/Modules/")
 
 # Use solution folders in IDEs
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-
-# Use use position-independent code (-fPIC) everywhere if building shared libraries
-if(BUILD_SHARED_LIBS)
-   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-endif()
 
 # Specify default build type for single-build-type systems (not VS)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -29,17 +22,19 @@ endif()
 # User-configurable options
 # ----------------------------
 
-option(GOTM_USE_CVMIX "Include support for the CVMix turbulence closure models (github.com/CVMix)" OFF)
+set(GOTM_USE_CVMIX OFF CACHE BOOL "Include support for the CVMix turbulence closure models (github.com/CVMix)" FORCE)
 
-option(GOTM_USE_FABM "Include support for Framework for Aquatic Biogeochemical Models (fabm.net)" ON)
+set(GOTM_USE_FABM ON CACHE BOOL "Include support for Framework for Aquatic Biogeochemical Models (fabm.net)" FORCE)
 
-option(GOTM_USE_STIM "Include support for Simple Thermodynamic Ice Models - STIM" OFF)
+set(GOTM_USE_STIM OFF CACHE BOOL "Include support for Simple Thermodynamic Ice Models - STIM" FORCE)
+
+mark_as_advanced(GOTM_USE_CVMIX GOTM_USE_FABM GOTM_USE_STIM)
 
 # ----------------------------
 # Dependencies
 # ----------------------------
 
-add_subdirectory("extern/gotm")
+add_subdirectory("extern/gotm" EXCLUDE_FROM_ALL)
 
 find_package(MPI REQUIRED)
 if(MPI_Fortran_INCLUDE_PATH)
