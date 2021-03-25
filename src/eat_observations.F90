@@ -34,7 +34,7 @@ subroutine init_observations()
    character(len=32) :: buf
    integer :: i,n
 !-----------------------------------------------------------------------
-   call init_mpi_config(obs_color)
+   call init_mpi_config(color_obs)
 
    open(newunit=unit,file="obs_times.dat",status='old',action='read',iostat=ios)
    if (ios /= 0) stop 'init_obs(): unable to open obs_times.dat for reading'

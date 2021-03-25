@@ -16,21 +16,21 @@ module mpi_config
 
    private
 
-   integer, parameter, public :: server_color=1
-   integer, parameter, public :: obs_color=2
-   integer, parameter, public :: model_color=4
-   integer, public :: rank, nprocs
+   public :: init_mpi_config, version_mpi_config
+   integer, parameter, public :: color_server=1
+   integer, parameter, public :: color_obs=2
+   integer, parameter, public :: color_model=4
+
+   integer, parameter, public :: signal_initialize=1
+   integer, parameter, public :: signal_integrate=2
+   integer, parameter, public :: signal_finalize=4
+   integer, parameter, public :: signal_send_state=8
 #ifdef _F08_
    TYPE(mpi_comm), public :: MPI_COMM_obs,MPI_COMM_model
 #else
    integer, public :: MPI_COMM_obs,MPI_COMM_model
 #endif
-!KB   public :: init_mpi_config, version_mpi_config, barrier_mpi_config, finish_mpi_config
-   public :: init_mpi_config, version_mpi_config
-   integer, parameter, public :: signal_initialize=1
-   integer, parameter, public :: signal_integrate=2
-   integer, parameter, public :: signal_finalize=4
-   integer, parameter, public :: signal_send_state=8
+   integer, public :: rank, nprocs
 
    integer :: ierr
 
@@ -56,41 +56,41 @@ subroutine init_mpi_config(color)
    logical :: flag
 !-------------------------------------------------------------------------
    call MPI_init(ierr)
-   if(ierr .ne. MPI_SUCCESS) then
+   if(ierr /= MPI_SUCCESS) then
       write(0,*) 'Fatal error: unable to initialize MPI.'
       call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
    end if
 
    ! Get number of processes
    call MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
-   if (ierr .ne. MPI_SUCCESS) THEN
+   if (ierr /= MPI_SUCCESS) THEN
       write(error_unit,*) 'Fatal error: unable to get number of processes.'
       call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
    end if
 
    !  Get rank of current in MPI_COMM_WORLD
    call MPI_COMM_RANK(MPI_COMM_WORLD,rank,ierr)
-   if (ierr .ne. MPI_SUCCESS) THEN
+   if (ierr /= MPI_SUCCESS) THEN
       write(error_unit,*) 'Fatal error: unable to get RANK.'
       call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
    end if
 
    ! Get the processor names
    call MPI_GET_PROCESSOR_NAME(pname,len,ierr)
-   if(ierr .ne. MPI_SUCCESS) THEN
+   if(ierr /= MPI_SUCCESS) THEN
       write(error_unit,*) 'Fatal error: unable to get processor name.'
       call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
    end if
 
    ! Setup inter/intra communicators
-   if (iand(color,obs_color) == obs_color) then
-      call MPI_Comm_split(MPI_COMM_WORLD,obs_color,rank,MPI_COMM_obs,ierr)
+   if (iand(color,color_obs) == color_obs) then
+      call MPI_Comm_split(MPI_COMM_WORLD,color_obs,rank,MPI_COMM_obs,ierr)
    else
       call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,MPI_COMM_obs,ierr)
    end if
 
-   if (iand(color,model_color) == model_color) then
-      call MPI_Comm_split(MPI_COMM_WORLD,model_color,rank,MPI_COMM_model,ierr)
+   if (iand(color,color_model) == color_model) then
+      call MPI_Comm_split(MPI_COMM_WORLD,color_model,rank,MPI_COMM_model,ierr)
    else
       call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,MPI_COMM_model,ierr)
    end if
@@ -122,23 +122,3 @@ end subroutine version_mpi_config
 !-----------------------------------------------------------------------
 
 end module mpi_config
-
-#if 0
-subroutine barrier_mpi_config()
-
-   IMPLICIT NONE
-
-!-------------------------------------------------------------------------
-   call MPI_Barrier(MPI_COMM_model,ierr)
-end subroutine barrier_mpi_config
-
-!-----------------------------------------------------------------------
-
-subroutine finish_mpi_config()
-
-   IMPLICIT NONE
-! !LOCAL VARIABLES:
-!-------------------------------------------------------------------------
-   call MPI_Finalize(ierr)
-end subroutine finish_mpi_config
-#endif

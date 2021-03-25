@@ -45,7 +45,7 @@ subroutine init_server()
 !-----------------------------------------------------------------------
    call cmdline()
 
-   call init_mpi_config(obs_color+model_color)
+   call init_mpi_config(color_obs+color_model)
 
    write(strbuf, "(A,I0.4)") 'gotm_', 0
    yaml_file = TRIM(strbuf) // '.yaml'

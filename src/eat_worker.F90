@@ -33,7 +33,7 @@ subroutine init_worker()
    !! An implementation of GOTM in an ensemble context
 
 !-----------------------------------------------------------------------
-   call init_mpi_config(model_color)
+   call init_mpi_config(color_model)
 end subroutine init_worker
 
 !-----------------------------------------------------------------------
