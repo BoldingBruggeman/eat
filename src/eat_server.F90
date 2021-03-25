@@ -20,7 +20,6 @@ program eat_server
    logical :: do_assimilation=.false.
 #ifdef _ASYNC_
    integer, allocatable :: state_reqs(:)
-   integer, dimension(MPI_STATUS_SIZE) :: stat
    integer, allocatable :: state_stats(:,:)
 #endif
 !-----------------------------------------------------------------------
