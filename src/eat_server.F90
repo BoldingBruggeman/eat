@@ -217,7 +217,7 @@ subroutine ensemble_integration(t1,t2,all_states)
 
    ! Local variables
    integer :: stat(MPI_STATUS_SIZE)
-   integer :: send_signal(6)
+   integer :: send_signal(5)
    integer :: member
    integer :: julday,secs
    integer :: nsecs
@@ -228,7 +228,6 @@ subroutine ensemble_integration(t1,t2,all_states)
    send_signal(3)=-1
    send_signal(4)=MinN
    send_signal(5)=MaxN
-   send_signal(6)=-1
    if (present(t1)) then
       if (len(trim(t1)) .gt. 0) then
          call read_time_string(t1,julday,secs)
@@ -254,7 +253,6 @@ subroutine ensemble_integration(t1,t2,all_states)
 
    if (present(all_states)) then
       send_signal(1) = send_signal(1)+signal_send_state
-      send_signal(6)=size(all_states,1)
    end if
 
    if (iand(send_signal(1),signal_initialize) == signal_initialize) then
@@ -268,7 +266,7 @@ subroutine ensemble_integration(t1,t2,all_states)
       write(error_unit,'(a,i4,a)') 'ensemble(finalize)    --> ',nensemble,' members'
    end if
    do member=1,nensemble
-      call MPI_SEND(send_signal,6,MPI_INTEGER,member,member,MPI_COMM_model,ierr)
+      call MPI_SEND(send_signal,5,MPI_INTEGER,member,member,MPI_COMM_model,ierr)
       if (present(all_states)) then
 #ifdef _ASYNC_
          call MPI_IRECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,state_reqs(member),ierr)

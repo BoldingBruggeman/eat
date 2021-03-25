@@ -54,18 +54,14 @@ subroutine do_worker()
    logical :: flag
    integer :: stat(MPI_STATUS_SIZE)
    character(len=128) :: fname,strbuf
-   integer :: recv_signal(6)
+   integer :: recv_signal(5)
    integer :: request
 !-----------------------------------------------------------------------
    do
-      call MPI_RECV(recv_signal,6,MPI_INTEGER,0,MPI_ANY_TAG,MPI_COMM_model,stat,ierr)
+      call MPI_RECV(recv_signal,5,MPI_INTEGER,0,MPI_ANY_TAG,MPI_COMM_model,stat,ierr)
       member=stat(MPI_TAG)
 
       if (iand(recv_signal(1),signal_initialize) == signal_initialize) then
-         if (recv_signal(6) /= -1) then
-            state_size=recv_signal(6)
-            allocate(state(state_size))
-         end if
          write(output_id, "(A,I0.4)") '_', member
          write(strbuf, "(A,I0.4)") 'gotm_', member
          yaml_file = TRIM(strbuf) // '.yaml'
@@ -74,6 +70,10 @@ subroutine do_worker()
          fname = TRIM(strbuf) // '.stdout'
          open(output_unit,file=fname)
          call init_gotm()
+         state_size=1234 !!!!KB
+         if (iand(recv_signal(1),signal_send_state) == signal_send_state) then
+            allocate(state(state_size))
+         end if
 !         if (MinN /= recv_signal(4)) stop 'MinN diffrent between server and worker'
 !         if (MaxN /= recv_signal(5)) stop 'MaxN diffrent between server and worker'
       end if
