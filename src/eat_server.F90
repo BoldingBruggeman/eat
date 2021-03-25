@@ -16,6 +16,8 @@ program eat_server
    logical :: do_observations=.false.
    logical :: do_ensemble=.false.
    logical :: do_assimilation=.false.
+   integer, allocatable :: state_reqs(:)
+   integer, allocatable :: state_stats(:,:)
 !-----------------------------------------------------------------------
    call init_server()
    call do_server()
@@ -32,7 +34,7 @@ subroutine init_server()
 
    use gotm, only: init_gotm,yaml_file
 
-   ! Local variables 
+   ! Local variables
    logical :: flag
    integer :: n
    character(len=128) :: fname,strbuf
@@ -81,6 +83,8 @@ subroutine init_server()
 
    if (do_assimilation) then
       allocate(all_states(state_size,nensemble))
+      allocate(state_reqs(nensemble))
+      allocate(state_stats(MPI_STATUS_SIZE,nensemble))
    end if
    if (.not. do_ensemble .and. .not. do_assimilation) then
       write(error_unit,*) './server_handler -h'
@@ -129,6 +133,10 @@ subroutine do_server()
                call MPI_RECV(obs,nobs,MPI_DOUBLE,1,1,MPI_COMM_obs,stat,ierr)
                write(error_unit,'(a,i6)') 'observations(receive) --> ',nobs
                write(error_unit,*) 'server - recv obs ',sum(obs)/nobs
+            end if
+            if (allocated(all_states)) then
+               !KBcall MPI_WAITALL(nensemble,state_reqs,state_stats,ierr)
+               call MPI_WAITALL(nensemble,state_reqs,MPI_STATUSES_IGNORE,ierr)
             end if
             write(error_unit,'(a)') 'filter(calculate)'
             call do_filter(1,all_states,obs)
@@ -214,7 +222,7 @@ subroutine ensemble_integration(t1,t2,all_states)
    if (present(t1)) then
       if (len(trim(t1)) .gt. 0) then
          call read_time_string(t1,julday,secs)
-         nsecs = time_diff(julday,secs,jul1,secs1) 
+         nsecs = time_diff(julday,secs,jul1,secs1)
          send_signal(2) = nint(nsecs/timestep)+1
       else
          send_signal(1)=send_signal(1)+signal_initialize
@@ -225,7 +233,7 @@ subroutine ensemble_integration(t1,t2,all_states)
    if (present(t2)) then
       if (len(trim(t2)) .gt. 0) then
          call read_time_string(t2,julday,secs)
-         nsecs = time_diff(julday,secs,jul1,secs1) 
+         nsecs = time_diff(julday,secs,jul1,secs1)
          send_signal(3) = nint(nsecs/timestep)
       else
          send_signal(1)=send_signal(1)+signal_finalize
@@ -252,7 +260,8 @@ subroutine ensemble_integration(t1,t2,all_states)
    do member=1,nensemble
       call MPI_SEND(send_signal,6,MPI_INTEGER,member,member,MPI_COMM_model,ierr)
       if (present(all_states)) then
-         call MPI_RECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,stat,ierr)
+         call MPI_IRECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,state_reqs(member),ierr)
+!KB         call MPI_IRECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,state_stats(member),ierr)
          write(error_unit,*) 'server - recv state ',member,sum(all_states(:,member))/state_size
       end if
    end do
