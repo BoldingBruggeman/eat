@@ -104,10 +104,14 @@ end subroutine init_mpi_config
 
 subroutine version_mpi_config(mpi_version, library_version)
 
+   !! Collect MPI and MPI Library version info
+
    IMPLICIT NONE
 
+   ! Subroutine arguments
    character(len=*), intent(inout) :: mpi_version, library_version
 
+   ! Local variables
    integer :: v,sv,len
 !-------------------------------------------------------------------------
    call MPI_get_version(v,sv,ierr)
