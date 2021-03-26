@@ -1,7 +1,6 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
 #define NO_GOTM
-#define _ASYNC_
 
 program eat_worker
 
@@ -60,12 +59,8 @@ program eat_worker
       if (iand(recv_signal(1),signal_send_state) == signal_send_state) then
          CALL RANDOM_NUMBER(state)
          state=state+rank-1
-#ifdef _ASYNC_
          call MPI_ISEND(state,state_size,MPI_DOUBLE,0,member,MPI_COMM_model,request,ierr)
          call MPI_WAIT(request,stat,ierr)
-#else
-         call MPI_SEND(state,state_size,MPI_DOUBLE,0,member,MPI_COMM_model,ierr)
-#endif
       end if
 
       if (iand(recv_signal(1),signal_finalize) == signal_finalize) then

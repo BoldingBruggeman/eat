@@ -1,7 +1,5 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-#define _ASYNC_
-
 program eat_server
 
    !! An ensemble/assimilation server
@@ -18,11 +16,9 @@ program eat_server
    logical :: do_observations=.false.
    logical :: do_ensemble=.false.
    logical :: do_assimilation=.false.
-#ifdef _ASYNC_
    integer :: nreqs
    integer, allocatable :: all_reqs(:)
    integer, allocatable :: all_stats(:,:)
-#endif
 !-----------------------------------------------------------------------
    call init_server()
    call do_server()
@@ -64,9 +60,7 @@ subroutine init_server()
    nensemble=nensemble-1
    if (nensemble > 1) then
       do_ensemble=.true.
-#ifdef _ASYNC_
       nreqs=nensemble
-#endif
       call MPI_COMM_TEST_INTER(MPI_COMM_model,flag,ierr)
       if (flag) then
          write(error_unit,*) 'Inter-communicator: server-worker created'
@@ -79,9 +73,7 @@ subroutine init_server()
    !KBn=n-1
    if (n == 2) then
       do_observations=.true.
-#ifdef _ASYNC_
       nreqs=nreqs+1
-#endif
       call MPI_COMM_TEST_INTER(MPI_COMM_obs,flag,ierr)
       if (flag) then
          write(error_unit,*) 'Inter-communicator: server-obs created'
@@ -94,10 +86,8 @@ subroutine init_server()
 
    if (do_assimilation) then
       allocate(all_states(state_size,nensemble))
-#ifdef _ASYNC_
       allocate(all_reqs(nreqs))
       allocate(all_stats(MPI_STATUS_SIZE,nreqs))
-#endif
    end if
    if (.not. do_ensemble .and. .not. do_assimilation) then
       write(error_unit,*) './server_handler -h'
@@ -149,15 +139,10 @@ subroutine do_server()
                    deallocate(obs)
                    allocate(obs(nobs))
                end if
-#ifdef _ASYNC_
                call MPI_IRECV(obs,nobs,MPI_DOUBLE,1,1,MPI_COMM_obs,all_reqs(nreqs),ierr)
-#else
-               call MPI_RECV(obs,nobs,MPI_DOUBLE,1,1,MPI_COMM_obs,stat,ierr)
-#endif
                write(error_unit,'(a,i6)') 'observations(receive) --> ',nobs
                write(error_unit,*) 'server - recv obs ',sum(obs)/nobs
             end if
-#ifdef _ASYNC_
             ! waiting for ensembles and observations to arrive
             if (allocated(all_states)) then
                call MPI_WAITALL(nreqs,all_reqs,all_stats(:,:),ierr)
@@ -165,7 +150,6 @@ subroutine do_server()
                   call MPI_ABORT(MPI_COMM_WORLD,1,ierr)
                end if
             end if
-#endif
             write(error_unit,'(a)') 'filter(calculate)'
             call do_filter(1,all_states,obs)
          end if
@@ -283,11 +267,7 @@ subroutine ensemble_integration(t1,t2,all_states)
    do member=1,nensemble
       call MPI_SEND(send_signal,4,MPI_INTEGER,member,member,MPI_COMM_model,ierr)
       if (present(all_states)) then
-#ifdef _ASYNC_
          call MPI_IRECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,all_reqs(member),ierr)
-#else
-         call MPI_RECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,stat,ierr)
-#endif
          write(error_unit,*) 'server - recv state ',member,sum(all_states(:,member))/state_size
       end if
    end do

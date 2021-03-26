@@ -1,7 +1,5 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-#define _ASYNC_
-
 program eat_observations
 
    !! A observation handler example program in Fortran.
@@ -80,14 +78,9 @@ subroutine do_observations()
              allocate(obs(nobs))
          end if
          CALL RANDOM_NUMBER(obs)
-#ifdef _ASYNC_
          call MPI_ISEND(obs,nobs,MPI_DOUBLE,0,1,MPI_COMM_obs,request,ierr)
          call sleep(1)
          call MPI_WAIT(request,stat,ierr)
-#else
-         call MPI_SEND(obs,nobs,MPI_DOUBLE,0,1,MPI_COMM_obs,ierr)
-         call sleep(1)
-#endif
       end if
    end do
    call MPI_SEND(halt,16,MPI_CHARACTER,0,1,MPI_COMM_obs,ierr)
