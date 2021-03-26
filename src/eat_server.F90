@@ -4,7 +4,7 @@
 
 program eat_server
 
-   !! A ensemble/assimilation server
+   !! An ensemble/assimilation server
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use mpi
@@ -19,8 +19,9 @@ program eat_server
    logical :: do_ensemble=.false.
    logical :: do_assimilation=.false.
 #ifdef _ASYNC_
-   integer, allocatable :: state_reqs(:)
-   integer, allocatable :: state_stats(:,:)
+   integer :: nreqs
+   integer, allocatable :: all_reqs(:)
+   integer, allocatable :: all_stats(:,:)
 #endif
 !-----------------------------------------------------------------------
    call init_server()
@@ -36,7 +37,7 @@ subroutine init_server()
 
    !! A observation handler stub
 
-   use gotm, only: init_gotm,yaml_file
+   use gotm, only: initialize_gotm,yaml_file
 
    ! Local variables
    logical :: flag
@@ -53,7 +54,7 @@ subroutine init_server()
    open(error_unit,file=fname)
    fname = TRIM(strbuf) // '.stdout'
    open(output_unit,file=fname)
-   call init_gotm()
+   call initialize_gotm()
    close(error_unit)
    close(output_unit)
 
@@ -63,6 +64,9 @@ subroutine init_server()
    nensemble=nensemble-1
    if (nensemble > 1) then
       do_ensemble=.true.
+#ifdef _ASYNC_
+      nreqs=nensemble
+#endif
       call MPI_COMM_TEST_INTER(MPI_COMM_model,flag,ierr)
       if (flag) then
          write(error_unit,*) 'Inter-communicator: server-worker created'
@@ -75,6 +79,9 @@ subroutine init_server()
    !KBn=n-1
    if (n == 2) then
       do_observations=.true.
+#ifdef _ASYNC_
+      nreqs=nreqs+1
+#endif
       call MPI_COMM_TEST_INTER(MPI_COMM_obs,flag,ierr)
       if (flag) then
          write(error_unit,*) 'Inter-communicator: server-obs created'
@@ -88,8 +95,8 @@ subroutine init_server()
    if (do_assimilation) then
       allocate(all_states(state_size,nensemble))
 #ifdef _ASYNC_
-      allocate(state_reqs(nensemble))
-      allocate(state_stats(MPI_STATUS_SIZE,nensemble))
+      allocate(all_reqs(nreqs))
+      allocate(all_stats(MPI_STATUS_SIZE,nreqs))
 #endif
    end if
    if (.not. do_ensemble .and. .not. do_assimilation) then
@@ -121,6 +128,9 @@ subroutine do_server()
       do
          ! receive next observation time
          call MPI_RECV(t2,19,MPI_CHARACTER,1,1,MPI_COMM_obs,stat,ierr)
+         if (ierr /= MPI_SUCCESS) then
+            call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
+         end if
          if(trim(t2) == "0000-00-00 00:00:00") then
             t2=''
             halt=.true.
@@ -130,19 +140,27 @@ subroutine do_server()
          if (.not. halt) then
             ! recieve observations
             call MPI_RECV(nobs,1,MPI_INTEGER,1,1,MPI_COMM_obs,stat,ierr)
+            if (ierr /= MPI_SUCCESS) then
+               call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
+            end if
             if (nobs > 0) then
                if (.not. allocated(obs)) allocate(obs(nobs))
                if (allocated(obs) .and. nobs > size(obs)) then
                    deallocate(obs)
                    allocate(obs(nobs))
                end if
+#ifdef _ASYNC_
+               call MPI_IRECV(obs,nobs,MPI_DOUBLE,1,1,MPI_COMM_obs,all_reqs(nreqs),ierr)
+#else
                call MPI_RECV(obs,nobs,MPI_DOUBLE,1,1,MPI_COMM_obs,stat,ierr)
+#endif
                write(error_unit,'(a,i6)') 'observations(receive) --> ',nobs
                write(error_unit,*) 'server - recv obs ',sum(obs)/nobs
             end if
 #ifdef _ASYNC_
+            ! waiting for ensembles and observations to arrive
             if (allocated(all_states)) then
-               call MPI_WAITALL(nensemble,state_reqs,state_stats(:,:),ierr)
+               call MPI_WAITALL(nreqs,all_reqs,all_stats(:,:),ierr)
                if (ierr /= MPI_SUCCESS) then
                   call MPI_ABORT(MPI_COMM_WORLD,1,ierr)
                end if
@@ -180,7 +198,7 @@ subroutine cmdline()
       select case (arg)
       case ('-h', '--help')
          call print_help()
-         stop
+         stop 0
       end select
       i = i+1
    end do
@@ -217,23 +235,18 @@ subroutine ensemble_integration(t1,t2,all_states)
 
    ! Local variables
    integer :: stat(MPI_STATUS_SIZE)
-   integer :: send_signal(5)
+   integer :: send_signal(4)
    integer :: member
    integer :: julday,secs
    integer :: nsecs
-   integer :: n
+   integer, save :: n
 !-----------------------------------------------------------------------
    send_signal(1)=signal_integrate
-   send_signal(2)=-1
-   send_signal(3)=-1
-   send_signal(4)=MinN
-   send_signal(5)=MaxN
+   send_signal(2)=-1   ! new MaxN
+   send_signal(3)=MinN ! Global MinN
+   send_signal(4)=MaxN ! Global MaxN
    if (present(t1)) then
-      if (len(trim(t1)) .gt. 0) then
-         call read_time_string(t1,julday,secs)
-         nsecs = time_diff(julday,secs,jul1,secs1)
-         send_signal(2) = nint(nsecs/timestep)+1
-      else
+      if (len(trim(t1)) == 0) then
          send_signal(1)=send_signal(1)+signal_initialize
       end if
    else
@@ -243,7 +256,7 @@ subroutine ensemble_integration(t1,t2,all_states)
       if (len(trim(t2)) .gt. 0) then
          call read_time_string(t2,julday,secs)
          nsecs = time_diff(julday,secs,jul1,secs1)
-         send_signal(3) = nint(nsecs/timestep)
+         send_signal(2) = nint(nsecs/timestep)
       else
          send_signal(1)=send_signal(1)+signal_finalize
       end if
@@ -264,12 +277,14 @@ subroutine ensemble_integration(t1,t2,all_states)
    end if
    if (iand(send_signal(1),signal_finalize) == signal_finalize) then
       write(error_unit,'(a,i4,a)') 'ensemble(finalize)    --> ',nensemble,' members'
+      send_signal(2) = MaxN
    end if
+
    do member=1,nensemble
-      call MPI_SEND(send_signal,5,MPI_INTEGER,member,member,MPI_COMM_model,ierr)
+      call MPI_SEND(send_signal,4,MPI_INTEGER,member,member,MPI_COMM_model,ierr)
       if (present(all_states)) then
 #ifdef _ASYNC_
-         call MPI_IRECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,state_reqs(member),ierr)
+         call MPI_IRECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,all_reqs(member),ierr)
 #else
          call MPI_RECV(all_states(:,member),state_size,MPI_DOUBLE,member,MPI_ANY_TAG,MPI_COMM_model,stat,ierr)
 #endif

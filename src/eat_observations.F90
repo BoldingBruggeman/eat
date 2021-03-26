@@ -1,5 +1,7 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
+#define _ASYNC_
+
 program eat_observations
 
    !! A observation handler example program in Fortran.
@@ -27,7 +29,8 @@ contains
 
 subroutine init_observations()
 
-   !! Observations are obtained from an external file - prepare to send to the server
+   !! Observation times are obtained from an external file - prepare to
+   !! send to the server
 
    ! Local variables
    integer :: unit,ios
@@ -64,6 +67,7 @@ subroutine do_observations()
    integer :: n,nobs
    real(real64), allocatable :: obs(:)
    character(len=32) :: timestr,halt="0000-00-00 00:00:00"
+   integer :: request
 !-----------------------------------------------------------------------
    do n=1,size(obs_times)
       call MPI_SEND(obs_times(n),19,MPI_CHARACTER,0,1,MPI_COMM_obs,ierr)
@@ -76,9 +80,15 @@ subroutine do_observations()
              allocate(obs(nobs))
          end if
          CALL RANDOM_NUMBER(obs)
+#ifdef _ASYNC_
+         call MPI_ISEND(obs,nobs,MPI_DOUBLE,0,1,MPI_COMM_obs,request,ierr)
+         call sleep(1)
+         call MPI_WAIT(request,stat,ierr)
+#else
          call MPI_SEND(obs,nobs,MPI_DOUBLE,0,1,MPI_COMM_obs,ierr)
+         call sleep(1)
+#endif
       end if
-      call sleep(1)
    end do
    call MPI_SEND(halt,16,MPI_CHARACTER,0,1,MPI_COMM_obs,ierr)
 end subroutine do_observations
