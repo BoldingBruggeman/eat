@@ -13,7 +13,7 @@ with open('obs_times.dat') as f:
         nobs = 10000*(i + 1)
         MPI_COMM_obs.Send(numpy.array(nobs, dtype='i4'), dest=0, tag=1)
         dat = numpy.random.random(nobs)
-        MPI_COMM_obs.Send(dat, dest=0, tag=1)
+        MPI_COMM_obs.Isend(dat, dest=0, tag=1).wait()
         time.sleep(1)
 
 MPI_COMM_obs.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=0, tag=1)
