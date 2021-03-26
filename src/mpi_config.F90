@@ -20,6 +20,9 @@ module mpi_config
    integer, parameter, public :: color_server=1
    integer, parameter, public :: color_obs=2
    integer, parameter, public :: color_model=4
+#ifdef _PDAF_
+   integer, parameter, public :: color_filter=8
+#endif
 
    integer, parameter, public :: signal_initialize=1
    integer, parameter, public :: signal_integrate=2
@@ -28,7 +31,9 @@ module mpi_config
 #ifdef _F08_
    TYPE(mpi_comm), public :: MPI_COMM_obs,MPI_COMM_model
 #else
-   integer, public :: MPI_COMM_obs,MPI_COMM_model
+   integer, public :: MPI_COMM_obs
+   integer, public :: MPI_COMM_model
+   integer, public :: MPI_COMM_filter
 #endif
    integer, public :: rank, nprocs
 
@@ -94,6 +99,14 @@ subroutine init_mpi_config(color)
    else
       call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,MPI_COMM_model,ierr)
    end if
+
+#ifdef _PDAF_
+   if (iand(color,color_filter) == color_filter) then
+      call MPI_Comm_split(MPI_COMM_WORLD,color_filter,rank,MPI_COMM_filter,ierr)
+   else
+      call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,MPI_COMM_filter,ierr)
+   end if
+#endif
 
    write(error_unit,*) 'Process ',rank,' of ',nprocs,' is alive on ',pname(1:len)
 

@@ -42,7 +42,11 @@ subroutine init_server()
 !-----------------------------------------------------------------------
    call cmdline()
 
+#ifdef _PDAF_
+   call init_mpi_config(color_obs+color_model+color_filter)
+#else
    call init_mpi_config(color_obs+color_model)
+#endif
 
    write(strbuf, "(A,I0.4)") 'gotm_', 0
    yaml_file = TRIM(strbuf) // '.yaml'
@@ -105,10 +109,12 @@ subroutine do_server()
    integer :: stat(MPI_STATUS_SIZE)
    integer :: nobs
    real(real64), allocatable :: obs(:)
-   integer :: buf(1)
-   integer :: i,n
+!KB   integer :: i,n
    character(len=32) :: timestr,t1='',t2=''
    logical :: halt=.false.
+   integer :: filter_reqs(2)
+   integer :: filter_stats(MPI_STATUS_SIZE,2)
+   integer :: send_signal(4)
 !-----------------------------------------------------------------------
    if (do_ensemble .and. .not. do_assimilation) then
       write(error_unit,'(a)') 'Only doing ensemble:'
@@ -150,9 +156,25 @@ subroutine do_server()
                   call MPI_ABORT(MPI_COMM_WORLD,1,ierr)
                end if
             end if
-            write(error_unit,'(a)') 'filter(calculate)'
-            call do_filter(1,all_states,obs)
          end if
+#ifdef _PDAF_
+         if (.not. halt) then
+            write(error_unit,'(a)') 'pdaf(filter)'
+            send_signal(1)=1
+            send_signal(2)=state_size
+            send_signal(3)=nensemble
+            send_signal(4)=nobs
+            call MPI_SEND(send_signal,4,MPI_INTEGER,1,1,MPI_COMM_filter,ierr)
+#if 1
+            call MPI_ISEND(all_states,nensemble*state_size,MPI_DOUBLE,1,1,MPI_COMM_filter,filter_reqs(1),ierr)
+            call MPI_ISEND(obs,nobs,MPI_DOUBLE,1,1,MPI_COMM_filter,filter_reqs(2),ierr)
+            call MPI_WAITALL(2,filter_reqs,filter_stats,ierr)
+#endif
+         else
+            send_signal(1)=-1
+            call MPI_SEND(send_signal,4,MPI_INTEGER,1,1,MPI_COMM_filter,ierr)
+         end if
+#endif
          if(halt) exit
          t1=t2
       end do

@@ -22,6 +22,8 @@ endif()
 # User-configurable options
 # ----------------------------
 
+option(EAT_USE_PDAF "Include support for the PDAF library" ON)
+
 set(GOTM_USE_CVMIX OFF CACHE BOOL "Include support for the CVMix turbulence closure models (github.com/CVMix)" FORCE)
 
 set(GOTM_USE_FABM ON CACHE BOOL "Include support for Framework for Aquatic Biogeochemical Models (fabm.net)" FORCE)
