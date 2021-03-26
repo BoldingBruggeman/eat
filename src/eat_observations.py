@@ -11,7 +11,7 @@ with open('obs_times.dat') as f:
         obs_time = l.rstrip('\n').strip('\'')
         MPI_COMM_obs.Send([obs_time.encode('ascii'), MPI.CHARACTER], dest=0, tag=1)
         nobs = 10000*(i + 1)
-        MPI_COMM_obs.Send(numpy.array(nobs), dest=0, tag=1)
+        MPI_COMM_obs.Send(numpy.array(nobs, dtype='i4'), dest=0, tag=1)
         dat = numpy.random.random(nobs)
         MPI_COMM_obs.Send(dat, dest=0, tag=1)
         time.sleep(1)
