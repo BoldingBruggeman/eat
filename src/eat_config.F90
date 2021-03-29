@@ -2,7 +2,7 @@
 
 !KB#define _F08_
 
-module mpi_config
+module eat_config
 
    !! General MPI routines shared by server, worker and obs_handler
 
@@ -16,25 +16,38 @@ module mpi_config
 
    private
 
-   public :: init_mpi_config, version_mpi_config
-   integer, parameter, public :: color_server=1
-   integer, parameter, public :: color_obs=2
-   integer, parameter, public :: color_model=4
-#ifdef _PDAF_
-   integer, parameter, public :: color_filter=8
-#endif
+   public :: init_eat_config, version_mpi_config
+   integer, parameter, public :: color_obs=1
+   integer, parameter, public :: color_model=2
+   integer, parameter, public :: color_filter=4
+!KB   integer, parameter, public :: color_obs_model=8
+!KB   integer, parameter, public :: color_obs_filter=16
+!KB   integer, parameter, public :: color_model_filter=32
 
-   integer, parameter, public :: signal_initialize=1
-   integer, parameter, public :: signal_integrate=2
-   integer, parameter, public :: signal_finalize=4
-   integer, parameter, public :: signal_send_state=8
 #ifdef _F08_
    TYPE(mpi_comm), public :: MPI_COMM_obs,MPI_COMM_model
 #else
-   integer, public :: MPI_COMM_obs
-   integer, public :: MPI_COMM_model
-   integer, public :: MPI_COMM_filter
+   integer, public :: EAT_COMM_obs
+   integer, public :: EAT_COMM_model
+   integer, public :: EAT_COMM_filter
+   integer, public :: EAT_COMM_obs_model
+   integer, public :: EAT_COMM_obs_filter
+   integer, public :: EAT_COMM_model_filter
 #endif
+   integer, public :: size_obs_comm
+   integer, public :: size_model_comm
+   integer, public :: size_filter_comm
+   integer, public :: size_obs_model_comm
+   integer, public :: size_obs_filter_comm
+   integer, public :: size_model_filter_comm
+
+   integer, public :: rank_obs_comm=-1
+   integer, public :: rank_model_comm=-1
+   integer, public :: rank_filter_comm=-1
+   integer, public :: rank_obs_model_comm=-1
+   integer, public :: rank_obs_filter_comm=-1
+   integer, public :: rank_model_filter_comm=-1
+
    integer, public :: rank, nprocs
 
    integer :: ierr
@@ -45,7 +58,7 @@ contains
 
 !-----------------------------------------------------------------------
 
-subroutine init_mpi_config(color)
+subroutine init_eat_config(color)
 
    !! Initialize MPI, define communicators and set variables
 
@@ -86,32 +99,89 @@ subroutine init_mpi_config(color)
       write(error_unit,*) 'Fatal error: unable to get processor name.'
       call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
    end if
+   write(error_unit,'(A,I4,A,I4,2A)') 'MPI_COMM_WORLD(process) ',rank,' of ',nprocs,' is alive on ',pname(1:len)
 
    ! Setup inter/intra communicators
+   ! Observations only
    if (iand(color,color_obs) == color_obs) then
-      call MPI_Comm_split(MPI_COMM_WORLD,color_obs,rank,MPI_COMM_obs,ierr)
+      call MPI_Comm_split(MPI_COMM_WORLD,color_obs,rank,EAT_COMM_obs,ierr)
    else
-      call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,MPI_COMM_obs,ierr)
+      call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,EAT_COMM_obs,ierr)
+   end if
+   if (EAT_COMM_obs /= MPI_COMM_NULL) then
+      call MPI_COMM_SIZE(EAT_COMM_obs,size_obs_comm,ierr)
+      call MPI_COMM_RANK(EAT_COMM_obs,rank_obs_comm,ierr)
+   else
+      size_obs_comm=0
    end if
 
+   ! Model only
    if (iand(color,color_model) == color_model) then
-      call MPI_Comm_split(MPI_COMM_WORLD,color_model,rank,MPI_COMM_model,ierr)
+      call MPI_Comm_split(MPI_COMM_WORLD,color_model,rank,EAT_COMM_model,ierr)
    else
-      call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,MPI_COMM_model,ierr)
+      call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,EAT_COMM_model,ierr)
+   end if
+   if (EAT_COMM_model /= MPI_COMM_NULL) then
+      call MPI_COMM_SIZE(EAT_COMM_model,size_model_comm,ierr)
+      call MPI_COMM_RANK(EAT_COMM_model,rank_model_comm,ierr)
+   else
+      size_model_comm=0
    end if
 
-#ifdef _PDAF_
+   ! Filter only
    if (iand(color,color_filter) == color_filter) then
-      call MPI_Comm_split(MPI_COMM_WORLD,color_filter,rank,MPI_COMM_filter,ierr)
+      call MPI_Comm_split(MPI_COMM_WORLD,color_filter,rank,EAT_COMM_filter,ierr)
    else
-      call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,MPI_COMM_filter,ierr)
+      call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,EAT_COMM_filter,ierr)
    end if
-#endif
+   if (EAT_COMM_filter /= MPI_COMM_NULL) then
+      call MPI_COMM_SIZE(EAT_COMM_filter,size_filter_comm,ierr)
+      call MPI_COMM_RANK(EAT_COMM_filter,rank_filter_comm,ierr)
+   else
+      size_filter_comm=0
+   end if
 
-   write(error_unit,*) 'Process ',rank,' of ',nprocs,' is alive on ',pname(1:len)
+   ! Observations and model
+   if (iand(color,color_obs) == color_obs .or. iand(color,color_model) == color_model) then
+      call MPI_Comm_split(MPI_COMM_WORLD,color_obs+color_model,rank,EAT_COMM_obs_model,ierr)
+   else
+      call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,EAT_COMM_obs_model,ierr)
+   end if
+   if (EAT_COMM_obs_model /= MPI_COMM_NULL) then
+      call MPI_COMM_SIZE(EAT_COMM_obs_model,size_obs_model_comm,ierr)
+      call MPI_COMM_RANK(EAT_COMM_obs_model,rank_obs_model_comm,ierr)
+   else
+      size_obs_model_comm=0
+   end if
+
+   ! Observations and filter
+   if (iand(color,color_obs) == color_obs .or. iand(color,color_filter) == color_filter) then
+      call MPI_Comm_split(MPI_COMM_WORLD,color_obs+color_filter,rank,EAT_COMM_obs_filter,ierr)
+   else
+      call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,EAT_COMM_obs_filter,ierr)
+   end if
+   if (EAT_COMM_obs_filter /= MPI_COMM_NULL) then
+      call MPI_COMM_SIZE(EAT_COMM_obs_filter,size_obs_filter_comm,ierr)
+      call MPI_COMM_RANK(EAT_COMM_obs_filter,rank_obs_filter_comm,ierr)
+   else
+      size_obs_filter_comm=0
+   end if
+
+   ! Model and filter
+   if (iand(color,color_model) == color_model .or. iand(color,color_filter) == color_filter) then
+      call MPI_Comm_split(MPI_COMM_WORLD,color_model+color_filter,rank,EAT_COMM_model_filter,ierr)
+   else
+      call MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,rank,EAT_COMM_model_filter,ierr)
+   end if
+   if (EAT_COMM_model_filter /= MPI_COMM_NULL) then
+      call MPI_COMM_SIZE(EAT_COMM_model_filter,size_model_filter_comm,ierr)
+      call MPI_COMM_RANK(EAT_COMM_model_filter,rank_model_filter_comm,ierr)
+   else
+      size_model_filter_comm=0
+   end if
 
    call MPI_Barrier(MPI_COMM_WORLD,ierr)
-end subroutine init_mpi_config
+end subroutine init_eat_config
 
 !-----------------------------------------------------------------------
 
@@ -134,4 +204,4 @@ end subroutine version_mpi_config
 
 !-----------------------------------------------------------------------
 
-end module mpi_config
+end module eat_config
