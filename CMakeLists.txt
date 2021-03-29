@@ -36,6 +36,7 @@ mark_as_advanced(GOTM_USE_CVMIX GOTM_USE_FABM GOTM_USE_STIM)
 # Dependencies
 # ----------------------------
 
+add_subdirectory("extern/datetime-fortran" EXCLUDE_FROM_ALL)
 add_subdirectory("extern/gotm" EXCLUDE_FROM_ALL)
 
 find_package(MPI REQUIRED)
