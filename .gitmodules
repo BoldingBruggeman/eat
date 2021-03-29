@@ -1,3 +1,6 @@
 [submodule "extern/gotm"]
 	path = extern/gotm
 	url = git@github.com:gotm-model/code.git
+[submodule "extern/datetime-fortran"]
+	path = extern/datetime-fortran
+	url = https://github.com/wavebitscientific/datetime-fortran.git
