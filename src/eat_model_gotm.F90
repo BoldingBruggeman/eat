@@ -1,17 +1,13 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-!#define NO_GOTM
-
-program eat_model
+program eat_model_gotm
 
    !! An implementation of GOTM in an ensemble context
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use mpi
    use eat_config
-#ifndef NO_GOTM
    use gotm, only: initialize_gotm, integrate_gotm, finalize_gotm
-#endif
    use time, only: start,stop,timestep
    use time, only: MinN,MaxN
    use datetime_module, only: datetime, timedelta, clock, strptime
@@ -33,7 +29,6 @@ program eat_model
    logical :: ensemble_only=.false.
    integer :: signal
 
-
    ! Most of this must go to a model specific file
    character(len=256), parameter :: time_format='%Y-%m-%d %H:%M:%S'
    TYPE(datetime), save :: sim_start, sim_stop
@@ -54,10 +49,8 @@ program eat_model
    do
 !KB      call model%signal_setup()
       call signal_setup()
-!KBwrite(error_unit,*) 'AAAA ',signal
 
       if (iand(signal,signal_initialize) == signal_initialize) then
-!KB         call eat_model%initialize()
          call initialize_gotm()
          call post_eat_model_initialize()
          state_size=1234 !!!!KB
@@ -67,8 +60,6 @@ program eat_model
       end if
 
       if (iand(signal,signal_integrate) == signal_integrate) then
-!KB         call pre_eat_model_integrate()
-!KB         call eat_model%integrate()
          call pre_eat_model_integrate()
          call integrate_gotm()
          call post_eat_model_integrate()
@@ -82,7 +73,6 @@ program eat_model
       end if
 
       if (iand(signal,signal_finalize) == signal_finalize) then
-!KB         call eat_model%finalize()
          call finalize_gotm()
          exit
       end if
@@ -194,25 +184,4 @@ end subroutine post_eat_model_integrate
 
 !-----------------------------------------------------------------------
 
-#ifdef NO_GOTM
-subroutine initialize_gotm()
-   use gotm, only: yaml_file
-   start="1998-01-01 00:00:00"
-   stop="1999-01-01 00:00:00"
-   timestep=3600
-   write(error_unit,*) 'initialize_gotm(): ',trim(yaml_file)
-   MinN=1
-   MaxN=8760
-end subroutine initialize_gotm
-subroutine integrate_gotm()
-   write(error_unit,'(A,I5,A,I5)') ' integrate_gotm(): ',MinN,' -> ',MaxN
-   call sleep(1)
-end subroutine integrate_gotm
-subroutine finalize_gotm()
-   write(error_unit,*) 'finalize_gotm()'
-end subroutine finalize_gotm
-#endif
-
-!-----------------------------------------------------------------------
-
-end program eat_model
+end program eat_model_gotm

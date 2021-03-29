@@ -1,20 +1,13 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-!#define NO_GOTM
+program eat_model_seamless
 
-program eat_model
-
-   !! An implementation of GOTM in an ensemble context
+   !! An implementation of a test in an ensemble context
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use mpi
    use eat_config
-#ifndef NO_GOTM
-   use gotm, only: initialize_gotm, integrate_gotm, finalize_gotm
-#endif
-   use time, only: start,stop,timestep
-   use time, only: MinN,MaxN
-   use datetime_module, only: datetime, timedelta, clock, strptime
+   use datetime_module, only: datetime, timedelta, strptime
    IMPLICIT NONE
 
    integer, parameter :: signal_initialize=1
@@ -28,11 +21,12 @@ program eat_model
    integer :: stat(MPI_STATUS_SIZE)
    integer :: request
    integer :: state_size
-   character(len=19) :: timestr
+   character(len=19) :: start,stop,timestr
+   real(real64) :: timestep
+   integer :: MinN,MaxN
    real(real64), allocatable :: state(:)
    logical :: ensemble_only=.false.
    integer :: signal
-
 
    ! Most of this must go to a model specific file
    character(len=256), parameter :: time_format='%Y-%m-%d %H:%M:%S'
@@ -52,13 +46,10 @@ program eat_model
    call pre_eat_model_initialize()
 
    do
-!KB      call model%signal_setup()
       call signal_setup()
-!KBwrite(error_unit,*) 'AAAA ',signal
 
       if (iand(signal,signal_initialize) == signal_initialize) then
-!KB         call eat_model%initialize()
-         call initialize_gotm()
+         call initialize_seamless()
          call post_eat_model_initialize()
          state_size=1234 !!!!KB
          if (iand(signal,signal_send_state) == signal_send_state) then
@@ -67,10 +58,8 @@ program eat_model
       end if
 
       if (iand(signal,signal_integrate) == signal_integrate) then
-!KB         call pre_eat_model_integrate()
-!KB         call eat_model%integrate()
          call pre_eat_model_integrate()
-         call integrate_gotm()
+         call integrate_seamless()
          call post_eat_model_integrate()
       end if
 
@@ -82,8 +71,7 @@ program eat_model
       end if
 
       if (iand(signal,signal_finalize) == signal_finalize) then
-!KB         call eat_model%finalize()
-         call finalize_gotm()
+         call finalize_seamless()
          exit
       end if
    end do
@@ -96,18 +84,6 @@ contains
 !-----------------------------------------------------------------------
 
 subroutine pre_eat_model_initialize()
-   output: block
-      use gotm, only: yaml_file,output_id
-      character(len=128) :: fname,strbuf
-      write(output_id, "(A,I0.4)") '_', member+1
-      write(strbuf, "(A,I0.4)") 'gotm_', member+1
-      yaml_file = TRIM(strbuf) // '.yaml'
-      fname = TRIM(strbuf) // '.stderr'
-      open(error_unit,file=fname)
-      fname = TRIM(strbuf) // '.stdout'
-      open(output_unit,file=fname)
-   end block output
-
    if (size_model_comm == size_obs_model_comm) then
       write(error_unit,*) "No observation program present"
       ensemble_only=.true.
@@ -128,7 +104,6 @@ end subroutine pre_eat_model_initialize
 !-----------------------------------------------------------------------
 
 subroutine post_eat_model_initialize()
-!KBwrite(error_unit,*) 'AAA ',trim(start),' to ',trim(stop)
    sim_start = strptime(trim(start), time_format)
    sim_stop  = strptime(trim(stop), time_format)
    write(error_unit,*) 'model(sim_start) ',sim_start%isoformat()
@@ -194,25 +169,22 @@ end subroutine post_eat_model_integrate
 
 !-----------------------------------------------------------------------
 
-#ifdef NO_GOTM
-subroutine initialize_gotm()
-   use gotm, only: yaml_file
+subroutine initialize_seamless()
    start="1998-01-01 00:00:00"
    stop="1999-01-01 00:00:00"
    timestep=3600
-   write(error_unit,*) 'initialize_gotm(): ',trim(yaml_file)
+   write(error_unit,*) 'initialize_seamless(): '
    MinN=1
    MaxN=8760
-end subroutine initialize_gotm
-subroutine integrate_gotm()
-   write(error_unit,'(A,I5,A,I5)') ' integrate_gotm(): ',MinN,' -> ',MaxN
+end subroutine initialize_seamless
+subroutine integrate_seamless()
+   write(error_unit,'(A,I5,A,I5)') ' integrate_seamless(): ',MinN,' -> ',MaxN
    call sleep(1)
-end subroutine integrate_gotm
-subroutine finalize_gotm()
-   write(error_unit,*) 'finalize_gotm()'
-end subroutine finalize_gotm
-#endif
+end subroutine integrate_seamless
+subroutine finalize_seamless()
+   write(error_unit,*) 'finalize_seamless()'
+end subroutine finalize_seamless
 
 !-----------------------------------------------------------------------
 
-end program eat_model
+end program eat_model_seamless
