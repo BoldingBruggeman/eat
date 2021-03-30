@@ -32,11 +32,10 @@ program eat_model_seamless
    character(len=256), parameter :: time_format='%Y-%m-%d %H:%M:%S'
    TYPE(datetime), save :: sim_start, sim_stop
    TYPE(datetime) :: start_time,stop_time
+   integer :: stderr=error_unit,stdout=output_unit
+   integer :: verbosity=warn
 !-----------------------------------------------------------------------
-   call init_eat_config(color_model)
-
-   write(error_unit,'(A,3I5)') ' model(ranks: M-OM-MF):  ',rank_model_comm,rank_obs_model_comm,rank_model_filter_comm
-   write(error_unit,'(A,3I5)') ' model(sizes: M-OM-OF):  ',size_model_comm,size_obs_model_comm,size_model_filter_comm
+   call init_eat_config(color_model+verbosity)
 
    call MPI_COMM_RANK(EAT_COMM_model,member,ierr)
    if (ierr /= MPI_SUCCESS) then
@@ -84,20 +83,17 @@ contains
 !-----------------------------------------------------------------------
 
 subroutine pre_eat_model_initialize()
-   if (size_model_comm == size_obs_model_comm) then
-      write(error_unit,*) "No observation program present"
+   if (EAT_COMM_obs_model == MPI_COMM_NULL) then
+      if (verbosity >= info) write(stderr,*) "No observation program present"
       ensemble_only=.true.
-      EAT_COMM_obs_model=MPI_COMM_NULL
    else
-      call MPI_COMM_RANK(EAT_COMM_obs_model,rank_obs_model_comm,ierr)
       signal=signal_initialize
    end if
 
-   if (size_model_comm == size_model_filter_comm) then
-      write(error_unit,*) "No filter program present"
-      EAT_COMM_model_filter=MPI_COMM_NULL
-   else
-      call MPI_COMM_RANK(EAT_COMM_model_filter,rank_model_filter_comm,ierr)
+   if (EAT_COMM_obs_filter == MPI_COMM_NULL) then
+      if (verbosity >= info) then
+         write(stderr,*) "No filter program present"
+      end if
    end if
 end subroutine pre_eat_model_initialize
 
@@ -106,9 +102,11 @@ end subroutine pre_eat_model_initialize
 subroutine post_eat_model_initialize()
    sim_start = strptime(trim(start), time_format)
    sim_stop  = strptime(trim(stop), time_format)
-   write(error_unit,*) 'model(sim_start) ',sim_start%isoformat()
-   write(error_unit,*) 'model(sim_stop)  ',sim_stop%isoformat()
-   write(error_unit,*) 'model(timestep)  ',timestep
+   if (verbosity >= info) then
+      write(stderr,*) 'model(sim_start) ',sim_start%isoformat()
+      write(stderr,*) 'model(sim_stop)  ',sim_stop%isoformat()
+      write(stderr,*) 'model(timestep)  ',timestep
+   end if
    if (.not. ensemble_only) then
       start_time=sim_start
       signal=signal_initialize+signal_integrate
@@ -125,11 +123,9 @@ subroutine signal_setup() ! setup signal
    else
       if (first) then
          signal=signal+signal_integrate
-         MinN=1
          first=.false.
       else
          signal=signal_integrate
-         MinN=MaxN+1
       end if
 
       call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_obs_model,stat,ierr)
@@ -173,16 +169,16 @@ subroutine initialize_seamless()
    start="1998-01-01 00:00:00"
    stop="1999-01-01 00:00:00"
    timestep=3600
-   write(error_unit,*) 'initialize_seamless(): '
+   if (verbosity >= info) write(stderr,*) 'model(initialize): '
    MinN=1
    MaxN=8760
 end subroutine initialize_seamless
 subroutine integrate_seamless()
-   write(error_unit,'(A,I5,A,I5)') ' integrate_seamless(): ',MinN,' -> ',MaxN
+   if (verbosity >= info) write(stderr,'(A,I5,A,I5)') ' model(integrate): ',MinN,' -> ',MaxN
    call sleep(1)
 end subroutine integrate_seamless
 subroutine finalize_seamless()
-   write(error_unit,*) 'finalize_seamless()'
+   if (verbosity >= info) write(stderr,*) 'model(finalize)'
 end subroutine finalize_seamless
 
 !-----------------------------------------------------------------------

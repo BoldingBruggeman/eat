@@ -13,6 +13,8 @@ program eat_pdaf
    integer :: ierr
    logical :: have_obs=.true.
    logical :: have_model=.true.
+   integer :: stderr=error_unit,stdout=output_unit
+   integer :: verbosity=warn
 !-----------------------------------------------------------------------
 
    call eat_init_pdaf()
@@ -31,26 +33,17 @@ subroutine eat_init_pdaf()
 
    ! Local variables
 !-----------------------------------------------------------------------
-   call init_eat_config(color_filter)
+   call init_eat_config(color_filter+verbosity)
 
-   if (size_filter_comm == size_obs_filter_comm) then
-      write(error_unit,*) "filter(no observation executable present)"
+   if (EAT_COMM_obs_filter == MPI_COMM_NULL) then
+      if (verbosity >= info) write(stderr,*) "filter(no observation executable present)"
       have_obs=.false.
-      EAT_COMM_obs_filter=MPI_COMM_NULL
-   else
-      call MPI_COMM_RANK(EAT_COMM_obs_filter,rank_obs_filter_comm,ierr)
    end if
 
-   if (size_filter_comm == size_model_filter_comm) then
-      write(error_unit,*) "filter(no model executable present)"
+   if (EAT_COMM_model_filter == MPI_COMM_NULL) then
+      if (verbosity >= info) write(stderr,*) "filter(no model executable present)"
       have_model=.false.
-      EAT_COMM_model_filter=MPI_COMM_NULL
-   else
-      call MPI_COMM_RANK(EAT_COMM_model_filter,rank_model_filter_comm,ierr)
    end if
-
-   write(error_unit,'(A,3I5)') ' filter(ranks: F-OF-MF): ',rank_filter_comm,rank_obs_filter_comm,rank_model_filter_comm
-   write(error_unit,'(A,3I5)') ' filter(sizes: F-OF-MF): ',size_filter_comm,size_obs_filter_comm,size_model_filter_comm
 end subroutine eat_init_pdaf
 
 !-----------------------------------------------------------------------
@@ -76,7 +69,7 @@ subroutine eat_do_pdaf()
       if (ierr /= MPI_SUCCESS) then
          call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
       end if
-      write(error_unit,*) 'filter - signal ',recv_signal
+      if (verbosity >= debug) write(stderr,*) 'filter - signal ',recv_signal
       if (recv_signal(1) == -1) then
          exit
       else
@@ -92,7 +85,7 @@ subroutine eat_do_pdaf()
 #endif
       if (have_obs) then
          call MPI_RECV(nobs,1,MPI_INTEGER,0,1,EAT_COMM_obs_filter,stat,ierr)
-         write(error_unit,'(A,I6)') ' filter(<- nobs) ',nobs
+         if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<- nobs) ',nobs
          if (.not. allocated(obs)) allocate(obs(nobs))
          if (nobs > 0) then
             if (nobs > size(obs)) then
@@ -101,7 +94,7 @@ subroutine eat_do_pdaf()
             end if
             call MPI_IRECV(obs,nobs,MPI_DOUBLE,0,1,EAT_COMM_obs_filter,filter_reqs(1),ierr)
             call MPI_WAITALL(1,filter_reqs,filter_stats,ierr)
-            write(error_unit,*) 'filter(<- obs) ',sum(obs)/nobs
+            if (verbosity >= info) write(stderr,*) 'filter(<- obs) ',sum(obs)/nobs
          else
             exit
          end if

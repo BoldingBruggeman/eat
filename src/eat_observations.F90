@@ -17,6 +17,8 @@ program eat_observations
    logical :: have_filter=.true.
    integer :: nmodel=-1
 !KB   integer :: nfilter=-1
+   integer :: stderr=error_unit,stdout=output_unit
+   integer :: verbosity=warn
 !-----------------------------------------------------------------------
 
    call init_observations()
@@ -39,28 +41,19 @@ subroutine init_observations()
    character(len=32) :: buf
    integer :: i,n
 !-----------------------------------------------------------------------
-   call init_eat_config(color_obs)
+   call init_eat_config(color_obs+verbosity)
 
-   if (size_obs_comm == size_obs_model_comm) then
-      write(error_unit,*) "obs(no model executable present)"
+   if (EAT_COMM_obs_model == MPI_COMM_NULL) then
+      if (verbosity >= info) write(stderr,*) "obs(no model executable present)"
       have_model=.false.
-      EAT_COMM_obs_model=MPI_COMM_NULL
    else
-      call MPI_COMM_RANK(EAT_COMM_obs_model,rank_obs_model_comm,ierr)
-      call MPI_COMM_SIZE(EAT_COMM_obs_model,nmodel,ierr)
-      nmodel=nmodel-1 !KB - need size of obs comm
+      nmodel=size_obs_model_comm-size_obs_comm
    end if
 
-   if (size_obs_comm == size_obs_filter_comm) then
-      write(error_unit,*) "obs(no filter executable present)"
+   if (EAT_COMM_obs_filter == MPI_COMM_NULL) then
+      if (verbosity <= info) write(stderr,*) "obs(no filter executable present)"
       have_filter=.false.
-      EAT_COMM_obs_filter=MPI_COMM_NULL
-   else
-      call MPI_COMM_RANK(EAT_COMM_obs_filter,rank_obs_filter_comm,ierr)
    end if
-
-   write(error_unit,'(A,3I5)') ' obs(ranks: O-OM-OF):    ',rank_obs_comm,rank_obs_model_comm,rank_obs_filter_comm
-   write(error_unit,'(A,3I5)') ' obs(sizes: O-OM-OF):    ',size_obs_comm,size_obs_model_comm,size_obs_filter_comm
 
    open(newunit=unit,file="obs_times.dat",status='old',action='read',iostat=ios)
    if (ios /= 0) stop 'init_obs(): unable to open obs_times.dat for reading'
@@ -98,11 +91,11 @@ subroutine do_observations()
             call MPI_SEND(obs_times(n),19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr)
          end do
       else
-         write(error_unit,*) 'obs(-> time)  ',trim(obs_times(n))
+      if (verbosity >= info) write(stderr,*) 'obs(-> time)  ',trim(obs_times(n))
       end if
       if (have_filter) then
          nobs=10000*n
-         write(error_unit,'(A,I6)') ' obs(-> nobs)    ',nobs
+         if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> nobs)    ',nobs
          call MPI_SEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
          if (nobs > 0) then
             if (.not. allocated(obs)) allocate(obs(nobs))
@@ -122,11 +115,11 @@ subroutine do_observations()
          call MPI_SEND(halt,19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr) !!!! nmodel
       end do
    else
-      write(error_unit,*) 'obs(no more obs) -> halting'
+      if (verbosity >= info) write(stderr,*) 'obs(no more obs) -> halting'
    end if
    if (have_filter) then
       nobs=-1
-      write(error_unit,'(A,I6)') ' obs(-> nobs)    ',nobs
+      if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> nobs)    ',nobs
       call MPI_SEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
    end if
 end subroutine do_observations

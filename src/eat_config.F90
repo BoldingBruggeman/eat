@@ -20,9 +20,12 @@ module eat_config
    integer, parameter, public :: color_obs=1
    integer, parameter, public :: color_model=2
    integer, parameter, public :: color_filter=4
-!KB   integer, parameter, public :: color_obs_model=8
-!KB   integer, parameter, public :: color_obs_filter=16
-!KB   integer, parameter, public :: color_model_filter=32
+   integer, parameter, public :: debug=2048
+   integer, parameter, public :: info=1024
+   integer, parameter, public :: warn=512
+   integer, parameter, public :: error=256
+   integer, parameter, public :: fatal=128
+   integer, parameter, public :: silent=64
 
 #ifdef _F08_
    TYPE(mpi_comm), public :: MPI_COMM_obs,MPI_COMM_model
@@ -34,12 +37,12 @@ module eat_config
    integer, public :: EAT_COMM_obs_filter
    integer, public :: EAT_COMM_model_filter
 #endif
-   integer, public :: size_obs_comm
-   integer, public :: size_model_comm
-   integer, public :: size_filter_comm
-   integer, public :: size_obs_model_comm
-   integer, public :: size_obs_filter_comm
-   integer, public :: size_model_filter_comm
+   integer, public :: size_obs_comm=-1
+   integer, public :: size_model_comm=-1
+   integer, public :: size_filter_comm=-1
+   integer, public :: size_obs_model_comm=-1
+   integer, public :: size_obs_filter_comm=-1
+   integer, public :: size_model_filter_comm=-1
 
    integer, public :: rank_obs_comm=-1
    integer, public :: rank_model_comm=-1
@@ -51,6 +54,7 @@ module eat_config
    integer, public :: rank, nprocs
 
    integer :: ierr
+   integer :: stderr=error_unit,stdout=output_unit
 
 !-----------------------------------------------------------------------
 
@@ -82,24 +86,27 @@ subroutine init_eat_config(color)
    ! Get number of processes
    call MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
    if (ierr /= MPI_SUCCESS) THEN
-      write(error_unit,*) 'Fatal error: unable to get number of processes.'
+      write(stderr,*) 'Fatal error: unable to get number of processes.'
       call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
    end if
 
    !  Get rank of current in MPI_COMM_WORLD
    call MPI_COMM_RANK(MPI_COMM_WORLD,rank,ierr)
    if (ierr /= MPI_SUCCESS) THEN
-      write(error_unit,*) 'Fatal error: unable to get RANK.'
+      write(stderr,*) 'Fatal error: unable to get RANK.'
       call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
    end if
 
    ! Get the processor names
    call MPI_GET_PROCESSOR_NAME(pname,len,ierr)
    if(ierr /= MPI_SUCCESS) THEN
-      write(error_unit,*) 'Fatal error: unable to get processor name.'
+      write(stderr,*) 'Fatal error: unable to get processor name.'
       call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
    end if
-   write(error_unit,'(A,I4,A,I4,2A)') 'MPI_COMM_WORLD(process) ',rank,' of ',nprocs,' is alive on ',pname(1:len)
+
+   if (color >= warn) then
+      write(stderr,'(A,I4,A,I4,2A)') 'MPI_COMM_WORLD(process) ',rank,' of ',nprocs,' is alive on ',pname(1:len)
+   end if
 
    ! Setup inter/intra communicators
    ! Observations only
@@ -150,8 +157,6 @@ subroutine init_eat_config(color)
    if (EAT_COMM_obs_model /= MPI_COMM_NULL) then
       call MPI_COMM_SIZE(EAT_COMM_obs_model,size_obs_model_comm,ierr)
       call MPI_COMM_RANK(EAT_COMM_obs_model,rank_obs_model_comm,ierr)
-   else
-      size_obs_model_comm=0
    end if
 
    ! Observations and filter
@@ -163,8 +168,6 @@ subroutine init_eat_config(color)
    if (EAT_COMM_obs_filter /= MPI_COMM_NULL) then
       call MPI_COMM_SIZE(EAT_COMM_obs_filter,size_obs_filter_comm,ierr)
       call MPI_COMM_RANK(EAT_COMM_obs_filter,rank_obs_filter_comm,ierr)
-   else
-      size_obs_filter_comm=0
    end if
 
    ! Model and filter
@@ -176,8 +179,21 @@ subroutine init_eat_config(color)
    if (EAT_COMM_model_filter /= MPI_COMM_NULL) then
       call MPI_COMM_SIZE(EAT_COMM_model_filter,size_model_filter_comm,ierr)
       call MPI_COMM_RANK(EAT_COMM_model_filter,rank_model_filter_comm,ierr)
-   else
-      size_model_filter_comm=0
+   end if
+
+   if (iand(color,color_obs) == color_obs .and. color >= info) then
+      write(stderr,'(A,3I5)') ' obs(ranks: O-OM-OF):    ',rank_obs_comm,rank_obs_model_comm,rank_obs_filter_comm
+      write(stderr,'(A,3I5)') ' obs(sizes: O-OM-OF):    ',size_obs_comm,size_obs_model_comm,size_obs_filter_comm
+   end if
+
+   if (iand(color,color_model) == color_model .and. color >= info) then
+      write(stderr,'(A,3I5)') ' model(ranks: M-OM-MF):  ',rank_model_comm,rank_obs_model_comm,rank_model_filter_comm
+      write(stderr,'(A,3I5)') ' model(sizes: M-OM-OF):  ',size_model_comm,size_obs_model_comm,size_model_filter_comm
+   end if
+
+   if (iand(color,color_filter) == color_filter .and. color >= info) then
+      write(stderr,'(A,3I5)') ' filter(ranks: F-OF-MF): ',rank_filter_comm,    rank_obs_filter_comm,rank_model_filter_comm
+      write(stderr,'(A,3I5)') ' filter(sizes: F-OF-MF): ',size_filter_comm,    size_obs_filter_comm,size_model_filter_comm
    end if
 
    call MPI_Barrier(MPI_COMM_WORLD,ierr)
