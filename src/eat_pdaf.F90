@@ -7,6 +7,7 @@ program eat_pdaf
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use mpi
+   use pdaf_mod_filter
    use eat_config
    IMPLICIT NONE
 
