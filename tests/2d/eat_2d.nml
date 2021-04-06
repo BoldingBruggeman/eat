@@ -1,0 +1,9 @@
+&nml_2d_obs
+verbosity=512
+/
+
+&nml_2d_model
+verbosity=512
+all_verbose=.false.
+/
+

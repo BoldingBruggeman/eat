@@ -1,0 +1,9 @@
+&nml_seamless_obs
+verbosity=1024
+/
+
+&nml_seamless_model
+verbosity=1024
+all_verbose=.false.
+/
+

@@ -17,6 +17,8 @@ endif()
 
 # To check version of configuration file
 #KBadd_definitions(-D_CFG_VERSION_=${gotm_VERSION_MAJOR})
+set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
+include_directories("${CMAKE_BINARY_DIR}/modules")
 
 # ----------------------------
 # User-configurable options
@@ -38,6 +40,7 @@ mark_as_advanced(GOTM_USE_CVMIX GOTM_USE_FABM GOTM_USE_STIM)
 
 add_subdirectory("extern/datetime-fortran" EXCLUDE_FROM_ALL)
 add_subdirectory("extern/gotm" EXCLUDE_FROM_ALL)
+add_subdirectory("extern/pdaf" EXCLUDE_FROM_ALL)
 
 find_package(MPI REQUIRED)
 if(MPI_Fortran_INCLUDE_PATH)
