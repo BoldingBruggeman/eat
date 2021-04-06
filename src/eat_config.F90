@@ -30,12 +30,12 @@ module eat_config
 #ifdef _F08_
    TYPE(mpi_comm), public :: MPI_COMM_obs,MPI_COMM_model
 #else
-   integer, public :: EAT_COMM_obs
-   integer, public :: EAT_COMM_model
-   integer, public :: EAT_COMM_filter
-   integer, public :: EAT_COMM_obs_model
-   integer, public :: EAT_COMM_obs_filter
-   integer, public :: EAT_COMM_model_filter
+   integer, public :: EAT_COMM_obs=MPI_COMM_NULL
+   integer, public :: EAT_COMM_model=MPI_COMM_NULL
+   integer, public :: EAT_COMM_filter=MPI_COMM_NULL
+   integer, public :: EAT_COMM_obs_model=MPI_COMM_NULL
+   integer, public :: EAT_COMM_obs_filter=MPI_COMM_NULL
+   integer, public :: EAT_COMM_model_filter=MPI_COMM_NULL
 #endif
    integer, public :: size_obs_comm=-1
    integer, public :: size_model_comm=-1
@@ -104,7 +104,7 @@ subroutine init_eat_config(color)
       call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
    end if
 
-   if (color >= warn) then
+   if (color >= debug) then
       write(stderr,'(A,I4,A,I4,2A)') 'MPI_COMM_WORLD(process) ',rank,' of ',nprocs,' is alive on ',pname(1:len)
    end if
 
@@ -156,7 +156,17 @@ subroutine init_eat_config(color)
    end if
    if (EAT_COMM_obs_model /= MPI_COMM_NULL) then
       call MPI_COMM_SIZE(EAT_COMM_obs_model,size_obs_model_comm,ierr)
+   end if
+   if (iand(color,color_obs) == color_obs .and. size_obs_comm == size_obs_model_comm) then
+      EAT_COMM_obs_model = MPI_COMM_NULL
+   end if
+   if (iand(color,color_model) == color_model .and. size_model_comm == size_obs_model_comm) then
+      EAT_COMM_obs_model = MPI_COMM_NULL
+   end if
+   if (EAT_COMM_obs_model /= MPI_COMM_NULL) then
       call MPI_COMM_RANK(EAT_COMM_obs_model,rank_obs_model_comm,ierr)
+   else
+      size_obs_model_comm=-1
    end if
 
    ! Observations and filter
@@ -167,7 +177,17 @@ subroutine init_eat_config(color)
    end if
    if (EAT_COMM_obs_filter /= MPI_COMM_NULL) then
       call MPI_COMM_SIZE(EAT_COMM_obs_filter,size_obs_filter_comm,ierr)
-      call MPI_COMM_RANK(EAT_COMM_obs_filter,rank_obs_filter_comm,ierr)
+   end if
+   if (iand(color,color_obs) == color_obs .and. size_obs_comm == size_obs_filter_comm) then
+      EAT_COMM_obs_filter = MPI_COMM_NULL
+   end if
+   if (iand(color,color_filter) == color_filter .and. size_filter_comm == size_obs_filter_comm) then
+      EAT_COMM_obs_filter = MPI_COMM_NULL
+   end if
+   if (EAT_COMM_obs_filter /= MPI_COMM_NULL) then
+      call MPI_COMM_SIZE(EAT_COMM_obs_filter,size_obs_filter_comm,ierr)
+   else
+      size_obs_filter_comm=-1
    end if
 
    ! Model and filter
@@ -178,7 +198,17 @@ subroutine init_eat_config(color)
    end if
    if (EAT_COMM_model_filter /= MPI_COMM_NULL) then
       call MPI_COMM_SIZE(EAT_COMM_model_filter,size_model_filter_comm,ierr)
-      call MPI_COMM_RANK(EAT_COMM_model_filter,rank_model_filter_comm,ierr)
+   end if
+   if (iand(color,color_model) == color_model .and. size_model_comm == size_model_filter_comm) then
+      EAT_COMM_model_filter = MPI_COMM_NULL
+   end if
+   if (iand(color,color_filter) == color_filter .and. size_filter_comm == size_model_filter_comm) then
+      EAT_COMM_model_filter = MPI_COMM_NULL
+   end if
+   if (EAT_COMM_model_filter /= MPI_COMM_NULL) then
+      call MPI_COMM_SIZE(EAT_COMM_model_filter,size_model_filter_comm,ierr)
+   else
+      size_model_filter_comm=-1
    end if
 
    if (iand(color,color_obs) == color_obs .and. color >= info) then
