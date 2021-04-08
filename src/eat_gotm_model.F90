@@ -1,6 +1,6 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-program eat_model_gotm
+program eat_gotm_model
 
    !! An implementation of GOTM in an ensemble context
 
@@ -20,7 +20,6 @@ program eat_model_gotm
 
    integer :: ierr
    integer :: member
-   logical :: flag
    integer :: stat(MPI_STATUS_SIZE)
    integer :: request
    integer :: state_size
@@ -33,18 +32,33 @@ program eat_model_gotm
    character(len=256), parameter :: time_format='%Y-%m-%d %H:%M:%S'
    TYPE(datetime), save :: sim_start, sim_stop
    TYPE(datetime) :: start_time,stop_time
+   logical :: have_obs=.true.
+   logical :: have_filter=.true.
+   integer :: stderr=error_unit,stdout=output_unit
+   integer :: verbosity=info
+   character(len=*), parameter :: nmlfile='eat_gotm.nml'
+   logical :: fileexists
+   integer :: nmlunit,outunit
+   logical :: all_verbose=.false.
+   namelist /nml_gotm_model/ verbosity,all_verbose
 !-----------------------------------------------------------------------
-   call init_eat_config(color_model)
-
-   write(error_unit,'(A,3I5)') ' model(ranks: M-OM-MF):  ',rank_model_comm,rank_obs_model_comm,rank_model_filter_comm
-   write(error_unit,'(A,3I5)') ' model(sizes: M-OM-OF):  ',size_model_comm,size_obs_model_comm,size_model_filter_comm
-
-   call MPI_COMM_RANK(EAT_COMM_model,member,ierr)
-   if (ierr /= MPI_SUCCESS) then
-      call MPI_ABORT(MPI_COMM_WORLD,1,ierr)
+   inquire(FILE=nmlfile,EXIST=fileexists)
+   if (fileexists) then
+      open(newunit=nmlunit,file=nmlfile)
+      read(unit=nmlunit,nml=nml_gotm_model)
+      close(nmlunit)
+      if (verbosity >= warn) write(stderr,*) 'model(read namelist)'
    end if
 
-   call pre_eat_model_initialize()
+   call init_eat_config(color_model+verbosity)
+
+   member=rank_model_comm
+
+   if (.not. all_verbose .and. member /= 0) then
+      verbosity=silent
+   end if
+
+   call pre_model_initialize()
 
    do
 !KB      call model%signal_setup()
@@ -52,7 +66,7 @@ program eat_model_gotm
 
       if (iand(signal,signal_initialize) == signal_initialize) then
          call initialize_gotm()
-         call post_eat_model_initialize()
+         call post_model_initialize()
          state_size=1234 !!!!KB
          if (iand(signal,signal_send_state) == signal_send_state) then
             allocate(state(state_size))
@@ -60,9 +74,9 @@ program eat_model_gotm
       end if
 
       if (iand(signal,signal_integrate) == signal_integrate) then
-         call pre_eat_model_integrate()
+         call pre_model_integrate()
          call integrate_gotm()
-         call post_eat_model_integrate()
+         call post_model_integrate()
       end if
 
       if (iand(signal,signal_send_state) == signal_send_state) then
@@ -85,54 +99,7 @@ contains
 
 !-----------------------------------------------------------------------
 
-subroutine pre_eat_model_initialize()
-   output: block
-      use gotm, only: yaml_file,output_id
-      character(len=128) :: fname,strbuf
-      write(output_id, "(A,I0.4)") '_', member+1
-      write(strbuf, "(A,I0.4)") 'gotm_', member+1
-      yaml_file = TRIM(strbuf) // '.yaml'
-      fname = TRIM(strbuf) // '.stderr'
-      open(error_unit,file=fname)
-      fname = TRIM(strbuf) // '.stdout'
-      open(output_unit,file=fname)
-   end block output
-
-   if (size_model_comm == size_obs_model_comm) then
-      write(error_unit,*) "No observation program present"
-      ensemble_only=.true.
-      EAT_COMM_obs_model=MPI_COMM_NULL
-   else
-      call MPI_COMM_RANK(EAT_COMM_obs_model,rank_obs_model_comm,ierr)
-      signal=signal_initialize
-   end if
-
-   if (size_model_comm == size_model_filter_comm) then
-      write(error_unit,*) "No filter program present"
-      EAT_COMM_model_filter=MPI_COMM_NULL
-   else
-      call MPI_COMM_RANK(EAT_COMM_model_filter,rank_model_filter_comm,ierr)
-   end if
-end subroutine pre_eat_model_initialize
-
-!-----------------------------------------------------------------------
-
-subroutine post_eat_model_initialize()
-!KBwrite(error_unit,*) 'AAA ',trim(start),' to ',trim(stop)
-   sim_start = strptime(trim(start), time_format)
-   sim_stop  = strptime(trim(stop), time_format)
-   write(error_unit,*) 'model(sim_start) ',sim_start%isoformat()
-   write(error_unit,*) 'model(sim_stop)  ',sim_stop%isoformat()
-   write(error_unit,*) 'model(timestep)  ',timestep
-   if (.not. ensemble_only) then
-      start_time=sim_start
-      signal=signal_initialize+signal_integrate
-   end if
-end subroutine post_eat_model_initialize
-
-!-----------------------------------------------------------------------
-
-subroutine signal_setup() ! setup signal
+subroutine signal_setup()
    logical :: first=.true.
 
    if (ensemble_only) then
@@ -160,8 +127,52 @@ end subroutine signal_setup
 
 !-----------------------------------------------------------------------
 
-subroutine pre_eat_model_integrate()
-   logical :: first=.true.
+subroutine pre_model_initialize()
+   if (EAT_COMM_obs_model == MPI_COMM_NULL) then
+      if (verbosity >= warn) write(stderr,*) "model(no observation program present)"
+      have_obs=.false.
+      ensemble_only=.true.
+   else
+      signal=signal_initialize
+   end if
+
+   if (EAT_COMM_model_filter == MPI_COMM_NULL) then
+      if (verbosity >= warn) write(stderr,*) "model(no filter program present)"
+      have_filter=.false.
+   end if
+
+   output: block
+      use gotm, only: yaml_file,output_id
+      character(len=128) :: fname,strbuf
+      write(output_id, "(A,I0.4)") '_', member+1
+      write(strbuf, "(A,I0.4)") 'gotm_', member+1
+      yaml_file = TRIM(strbuf) // '.yaml'
+      fname = TRIM(strbuf) // '.stderr'
+      open(stderr,file=fname)
+      fname = TRIM(strbuf) // '.stdout'
+      open(output_unit,file=fname)
+   end block output
+end subroutine pre_model_initialize
+
+!-----------------------------------------------------------------------
+
+subroutine post_model_initialize()
+   sim_start = strptime(trim(start), time_format)
+   sim_stop  = strptime(trim(stop), time_format)
+   if (verbosity >= debug) then
+      write(stderr,*) 'model(sim_start) ',sim_start%isoformat()
+      write(stderr,*) 'model(sim_stop)  ',sim_stop%isoformat()
+      write(stderr,*) 'model(timestep)  ',timestep
+   end if
+   if (.not. ensemble_only) then
+      start_time=sim_start
+      signal=signal_initialize+signal_integrate
+   end if
+end subroutine post_model_initialize
+
+!-----------------------------------------------------------------------
+
+subroutine pre_model_integrate()
    TYPE(timedelta) :: td
    if (.not. ensemble_only) then
       if(trim(timestr) == "0000-00-00 00:00:00") then
@@ -172,16 +183,16 @@ subroutine pre_eat_model_integrate()
       td = stop_time-sim_start
       MaxN=int(td%total_seconds()/timestep)
    end if
-end subroutine pre_eat_model_integrate
+end subroutine pre_model_integrate
 
 !-----------------------------------------------------------------------
 
-subroutine post_eat_model_integrate()
+subroutine post_model_integrate()
    if (.not. ensemble_only) then
       MinN=MaxN+1
    end if
-end subroutine post_eat_model_integrate
+end subroutine post_model_integrate
 
 !-----------------------------------------------------------------------
 
-end program eat_model_gotm
+end program eat_gotm_model
