@@ -107,12 +107,11 @@ subroutine do_observations()
    integer :: request
 !-----------------------------------------------------------------------
    do n=1,size(obs_times)
+      if (verbosity >= info) write(stderr,*) 'obs(-> time)  ',trim(obs_times(n))
       if (have_model) then
          do m=1,nmodel
             call MPI_SEND(obs_times(n),19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr)
          end do
-      else
-      if (verbosity >= info) write(stderr,*) 'obs(-> time)  ',trim(obs_times(n))
       end if
       if (have_filter) then
          nobs=10000*n
