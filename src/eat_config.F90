@@ -185,7 +185,7 @@ subroutine init_eat_config(color)
       EAT_COMM_obs_filter = MPI_COMM_NULL
    end if
    if (EAT_COMM_obs_filter /= MPI_COMM_NULL) then
-      call MPI_COMM_SIZE(EAT_COMM_obs_filter,size_obs_filter_comm,ierr)
+      call MPI_COMM_RANK(EAT_COMM_obs_filter,rank_obs_filter_comm,ierr)
    else
       size_obs_filter_comm=-1
    end if
@@ -206,7 +206,7 @@ subroutine init_eat_config(color)
       EAT_COMM_model_filter = MPI_COMM_NULL
    end if
    if (EAT_COMM_model_filter /= MPI_COMM_NULL) then
-      call MPI_COMM_SIZE(EAT_COMM_model_filter,size_model_filter_comm,ierr)
+      call MPI_COMM_RANK(EAT_COMM_model_filter,rank_model_filter_comm,ierr)
    else
       size_model_filter_comm=-1
    end if
