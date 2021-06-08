@@ -7,15 +7,29 @@ program eat_pdaf_filter
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use mpi
-   use pdaf_mod_filter
    use eat_config
+   use pdaf_mod_filter
    IMPLICIT NONE
+
+   integer :: nobs
+   integer, allocatable :: iobs(:)
+   real(real64), allocatable :: obs(:)
+
+   real(real64) :: rms_obs = 0.05    ! Observation error standard deviation
 
    integer :: ierr
    logical :: have_obs=.true.
    logical :: have_model=.true.
+   integer :: state_size,ensemble_size
+   integer, allocatable :: model_reqs(:)
+   integer, allocatable :: model_stats(:,:)
+   real(real64), allocatable :: model_states(:,:)
    integer :: stderr=error_unit,stdout=output_unit
-   integer :: verbosity=warn
+   integer :: verbosity=info
+
+   logical :: fileexists
+   character(len=*), parameter :: nmlfile='eat_pdaf.nml'
+   integer :: nmlunit
 
    ! PDAF variables
    integer :: filtertype=6
@@ -36,15 +50,19 @@ subroutine eat_init_pdaf()
    !! Initialize EAT/PDAF component
 
    ! Local variables
+   integer :: stat(MPI_STATUS_SIZE)
    integer :: ierr
+   namelist /nml_pdaf_filter/ verbosity
 !-----------------------------------------------------------------------
-   call init_eat_config(color_filter+verbosity)
-   CALL init_pdaf(ierr)
-   if (ierr /= 0) then
-      call MPI_ABORT(MPI_COMM_WORLD,-1,ierr)
-   else
-      write(error_unit,*) 'filter(PDAF is initialized)'
+   INQUIRE(FILE=nmlfile, EXIST=fileexists)
+   if (fileexists) then
+      open(newunit=nmlunit,file=nmlfile,status='old',action='read')
+      read(nmlunit,nml=nml_pdaf_filter)
+      close(nmlunit)
+      if (verbosity >= warn) write(stderr,*) 'filter(read namelist)'
    end if
+
+   call init_eat_config(color_filter+verbosity)
 
    if (EAT_COMM_obs_filter == MPI_COMM_NULL) then
       if (verbosity >= info) write(stderr,*) "filter(no observation executable present)"
@@ -54,7 +72,26 @@ subroutine eat_init_pdaf()
    if (EAT_COMM_model_filter == MPI_COMM_NULL) then
       if (verbosity >= info) write(stderr,*) "filter(no model executable present)"
       have_model=.false.
+   else
+      call MPI_RECV(state_size,1,MPI_INTEGER,1,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+      if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<- state_size) ',state_size
+      ensemble_size=size_model_filter_comm-size_filter_comm
+      allocate(model_states(state_size,ensemble_size))
+      allocate(model_reqs(ensemble_size))
+      allocate(model_stats(MPI_STATUS_SIZE,ensemble_size))
    end if
+
+#define _USE_PDAF_
+#ifdef _USE_PDAF_
+#if 0
+   CALL init_pdaf(ierr)
+   if (ierr /= 0) then
+      call MPI_ABORT(MPI_COMM_WORLD,-1,ierr)
+   else
+      write(error_unit,*) 'filter(PDAF is initialized)'
+   end if
+#endif
+#endif
 end subroutine eat_init_pdaf
 
 !-----------------------------------------------------------------------
@@ -64,57 +101,88 @@ subroutine eat_do_pdaf()
    !! Get observations and states and do the PDAF/assimilation step
 
    ! Local variables
-   integer :: recv_signal(4)
-   integer :: nensemble
-   integer :: state_size
-   integer :: nobs
    real(real64), allocatable :: states(:,:)
-   real(real64), allocatable :: obs(:)
    integer :: stat(MPI_STATUS_SIZE)
-   integer :: filter_reqs(2)
-   integer :: filter_stats(MPI_STATUS_SIZE,2)
+   integer :: obs_stats(MPI_STATUS_SIZE,2)
+   integer :: obs_requests(2)
+   integer :: m
+   logical :: first=.true.
 !-----------------------------------------------------------------------
    do
-#if 0
-      call MPI_RECV(recv_signal,4,MPI_INTEGER,0,1,EAT_COMM_filter,stat,ierr)
-      if (ierr /= MPI_SUCCESS) then
-         call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
-      end if
-      if (verbosity >= debug) write(stderr,*) 'filter - signal ',recv_signal
-      if (recv_signal(1) == -1) then
-         exit
-      else
-         state_size=recv_signal(2)
-         nensemble=recv_signal(3)
-         nobs=recv_signal(4)
-         if (.not. allocated(states)) allocate(states(state_size,nensemble))
-         if (state_size > size(states,1) .or. nensemble > size(states,2)) then
-            deallocate(states)
-            allocate(states(state_size,nensemble))
-         end if
-         call MPI_IRECV(states,nensemble*state_size,MPI_DOUBLE,0,1,EAT_COMM_filter,filter_reqs(1),ierr)
-#endif
       if (have_obs) then
          call MPI_RECV(nobs,1,MPI_INTEGER,0,1,EAT_COMM_obs_filter,stat,ierr)
          if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<- nobs) ',nobs
-         if (.not. allocated(obs)) allocate(obs(nobs))
-         if (nobs > 0) then
-            if (nobs > size(obs)) then
-               deallocate(obs)
-               allocate(obs(nobs))
-            end if
-            call MPI_IRECV(obs,nobs,MPI_DOUBLE,0,1,EAT_COMM_obs_filter,filter_reqs(1),ierr)
-            call MPI_WAITALL(1,filter_reqs,filter_stats,ierr)
-            if (verbosity >= info) write(stderr,*) 'filter(<- obs) ',sum(obs)/nobs
-         else
-            exit
-         end if
       end if
 
-      ! Begin PDAF specific part
-      ! from .../tutorial/classical/offline_2D_serial/main_offline.F90
-      CALL assimilation_pdaf()
+      if (have_model .and. nobs > 0) then
+         do m=1,ensemble_size
+            call MPI_IRECV(model_states(:,m),state_size,MPI_DOUBLE,m,MPI_ANY_TAG,EAT_COMM_model_filter,model_reqs(m),ierr)
+         end do
+      end if
+
+      if (have_obs .and. nobs > 0) then
+         if (.not. allocated(iobs)) allocate(iobs(nobs))
+         if (nobs > size(iobs)) then
+            deallocate(iobs)
+            allocate(iobs(nobs))
+         end if
+         if (.not. allocated(obs)) allocate(obs(nobs))
+         if (nobs > size(obs)) then
+            deallocate(obs)
+            allocate(obs(nobs))
+         end if
+         call MPI_IRECV(iobs(1:nobs),nobs,MPI_INTEGER,0,1,EAT_COMM_obs_filter,obs_requests(1),ierr)
+         call MPI_IRECV(obs(1:nobs),nobs,MPI_DOUBLE,0,1,EAT_COMM_obs_filter,obs_requests(2),ierr)
+      end if
+
+      if (have_model .and. nobs > 0) then
+         if (verbosity >= info) write(stderr,'(x,A)') 'filter(<- state)'
+         call MPI_WAITALL(ensemble_size,model_reqs,model_stats(:,:),ierr)
+         do m=1,ensemble_size
+            if (verbosity >= debug) write(stderr,'(x,A,I4,*(F10.5))') 'filter(<- state)',m,sum(model_states(:,m))/state_size
+         end do
+      end if
+
+      if (have_obs .and. nobs > 0) then
+         call MPI_WAITALL(2,obs_requests,obs_stats,ierr)
+         if (verbosity >= debug) write(stderr,'(A,F10.6)') ' filter(<- obs) ',sum(obs)/nobs
+!KBwrite(*,*) iobs(1:nobs)
+      end if
+
+      if (have_obs .and. have_model .and. nobs > 0) then
+#if 0
+         ! PDAF-D_estkf_analysis.F90
+         ! PDAF-D_V1.13.2/tutorial/offline_2D_serial/obs_op_f_pdaf.F90
+         do m=1,nobs
+            di(m)=obs(m)-(model_states())
+         end if
+#endif
+!#ifndef _USE_PDAF_
+#ifdef _USE_PDAF_
+         ! Begin PDAF specific part
+         ! from .../tutorial/classical/offline_2D_serial/main_offline.F90
+         if (first) then
+            CALL init_pdaf(ierr)
+            first=.false.
+            if (ierr /= 0) then
+               call MPI_ABORT(MPI_COMM_WORLD,-1,ierr)
+            else
+               write(error_unit,*) 'filter(PDAF is initialized)'
+            end if
+         end if
+         CALL assimilation_pdaf()
       ! End PDAF specific part
+#endif
+         do m=1,ensemble_size
+            call MPI_ISEND(model_states(:,m),state_size,MPI_DOUBLE,m,m,EAT_COMM_model_filter,model_reqs(m),ierr)
+         end do
+         call MPI_WAITALL(ensemble_size,model_reqs,model_stats(:,:),ierr)
+         if (verbosity >= info) write(stderr,'(x,A)') 'filter(-> state)'
+      end if
+
+      if (nobs <= 0) then
+         exit
+      end if
    end do
 end subroutine eat_do_pdaf
 
@@ -125,7 +193,7 @@ subroutine eat_finish_pdaf()
    !! Cleanup and finalize the EAT/PDAF component
 
 !-----------------------------------------------------------------------
-#if 0
+#ifdef _USE_PDAF__
    CALL finalize_pdaf(0) ! Basically CALL PDAF_deallocate()
 #endif
    call MPI_Finalize(ierr)
@@ -157,7 +225,8 @@ integer :: dim_state_p
 
 !KB Missing - comm_couple, comm_filter, comm_model, filterpe, n_modeltasks, task_id
 !KB all known from eat_config - with different names
- integer :: comm_couple, comm_filter, comm_model, filterpe, n_modeltasks, task_id
+ integer :: comm_couple, comm_filter, comm_model, n_modeltasks, task_id
+ logical :: filterpe=.true.
 !KB
 
 ! Local variables
@@ -183,9 +252,10 @@ integer :: dim_state_p
                     !   (7) LESTKF
   integer :: &
   dim_ens = 9       ! Size of ensemble for all ensemble filters
+!KB  dim_ens = 2       ! Size of ensemble for all ensemble filters
                     ! Number of EOFs to be used for SEEK
   integer :: &
-  subtype = 5       ! (5) Offline mode
+  subtype = 1       ! (5) Offline mode !KB 5
   integer :: &
   type_trans = 0    ! Type of ensemble transformation
                     !   SEIK/LSEIK and ESTKF/LESTKF:
@@ -224,8 +294,8 @@ integer :: dim_state_p
 ! *********************************************************************
 
 ! *** specifications for observations ***
-  real :: &
-  rms_obs = 0.5    ! Observation error standard deviation
+!KB  real :: &
+!KB  rms_obs = 0.5    ! Observation error standard deviation
                    ! for the Gaussian distribution
 ! *** Localization settings
   integer :: &
@@ -244,21 +314,23 @@ integer :: dim_state_p
   character(len=128) :: &
   filename = 'output.dat'
 
-  logical :: fileexists
-  character(len=*), parameter :: nmlfile='eat_pdaf_config.nml'
-  integer :: nmlunit
+  namelist /nml_pdaf_config/ screen,filtertype,subtype
 
-!KB read some configuration from namelist
-   namelist /eat_pdaf/ screen,filtertype
+  INQUIRE(FILE=nmlfile, EXIST=fileexists)
+  if (fileexists) then
+     open(newunit=nmlunit,file=nmlfile,status='old',action='read')
+     read(nmlunit,nml=nml_pdaf_config)
+     close(nmlunit)
+  end if
 
-   INQUIRE(FILE=nmlfile, EXIST=fileexists)
-   if (fileexists) then
-      open(newunit=nmlunit,file=nmlfile,status='old',action='read')
-      read(nmlunit,nml=eat_pdaf)
-      close(nmlunit)
-   end if
-   write(*,*) screen,filtertype
-!KB
+   ! initialize variables for call to PDAF_init()
+   dim_state_p=state_size
+   comm_couple=MPI_COMM_NULL
+   comm_filter=EAT_COMM_filter
+   comm_model=EAT_COMM_model
+   filterpe=.true.
+   task_id=1
+   n_modeltasks=1
 
   whichinit: IF (filtertype == 2) THEN
      ! *** EnKF with Monte Carlo init ***
@@ -268,14 +340,12 @@ integer :: dim_state_p
      filter_param_i(4) = incremental ! Whether to perform incremental analysis
      filter_param_i(5) = 0           ! Smoother lag (not implemented here)
      filter_param_r(1) = forget      ! Forgetting factor
-#if 1
      CALL PDAF_init(filtertype, subtype, 0, &
           filter_param_i, 6,&
           filter_param_r, 2, &
           COMM_model, COMM_filter, COMM_couple, &
           task_id, n_modeltasks, filterpe, init_ens_offline, &
           screen, status_pdaf)
-#endif
   ELSE
      ! *** All other filters                       ***
      ! *** SEIK, LSEIK, ETKF, LETKF, ESTKF, LESTKF ***
@@ -287,14 +357,12 @@ integer :: dim_state_p
      filter_param_i(6) = type_trans  ! Type of ensemble transformation
      filter_param_i(7) = type_sqrt   ! Type of transform square-root (SEIK-sub4/ESTKF)
      filter_param_r(1) = forget      ! Forgetting factor
-#if 1
      CALL PDAF_init(filtertype, subtype, 0, &
           filter_param_i, 7,&
           filter_param_r, 2, &
           COMM_model, COMM_filter, COMM_couple, &
           task_id, n_modeltasks, filterpe, init_ens_offline, &
           screen, status_pdaf)
-#endif
   END IF whichinit
 
   stat=status_pdaf
@@ -409,6 +477,7 @@ SUBROUTINE assimilation_pdaf()
           init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status)
   END IF
+write(0,*) 'STATUS ',status
 END SUBROUTINE assimilation_pdaf
 
 !-----------------------------------------------------------------------
@@ -416,104 +485,207 @@ END SUBROUTINE assimilation_pdaf
 ! Below a number of callback routines implemented by the user.
 ! At present it is unclear how many - and which - are needed for the EAT implementation.
 
+#define _CLASSICAL_OFFLINE_SERIAL_
+#ifdef _CLASSICAL_OFFLINE_SERIAL_
+SUBROUTINE init_ens_offline(filtertype,dim_p,dim_ens,state_p,Uinv,ens_p,flag)
+! !ARGUMENTS:
+  INTEGER, INTENT(in) :: filtertype              ! Type of filter to initialize
+  INTEGER, INTENT(in) :: dim_p                   ! PE-local state dimension
+  INTEGER, INTENT(in) :: dim_ens                 ! Size of ensemble
+  REAL, INTENT(inout) :: state_p(dim_p)          ! PE-local model state
+  ! It is not necessary to initialize the array 'state_p' for SEIK.
+  ! It is available here only for convenience and can be used freely.
+  REAL, INTENT(inout) :: Uinv(dim_ens-1,dim_ens-1) ! Array not referenced for SEIK
+  REAL, INTENT(out)   :: ens_p(dim_p, dim_ens)   ! PE-local state ensemble
+  INTEGER, INTENT(inout) :: flag                 ! PDAF status flag
 
-SUBROUTINE init_ens_offline(dim_p, state_p)
-integer, intent(in) :: dim_p
-integer, intent(inout) :: state_p(dim_p)
+   integer :: n=1
+   ! copy all_states(:,:) to ens_p
+   ens_p=model_states
+   n=n+1
 END SUBROUTINE init_ens_offline
 
 ! Routine to collect a state vector from model fields
 SUBROUTINE collect_state_pdaf(dim_p, state_p)
-integer, intent(in) :: dim_p
-integer, intent(inout) :: state_p(dim_p)
+   INTEGER, INTENT(in) :: dim_p
+   INTEGER, INTENT(inout) :: state_p(dim_p)
+   ! can be empty as all states have already been collected
 END SUBROUTINE collect_state_pdaf
 
 ! Initialize dimension of observation vector
-SUBROUTINE init_dim_obs_pdaf()
+SUBROUTINE init_dim_obs_pdaf(step, dim_obs_p)
+  INTEGER, INTENT(in)  :: step       ! Current time step
+  INTEGER, INTENT(out) :: dim_obs_p  ! Dimension of observation vector
+  dim_obs_p = nobs
 END SUBROUTINE init_dim_obs_pdaf
 
 ! Implementation of the Observation operator
-SUBROUTINE obs_op_pdaf()
+SUBROUTINE obs_op_pdaf(step, dim_p, dim_obs_p, state_p, m_state_p)
+  INTEGER, INTENT(in) :: step               ! Currrent time step
+  INTEGER, INTENT(in) :: dim_p              ! PE-local dimension of state
+  INTEGER, INTENT(in) :: dim_obs_p          ! Dimension of observed state
+  REAL, INTENT(in)    :: state_p(dim_p)     ! PE-local model state
+  REAL, INTENT(out) :: m_state_p(dim_obs_p) ! PE-local observed state
+
+  integer :: i
+
+  DO i = 1, dim_obs_p
+!     m_state_p(i) = state_p(obs_index_p(i))
+     m_state_p(i) = state_p(i)
+write(0,*) 'QQQQ ',i,state_p(i)
+  END DO
 END SUBROUTINE obs_op_pdaf
 
 ! Routine to provide vector of measurements
-SUBROUTINE init_obs_pdaf()
+SUBROUTINE init_obs_pdaf(step, dim_obs_f, observation_f)
+  INTEGER, INTENT(in) :: step        ! Current time step
+  INTEGER, INTENT(in) :: dim_obs_f   ! Dimension of full observation vector
+  REAL, INTENT(out)   :: observation_f(dim_obs_f) ! Full observation vector
+  observation_f = obs
 END SUBROUTINE init_obs_pdaf
 
 
 ! ! Subroutine used in SEIK and ETKF
 ! User supplied pre/poststep routine
-SUBROUTINE prepoststep_ens_offline()
+SUBROUTINE prepoststep_ens_offline(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state_p, Uinv, ens_p, flag)
+   INTEGER, INTENT(in) :: step        ! Current time step (not relevant for offline mode)
+   INTEGER, INTENT(in) :: dim_p       ! PE-local state dimension
+   INTEGER, INTENT(in) :: dim_ens     ! Size of state ensemble
+   INTEGER, INTENT(in) :: dim_ens_p   ! PE-local size of ensemble
+   INTEGER, INTENT(in) :: dim_obs_p   ! PE-local dimension of observation vector
+   REAL, INTENT(inout) :: state_p(dim_p) ! PE-local forecast/analysis state
+   ! The array 'state_p' is not generally not initialized in the case of SEIK.
+   ! It can be used freely here.
+   REAL, INTENT(inout) :: Uinv(dim_ens-1, dim_ens-1) ! Inverse of matrix U
+   REAL, INTENT(inout) :: ens_p(dim_p, dim_ens)      ! PE-local state ensemble
+   INTEGER, INTENT(in) :: flag        ! PDAF status flag
+
+write(0,*) 'AA1 ',dim_p, dim_ens, dim_ens_p, dim_obs_p
+write(0,*) 'AA2 ',sum(state_p)
+write(0,*) 'BBB ',sum(ens_p)
+
 END SUBROUTINE prepoststep_ens_offline
 
 ! Initialize mean observation error variance
-SUBROUTINE init_obsvar_pdaf()
+SUBROUTINE init_obsvar_pdaf(step, dim_obs_p, obs_p, meanvar)
+   INTEGER, INTENT(in) :: step          ! Current time step
+   INTEGER, INTENT(in) :: dim_obs_p     ! PE-local dimension of observation vector
+   REAL, INTENT(in) :: obs_p(dim_obs_p) ! PE-local observation vector
+   REAL, INTENT(out)   :: meanvar       ! Mean observation error variance
+   meanvar = rms_obs ** 2
 END SUBROUTINE init_obsvar_pdaf
+
+SUBROUTINE next_observation_pdaf(stepnow, nsteps, doexit, time)
+   INTEGER, INTENT(in)  :: stepnow  ! Number of the current time step
+   INTEGER, INTENT(out) :: nsteps   ! Number of time steps until next obs
+   INTEGER, INTENT(out) :: doexit   ! Whether to exit forecasting (1 for exit)
+   REAL, INTENT(out)    :: time     ! Current model (physical) time
+
+   logical :: first=.true.
+
+   if(first) then
+     nsteps=0
+     first=.false.
+   else
+     nsteps=1
+   end if
+END SUBROUTINE next_observation_pdaf
 
 
 ! ! Subroutines used in EnKF
 ! Add obs. error covariance R to HPH in EnKF
 SUBROUTINE add_obs_error_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-2,ierr)
 END SUBROUTINE add_obs_error_pdaf
 
 ! Initialize obs error covar R in EnKF
 SUBROUTINE init_obscovar_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE init_obscovar_pdaf
 
 
 ! ! Subroutine used in SEIK and ETKF
 ! Provide product R^-1 A for some matrix A
-SUBROUTINE prodRinvA_pdaf()
+SUBROUTINE prodRinvA_pdaf(step, dim_obs_p, rank, obs_p, A_p, C_p)
+   INTEGER, INTENT(in) :: step                ! Current time step
+   INTEGER, INTENT(in) :: dim_obs_p           ! PE-local dimension of obs. vector
+   INTEGER, INTENT(in) :: rank                ! Rank of initial covariance matrix
+   REAL, INTENT(in)    :: obs_p(dim_obs_p)    ! PE-local vector of observations
+   REAL, INTENT(in)    :: A_p(dim_obs_p,rank) ! Input matrix from SEEK_ANALYSIS
+   REAL, INTENT(out)   :: C_p(dim_obs_p,rank) ! Output matrix
+
+   integer :: i,j
+   REAL :: ivariance_obs
+
+   ivariance_obs = 1.0 / rms_obs ** 2
+   DO j = 1, rank
+      DO i = 1, dim_obs_p
+         C_p(i, j) = ivariance_obs * A_p(i, j)
+      END DO
+   END DO
 END SUBROUTINE prodRinvA_pdaf
 
 
 ! ! Subroutines used in LSEIK and LETKF
 ! Provide number of local analysis domains
 SUBROUTINE init_n_domains_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE init_n_domains_pdaf
 
 ! Initialize state dimension for local ana. domain
 SUBROUTINE init_dim_l_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE init_dim_l_pdaf
 
 ! Initialize dim. of obs. vector for local ana. domain
 SUBROUTINE init_dim_obs_l_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE init_dim_obs_l_pdaf
 
 ! Get state on local ana. domain from global state
 SUBROUTINE g2l_state_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE g2l_state_pdaf
 
 ! Init global state from state on local analysis domain
 SUBROUTINE g2l_obs_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE g2l_obs_pdaf
 
 ! Restrict a global obs. vector to local analysis domain
 SUBROUTINE l2g_state_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE l2g_state_pdaf
 
 ! Provide vector of measurements for local ana. domain
 SUBROUTINE init_obs_l_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE init_obs_l_pdaf
 
 ! Provide product R^-1 A for some matrix A (for LSEIK)
 SUBROUTINE prodRinvA_l_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE prodRinvA_l_pdaf
 
 ! Initialize local mean observation error variance
 SUBROUTINE init_obsvar_l_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE init_obsvar_l_pdaf
 
 ! Provide full vector of measurements for PE-local domain
 SUBROUTINE init_obs_f_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE init_obs_f_pdaf
 
 ! Obs. operator for full obs. vector for PE-local domain
 SUBROUTINE obs_op_f_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE obs_op_f_pdaf
 
 ! Get dimension of full obs. vector for PE-local domain
 SUBROUTINE init_dim_obs_f_pdaf()
+call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE init_dim_obs_f_pdaf
+#endif
 
 end program eat_pdaf_filter
