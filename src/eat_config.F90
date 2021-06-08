@@ -212,18 +212,33 @@ subroutine init_eat_config(color)
    end if
 
    if (iand(color,color_obs) == color_obs .and. color >= info) then
-      write(stderr,'(A,3I5)') ' obs(ranks: O-OM-OF):    ',rank_obs_comm,rank_obs_model_comm,rank_obs_filter_comm
-      write(stderr,'(A,3I5)') ' obs(sizes: O-OM-OF):    ',size_obs_comm,size_obs_model_comm,size_obs_filter_comm
+#if 0
+      write(stderr,'(A,*(I5))') ' obs(ranks: O-OM-OF):    ',rank_obs_comm,rank_obs_model_comm,rank_obs_filter_comm
+      write(stderr,'(A,*(I5))') ' obs(sizes: O-OM-OF):    ',size_obs_comm,size_obs_model_comm,size_obs_filter_comm
+#else
+      write(stderr,'(A,*(I5))') ' obs(ranks and sizes: O-OM-OF):    ',rank_obs_comm,rank_obs_model_comm,rank_obs_filter_comm, &
+                                                                    size_obs_comm,size_obs_model_comm,size_obs_filter_comm
+#endif
    end if
 
    if (iand(color,color_model) == color_model .and. color >= info) then
-      write(stderr,'(A,3I5)') ' model(ranks: M-OM-MF):  ',rank_model_comm,rank_obs_model_comm,rank_model_filter_comm
-      write(stderr,'(A,3I5)') ' model(sizes: M-OM-OF):  ',size_model_comm,size_obs_model_comm,size_model_filter_comm
+#if 0
+      write(stderr,'(A,*(I5))') ' model(ranks: M-OM-MF):  ',rank_model_comm,rank_obs_model_comm,rank_model_filter_comm
+      write(stderr,'(A,*(I5))') ' model(sizes: M-OM-OF):  ',size_model_comm,size_obs_model_comm,size_model_filter_comm
+#else
+      write(stderr,'(A,*(I5))') ' model(ranks and sizes: M-OM-MF):  ',rank_model_comm,rank_obs_model_comm,rank_model_filter_comm, &
+                                                                    size_model_comm,size_obs_model_comm,size_model_filter_comm
+#endif
    end if
 
    if (iand(color,color_filter) == color_filter .and. color >= info) then
-      write(stderr,'(A,3I5)') ' filter(ranks: F-OF-MF): ',rank_filter_comm,    rank_obs_filter_comm,rank_model_filter_comm
-      write(stderr,'(A,3I5)') ' filter(sizes: F-OF-MF): ',size_filter_comm,    size_obs_filter_comm,size_model_filter_comm
+#if 0
+      write(stderr,'(A,*(I5))') ' filter(ranks: F-OF-MF): ',rank_filter_comm,    rank_obs_filter_comm,rank_model_filter_comm
+      write(stderr,'(A,*(I5))') ' filter(sizes: F-OF-MF): ',size_filter_comm,    size_obs_filter_comm,size_model_filter_comm
+#else
+      write(stderr,'(A,*(I5))') ' filter(ranks and sizes: F-OF-MF): ',rank_filter_comm,rank_obs_filter_comm,rank_model_filter_comm,&
+                                                                    size_filter_comm,size_obs_filter_comm,size_model_filter_comm
+#endif
    end if
 
    call MPI_Barrier(MPI_COMM_WORLD,ierr)
