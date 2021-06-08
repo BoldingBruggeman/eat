@@ -2,60 +2,174 @@
 
 program eat_2d_obs
 
-   !! An re-implementation of the 'model' from here:
-   !! http://pdaf.awi.de/files/pdaf_tutorial_onlineserial.pdf
-   !! Used for testing the analysis step
+   !! The observation handler example program for the 2d test case
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use mpi
    use eat_config
-   use datetime_module, only: datetime, timedelta, strptime
+   use eat_2d_data
    IMPLICIT NONE
 
-   integer, parameter :: signal_initialize=1
-   integer, parameter :: signal_integrate=2
-   integer, parameter :: signal_finalize=4
-   integer, parameter :: signal_send_state=8
-
    integer :: ierr
-   integer :: member
-   logical :: flag
-   integer :: stat(MPI_STATUS_SIZE)
-   integer :: request
-   integer :: state_size
-   character(len=19) :: start,stop,timestr
-   real(real64) :: timestep
-   real(real64), allocatable :: state(:)
-   logical :: ensemble_only=.false.
-   integer :: signal
-
-   ! Most of this must go to a model specific file
-   character(len=256), parameter :: time_format='%Y-%m-%d %H:%M:%S'
-   TYPE(datetime), save :: sim_start, sim_stop
-   TYPE(datetime) :: start_time,stop_time
+   character(len=128)  :: obs_times_file='obs_2d_times.dat'
+   character(32), allocatable  :: obs_times(:)
+   integer, allocatable :: iobs(:)
+   real(real64), allocatable :: obs(:)
+   integer :: nobsmin=10,nobsmax=40
+   logical :: have_model=.true.
+   logical :: have_filter=.true.
+   integer :: nmodel=-1
+!KB   integer :: nfilter=-1
    integer :: stderr=error_unit,stdout=output_unit
-   integer :: verbosity=debug
+   integer :: verbosity=info
+!-----------------------------------------------------------------------
 
-   integer, parameter ::nx=36,ny=18
-   integer :: total_steps=5
-   integer :: N=0
-   real(real64) :: field(ny,nx)
-   integer :: outunit
-   integer :: i
+   call init_observations()
+   call do_observations()
+   call finish_observations()
+
+!-----------------------------------------------------------------------
+
+contains
+
+!-----------------------------------------------------------------------
+
+subroutine init_observations()
+
+   !! Observation times are obtained from an external file - prepare to
+   !! send to the server
+
+   ! Local variables
+   integer :: unit,ios
+   character(len=32) :: buf
+   integer :: i,n
    character(len=*), parameter :: nmlfile='eat_2d.nml'
    logical :: fileexists
-   integer :: nmlunit
+   integer :: nmlunit,outunit
    logical :: all_verbose=.true.
-   namelist /nml_2d_obs/ verbosity,all_verbose
+   namelist /nml_2d_obs/ verbosity,all_verbose,obs_times_file,nobsmin,nobsmax
 !-----------------------------------------------------------------------
-   inquire(FILE="eat_2d.nml", EXIST=fileexists)
+   inquire(FILE=nmlfile,EXIST=fileexists)
    if (fileexists) then
       open(newunit=nmlunit,file=nmlfile)
       read(unit=nmlunit,nml=nml_2d_obs)
       close(nmlunit)
       if (verbosity >= warn) write(stderr,*) 'obs(read namelist)'
    end if
-   call init_eat_config(color_model+verbosity)
+
+   if (nobsmin > nobsmax) then
+      stop "init_observations(): nobsmin must be <= nobsmax"
+   end if
+
+   call init_eat_config(color_obs+verbosity)
+
+   if (EAT_COMM_obs_model == MPI_COMM_NULL) then
+      if (verbosity >= warn) write(stderr,*) "obs(no model program present)"
+      have_model=.false.
+   else
+      nmodel=size_obs_model_comm-size_obs_comm
+   end if
+
+   if (EAT_COMM_obs_filter == MPI_COMM_NULL) then
+      if (verbosity >= warn) write(stderr,*) "obs(no filter program present)"
+      have_filter=.false.
+   end if
+
+!KB   if (.not. all_verbose .and. member /= 0) then
+!KB      verbosity=silent
+!KB   end if
+
+   open(newunit=unit,file=obs_times_file,status='old',action='read',iostat=ios)
+   if (verbosity >= fatal) then
+      if (ios /= 0) stop 'obs(unable to open obs_times.dat for reading)'
+   else
+      if (ios /= 0) stop 1
+   end if
+   n=0
+   do
+      read(unit,*,iostat=ios) buf
+      if (ios < 0) exit
+      if(len(buf) > 0) n=n+1
+   end do
+   allocate(obs_times(n))
+   rewind unit
+   do i=1,n
+      read(unit,*,iostat=ios) buf
+      if (ios < 0) exit
+      if(len(buf) > 0) obs_times(i) = trim(buf)
+   end do
+end subroutine init_observations
+
+!-----------------------------------------------------------------------
+
+subroutine do_observations()
+
+   !! Handle observations and send size and observations to the server
+
+   ! Local variables
+   integer :: stats(MPI_STATUS_SIZE,2)
+   integer :: m,n,nobs
+   real(real64) :: x
+   character(len=32) :: timestr,halt="0000-00-00 00:00:00"
+   integer :: requests(2)
+!-----------------------------------------------------------------------
+   do n=1,size(obs_times)
+      if (verbosity >= info) write(stderr,*) 'obs(-> time)  ',trim(obs_times(n))
+      if (have_model) then
+         do m=1,nmodel
+            call MPI_SEND(obs_times(n),19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr)
+         end do
+      end if
+
+      call random_number(x)
+      nobs=nobsmin+FLOOR((nobsmax+1-nobsmin)*x)
+      if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> nobs)    ',nobs
+      if (have_filter) then
+         call MPI_SEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
+      end if
+      if (nobs > 0) then
+         if (.not. allocated(iobs)) allocate(iobs(nobs))
+         if (allocated(iobs) .and. nobs > size(iobs)) then
+             deallocate(iobs)
+             allocate(iobs(nobs))
+         end if
+         if (.not. allocated(obs)) allocate(obs(nobs))
+         if (allocated(obs) .and. nobs > size(obs)) then
+             deallocate(obs)
+             allocate(obs(nobs))
+         end if
+         call get_obs(n,iobs(1:nobs),obs(1:nobs))
+         if (verbosity >= info)  write(stderr,'(A,F10.6)') ' obs(-> obs)    ',sum(obs)/nobs
+      end if
+      if (have_filter .and. nobs > 0) then
+         call MPI_ISEND(iobs(1:nobs),nobs,MPI_INTEGER,1,1,EAT_COMM_obs_filter,requests(1),ierr)
+         call MPI_ISEND(obs(1:nobs),nobs,MPI_DOUBLE,1,1,EAT_COMM_obs_filter,requests(2),ierr)
+!KB         call sleep(1)
+         call MPI_WAITALL(2,requests,stats,ierr)
+      end if
+   end do
+   if (have_filter) then
+      nobs=-1
+      if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> nobs)    ',nobs
+      call MPI_SEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
+   end if
+   if (have_model) then
+      if (verbosity >= info) write(stderr,*) 'obs(-> halt)'
+      do m=1,nmodel
+         call MPI_SEND(halt,19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr) !!!! nmodel
+      end do
+   end if
+end subroutine do_observations
+
+!-----------------------------------------------------------------------
+
+subroutine finish_observations()
+
+   !! Finish the eat_2d_obs program by calling MPI_Finalize()
+
+!-----------------------------------------------------------------------
+   call MPI_Finalize(ierr)
+end subroutine finish_observations
 
 !-----------------------------------------------------------------------
 
