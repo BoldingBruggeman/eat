@@ -34,6 +34,8 @@ set(GOTM_USE_STIM OFF CACHE BOOL "Include support for Simple Thermodynamic Ice M
 
 mark_as_advanced(GOTM_USE_CVMIX GOTM_USE_FABM GOTM_USE_STIM)
 
+find_package(LAPACK REQUIRED)
+
 # ----------------------------
 # Dependencies
 # ----------------------------
