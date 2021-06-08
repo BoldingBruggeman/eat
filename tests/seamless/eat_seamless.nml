@@ -9,6 +9,5 @@ all_verbose=.false.
 
 &nml_seamless_obs
 verbosity=2048
+obs_times_file='obs_2d.dat'
 /
-
-

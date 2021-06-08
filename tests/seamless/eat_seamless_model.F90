@@ -1,29 +1,174 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-program eat_seamless_model
-
-   !! An implementation of a test in an ensemble context
+module seamless_model_m
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use mpi
    use eat_config
-   use datetime_module, only: datetime, timedelta, strptime
+   use eat_model, only: type_eat_model
+   use eat_model, only: signal_initialize,signal_integrate,signal_finalize,signal_send_state
+
    IMPLICIT NONE
 
-   integer, parameter :: signal_initialize=1
-   integer, parameter :: signal_integrate=2
-   integer, parameter :: signal_finalize=4
-   integer, parameter :: signal_send_state=8
+   type, extends(type_eat_model) :: type_seamless_model
+      character(len=19) :: start,stop
+   contains
+      procedure :: pre_initialize => pre_initialize_seamless
+      procedure :: initialize => initialize_seamless
+      procedure :: post_initialize => post_initialize_seamless
+      procedure :: pre_integrate => pre_integrate_seamless
+      procedure :: integrate => integrate_seamless
+      procedure :: post_integrate => post_integrate_seamless
+      procedure :: pre_finalize => pre_finalize_seamless
+      procedure :: finalize => finalize_seamless
+      procedure :: post_finalize => post_finalize_seamless
+   end type type_seamless_model
+
+contains
+
+module subroutine pre_initialize_seamless(self)
+   class(type_seamless_model), intent(inout) :: self
+   if (EAT_COMM_obs_model == MPI_COMM_NULL) then
+      if (self%verbosity >= warn) write(self%stderr,*) "model(no observation program present)"
+      self%have_obs=.false.
+!KB      ensemble_only=.true.
+   else
+!KB      signal=signal_initialize+signal_send_state
+   end if
+
+   if (EAT_COMM_model_filter == MPI_COMM_NULL) then
+      if (self%verbosity >= warn) write(self%stderr,*) "model(no filter program present)"
+      self%have_filter=.false.
+   end if
+end subroutine pre_initialize_seamless
+
+!-----------------------------------------------------------------------
+module subroutine initialize_seamless(self)
+   class(type_seamless_model), intent(inout) :: self
+   if (self%verbosity >= info) write(self%stderr,*) 'model(initialize): '
+   self%start="1998-01-01 00:00:00"
+   self%stop="1999-01-01 00:00:00"
+#if 0
+   allocate(state(state_size))
+   CALL RANDOM_NUMBER(state)
+#endif
+end subroutine initialize_seamless
+
+!-----------------------------------------------------------------------
+module subroutine post_initialize_seamless(self)
+   class(type_seamless_model), intent(inout) :: self
+#if 0
+   sim_start = strptime(trim(start), time_format)
+   sim_stop  = strptime(trim(stop), time_format)
+   start_time=sim_start
+   stop_time=sim_stop
+   if (verbosity >= debug) then
+      write(stderr,*) 'model(sim_start) ',sim_start%isoformat()
+      write(stderr,*) 'model(sim_stop)  ',sim_stop%isoformat()
+   end if
+   if (.not. ensemble_only) then
+      start_time=sim_start
+      signal=signal_initialize+signal_integrate
+   end if
+#endif
+end subroutine post_initialize_seamless
+
+!-----------------------------------------------------------------------
+module subroutine pre_integrate_seamless(self)
+   class(type_seamless_model), intent(inout) :: self
+#if 0
+   if (.not. ensemble_only) then
+      if(trim(timestr) == "0000-00-00 00:00:00") then
+         stop_time=sim_stop
+      else
+         stop_time=strptime(trim(timestr),time_format)
+      end if
+   end if
+#endif
+end subroutine pre_integrate_seamless
+
+!-----------------------------------------------------------------------
+module subroutine integrate_seamless(self)
+   class(type_seamless_model), intent(inout) :: self
+   integer :: n=0
+#if 0
+   if (verbosity >= info) write(self%stderr,'(A,A,A,A)') ' model(integrate): ',start_time%isoformat(),' -> ',stop_time%isoformat()
+   CALL RANDOM_NUMBER(state)
+   state=state+n*(rank_model_comm+1)
+   n=n+1
+   call sleep(1)
+#endif
+end subroutine integrate_seamless
+
+!-----------------------------------------------------------------------
+module subroutine post_integrate_seamless(self)
+   class(type_seamless_model), intent(inout) :: self
+#if 0
+   if (.not. ensemble_only) then
+      start_time=stop_time
+   end if
+#endif
+end subroutine post_integrate_seamless
+
+!-----------------------------------------------------------------------
+module subroutine pre_finalize_seamless(self)
+   class(type_seamless_model), intent(inout) :: self
+#if 0
+   if (.not. ensemble_only) then
+      if(trim(timestr) == "0000-00-00 00:00:00") then
+         stop_time=sim_stop
+      else
+         stop_time=strptime(trim(timestr),time_format)
+      end if
+   end if
+#endif
+end subroutine pre_finalize_seamless
+
+!-----------------------------------------------------------------------
+module subroutine finalize_seamless(self)
+   class(type_seamless_model), intent(inout) :: self
+   if (self%verbosity >= info) write(self%stderr,*) 'model(finalize)'
+end subroutine finalize_seamless
+
+!-----------------------------------------------------------------------
+module subroutine post_finalize_seamless(self)
+   class(type_seamless_model), intent(inout) :: self
+#if 0
+   if (.not. ensemble_only) then
+      if(trim(timestr) == "0000-00-00 00:00:00") then
+         stop_time=sim_stop
+      else
+         stop_time=strptime(trim(timestr),time_format)
+      end if
+   end if
+#endif
+end subroutine post_finalize_seamless
+
+end module seamless_model_m
+
+!-----------------------------------------------------------------------
+
+program eat_seamless_model
+
+   !! An implementation of a test in an ensemble context
+   USE, INTRINSIC :: ISO_FORTRAN_ENV
+   use mpi
+   use eat_config
+   use eat_model, only: signal_initialize,signal_integrate,signal_finalize,signal_send_state
+   use seamless_model_m, only: type_seamless_model
+   use datetime_module, only: datetime, timedelta, strptime
+   IMPLICIT NONE
 
    integer :: ierr
    integer :: member
    integer :: stat(MPI_STATUS_SIZE)
    integer :: request
    integer :: state_size=1234
-   character(len=19) :: start,stop,timestr
+!KB   character(len=19) :: start,stop
+   character(len=19) :: timestr
    real(real64) :: timestep
    real(real64), allocatable :: state(:)
-   logical :: ensemble_only=.false.
+   logical :: ensemble_only=.true. !KB
    integer :: signal
 
    ! Most of this must go to a model specific file
@@ -39,7 +184,10 @@ program eat_seamless_model
    integer :: nmlunit,outunit
    logical :: all_verbose=.true.
    namelist /nml_seamless_model/ verbosity,all_verbose
+   class(type_seamless_model), allocatable :: model
 !-----------------------------------------------------------------------
+   allocate (model)
+
    inquire(FILE=nmlfile,EXIST=fileexists)
    if (fileexists) then
       open(newunit=nmlunit,file=nmlfile)
@@ -56,39 +204,44 @@ program eat_seamless_model
       verbosity=silent
    end if
 
-   call pre_model_initialize()
+   call model%pre_initialize()
 
    do
-      call signal_setup()
+!KB      call signal_setup()
+      if (verbosity >= debug) write(stderr,*) 'model(signal) ',signal
 
       if (iand(signal,signal_initialize) == signal_initialize) then
-         call initialize_seamless()
-         call post_model_initialize()
+         call model%initialize()
+         call model%post_initialize()
 !KB         if (iand(signal,signal_send_state) == signal_send_state) then
-!KB            allocate(state(state_size))
+            allocate(state(state_size))
 !KB         end if
+      else
+         if (model%have_filter) then
+            call MPI_IRECV(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model_filter,request,ierr)
+            call MPI_WAIT(request,stat,ierr)
+         end if
       end if
 
       if (iand(signal,signal_integrate) == signal_integrate) then
-         call pre_model_integrate()
-         call integrate_seamless()
-         call post_model_integrate()
+         call model%pre_integrate()
+         call model%integrate()
+         call model%post_integrate()
       end if
 
-!KB      if (iand(signal,signal_send_state) == signal_send_state) then
-!KB         CALL RANDOM_NUMBER(state)
-!KB         state=state+rank-1
-!KBwrite(stderr,*) 'CCC3 ',member,state_size
+      if (model%have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
+         CALL RANDOM_NUMBER(state)
+         state=state+rank-1
          call MPI_ISEND(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model_filter,request,ierr)
          call MPI_WAIT(request,stat,ierr)
-!KBwrite(stderr,*) 'CCC4 ',member
-!KB      end if
+      end if
 
       if (iand(signal,signal_finalize) == signal_finalize) then
-         call finalize_seamless()
+         call model%finalize()
          exit
       end if
    end do
+
    call MPI_Finalize(ierr)
 
 !-----------------------------------------------------------------------
@@ -106,12 +259,9 @@ subroutine signal_setup() ! setup signal
       if (first) then
          signal=signal+signal_integrate
          first=.false.
-!KBwrite(stderr,*) 'CCC1 ',rank_model_comm,rank_model_filter_comm,state_size
-! go to post_model_initialize
          if (rank_model_comm == 0) then
             call MPI_SEND(state_size,1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
          end if
-!KBwrite(stderr,*) 'CCC2 ',rank_model_comm
       else
          signal=signal_integrate
       end if
@@ -126,83 +276,6 @@ subroutine signal_setup() ! setup signal
       member=stat(MPI_TAG)
    end if
 end subroutine signal_setup
-
-!-----------------------------------------------------------------------
-
-subroutine pre_model_initialize()
-   if (EAT_COMM_obs_model == MPI_COMM_NULL) then
-      if (verbosity >= warn) write(stderr,*) "model(no observation program present)"
-      have_obs=.false.
-      ensemble_only=.true.
-   else
-      signal=signal_initialize+signal_send_state
-   end if
-
-   if (EAT_COMM_model_filter == MPI_COMM_NULL) then
-      if (verbosity >= warn) write(stderr,*) "model(no filter program present)"
-      have_filter=.false.
-   end if
-end subroutine pre_model_initialize
-
-!-----------------------------------------------------------------------
-
-subroutine post_model_initialize()
-   sim_start = strptime(trim(start), time_format)
-   sim_stop  = strptime(trim(stop), time_format)
-   start_time=sim_start
-   stop_time=sim_stop
-   if (verbosity >= debug) then
-      write(stderr,*) 'model(sim_start) ',sim_start%isoformat()
-      write(stderr,*) 'model(sim_stop)  ',sim_stop%isoformat()
-   end if
-   if (.not. ensemble_only) then
-      start_time=sim_start
-      signal=signal_initialize+signal_integrate
-   end if
-end subroutine post_model_initialize
-
-!-----------------------------------------------------------------------
-
-subroutine pre_model_integrate()
-   logical :: first=.true.
-   if (.not. ensemble_only) then
-      if(trim(timestr) == "0000-00-00 00:00:00") then
-         stop_time=sim_stop
-      else
-         stop_time=strptime(trim(timestr),time_format)
-      end if
-   end if
-end subroutine pre_model_integrate
-
-!-----------------------------------------------------------------------
-
-subroutine post_model_integrate()
-   start_time=stop_time
-end subroutine post_model_integrate
-
-!-----------------------------------------------------------------------
-
-subroutine initialize_seamless()
-   start="1998-01-01 00:00:00"
-   stop="1999-01-01 00:00:00"
-!KB   state_size=1234
-   allocate(state(state_size))
-   CALL RANDOM_NUMBER(state)
-   if (verbosity >= info) write(stderr,*) 'model(initialize): '
-end subroutine initialize_seamless
-
-subroutine integrate_seamless()
-   integer :: n=0
-   if (verbosity >= info) write(stderr,'(A,A,A,A)') ' model(integrate): ',start_time%isoformat(),' -> ',stop_time%isoformat()
-   CALL RANDOM_NUMBER(state)
-   state=state+n*(rank_model_comm+1)
-   n=n+1
-   call sleep(1)
-end subroutine integrate_seamless
-
-subroutine finalize_seamless()
-   if (verbosity >= info) write(stderr,*) 'model(finalize)'
-end subroutine finalize_seamless
 
 !-----------------------------------------------------------------------
 

@@ -44,12 +44,13 @@ subroutine init_observations()
    logical :: fileexists
    integer :: nmlunit,outunit
    logical :: all_verbose=.true.
-   namelist /nml_seamless_model/ verbosity,all_verbose
+   character(len=64) :: obs_times_file="obs_times.dat"
+   namelist /nml_seamless_obs/ verbosity,all_verbose,obs_times_file
 !-----------------------------------------------------------------------
    inquire(FILE=nmlfile,EXIST=fileexists)
    if (fileexists) then
       open(newunit=nmlunit,file=nmlfile)
-      read(unit=nmlunit,nml=nml_seamless_model)
+      read(unit=nmlunit,nml=nml_seamless_obs)
       close(nmlunit)
       if (verbosity >= warn) write(stderr,*) 'obs(read namelist)'
    end if
@@ -72,7 +73,7 @@ subroutine init_observations()
 !KB      verbosity=silent
 !KB   end if
 
-   open(newunit=unit,file="obs_times.dat",status='old',action='read',iostat=ios)
+   open(newunit=unit,file=trim(obs_times_file),status='old',action='read',iostat=ios)
    if (verbosity >= fatal) then
       if (ios /= 0) stop 'obs(unable to open obs_times.dat for reading)'
    else

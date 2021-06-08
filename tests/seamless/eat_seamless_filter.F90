@@ -40,25 +40,22 @@ subroutine init_filter()
 !-----------------------------------------------------------------------
    call init_eat_config(color_filter+verbosity)
 
+   if (EAT_COMM_obs_filter == MPI_COMM_NULL) then
+      if (verbosity >= info) write(stderr,*) "filter(no observation executable present)"
+      have_obs=.false.
+   end if
+
    if (EAT_COMM_model_filter == MPI_COMM_NULL) then
-      write(stderr,*) "filter(no model executable present)"
+      if (verbosity >= info) write(stderr,*) "filter(no model executable present)"
       have_model=.false.
    else
-!KBwrite(stderr,*) 'AAA1 ',state_size,ensemble_size
-!KBstate_size=1234
       call MPI_RECV(state_size,1,MPI_INTEGER,1,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+      if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<- state_size) ',state_size
       ensemble_size=size_model_filter_comm-size_filter_comm
-!KBwrite(stderr,*) 'AAA2 ',state_size,ensemble_size
       allocate(model_states(state_size,ensemble_size))
       allocate(model_reqs(ensemble_size))
       allocate(model_stats(MPI_STATUS_SIZE,ensemble_size))
    end if
-
-   if (EAT_COMM_obs_filter == MPI_COMM_NULL) then
-      write(stderr,*) "filter(no observation executable present)"
-      have_obs=.false.
-   end if
-
 end subroutine init_filter
 
 !-----------------------------------------------------------------------
@@ -68,7 +65,6 @@ subroutine do_filter()
    !! Receive observation and states and do the filter calculation
 
    ! Local variables
-   integer :: recv_signal(4)
    integer :: nobs
    real(real64), allocatable :: states(:,:)
    real(real64), allocatable :: obs(:)
@@ -79,22 +75,20 @@ subroutine do_filter()
    do
       if (have_model) then
          do m=1,ensemble_size
-!KBwrite(stderr,*) 'BBB1 ',m
             call MPI_IRECV(model_states(:,m),state_size,MPI_DOUBLE,m,MPI_ANY_TAG,EAT_COMM_model_filter,model_reqs(m),ierr)
-!KBwrite(stderr,*) 'BBB2 ',m,state_size
          end do
       end if
 
       if (have_obs) then
          call MPI_RECV(nobs,1,MPI_INTEGER,0,1,EAT_COMM_obs_filter,stat,ierr)
          if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<- nobs) ',nobs
-         if (.not. allocated(obs)) allocate(obs(nobs))
          if (nobs > 0) then
+            if (.not. allocated(obs)) allocate(obs(nobs))
             if (nobs > size(obs)) then
                deallocate(obs)
                allocate(obs(nobs))
             end if
-            call MPI_IRECV(obs,nobs,MPI_DOUBLE,0,1,EAT_COMM_obs_filter,obs_request,ierr)
+            call MPI_IRECV(obs(1:nobs),nobs,MPI_DOUBLE,0,1,EAT_COMM_obs_filter,obs_request,ierr)
          else
             exit
          end if
@@ -103,12 +97,13 @@ subroutine do_filter()
       if (have_model) then
          call MPI_WAITALL(ensemble_size,model_reqs,model_stats(:,:),ierr)
          do m=1,ensemble_size
-            if (verbosity >= info) write(stderr,'(x,A,I4,F8.5)') 'filter(<- state)',m,sum(model_states(:,m))/state_size
+            if (verbosity >= info) write(stderr,'(x,A,I4,*(F10.5))') 'filter(<- state)',m,sum(model_states(:,m))/state_size
          end do
       end if
+
       if (have_obs) then
          call MPI_WAIT(obs_request,stat,ierr)
-         if (verbosity >= info) write(stderr,*) 'filter(<- obs) ',sum(obs)/nobs
+         if (verbosity >= info) write(stderr,'(A,F10.6)') ' filter(<- obs) ',sum(obs)/nobs
       end if
    end do
 end subroutine do_filter
