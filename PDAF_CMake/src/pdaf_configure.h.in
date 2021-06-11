@@ -1,0 +1,6 @@
+#define _VERSION_ "@pdaf_VERSION@"
+#define _MPI_VERSION_ "@MPI_VERSION@"
+#define _MPI_Fortran_INCLUDE_PATH_ "@MPI_Fortran_INCLUDE_PATH@"
+#define _MPI_Fortran_LIBRARIES_ "long line problem"
+!KB#define _MPI_Fortran_LIBRARIES_ "@MPI_Fortran_LIBRARIES@"
+

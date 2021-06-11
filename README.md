@@ -11,7 +11,7 @@ The documentation is work in progress and is not complete. The instructions on h
 
 The EAT software is available from a GitHub repository. Please follow these instructions to download the core EAT code. In addition to this code the PDAF code must also be installed.
 
-Here *~/source/REPOS/EAT* is used a installation folder as an example. Any folder can be used.
+Here *~/source/repos/EAT* is used a installation folder as an example. Any folder can be used.
 
 The commands can be copy pasted - with proper respect paid to the folders used.
 
@@ -32,13 +32,14 @@ ln -s ~/PDAF-D_V1.16 pdaf
 cd ..
 ```
 
-The PDAF installation given in the above command must be changed to fit the actual folder.
+The PDAF source code folder given in the above command must be changed to fit the actual folder.
 
 Step 2: Copy PDAF CMake configuration files from EAT to PDAF.
 
 ```bash
 cp PDAF_CMake/CMakeLists.txt extern/pdaf
 cp PDAF_CMake/src/CMakeLists.txt extern/pdaf/src
+cp PDAF_CMake/src/pdaf_configure.h.in extern/pdaf/src
 ```
 
 The above steps are necessary for now - but might changed/relaxed at a later stage.
