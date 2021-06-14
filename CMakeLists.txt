@@ -24,6 +24,9 @@ include_directories("${CMAKE_BINARY_DIR}/modules")
 # User-configurable options
 # ----------------------------
 
+option(EAT_USE_MPI "Enable MPI parallelization" ON)
+set(PDAF_USE_MPI ${EAT_USE_MPI} CACHE BOOL "Compile PDAF with MPI support" FORCE)
+
 option(EAT_USE_PDAF "Include support for the PDAF library" ON)
 
 set(GOTM_USE_CVMIX OFF CACHE BOOL "Include support for the CVMix turbulence closure models (github.com/CVMix)" FORCE)
@@ -34,31 +37,20 @@ set(GOTM_USE_STIM OFF CACHE BOOL "Include support for Simple Thermodynamic Ice M
 
 mark_as_advanced(GOTM_USE_CVMIX GOTM_USE_FABM GOTM_USE_STIM)
 
-find_package(LAPACK REQUIRED)
-
 # ----------------------------
 # Dependencies
 # ----------------------------
 
-add_subdirectory("extern/datetime-fortran" EXCLUDE_FROM_ALL)
-add_subdirectory("extern/gotm" EXCLUDE_FROM_ALL)
-add_subdirectory("extern/pdaf" EXCLUDE_FROM_ALL)
-
+if(EAT_USE_MPI)
 find_package(MPI REQUIRED)
 if(MPI_Fortran_INCLUDE_PATH)
     include_directories("${MPI_Fortran_INCLUDE_PATH}")
 endif()
-set(EXTERNAL_LIBS ${EXTERNAL_LIBS} ${MPI_Fortran_LIBRARIES})
+endif(EAT_USE_MPI)
 
-#KBoption(GOTM_USE_NetCDF "Enable output in NetCDF format" ON)
-
-#KBif(MSVC)
-  #KBoption(GOTM_EMBED_VERSION "Embed GOTM version information" OFF)
-#KBelse(MSVC)
-  #KBoption(GOTM_EMBED_VERSION "Embed GOTM version information" ON)
-#KBendif(MSVC)
-
-#KBoption(GOTM_USE_SEAGRASS "Enable seagrass module" OFF)
+add_subdirectory("extern/datetime-fortran" EXCLUDE_FROM_ALL)
+add_subdirectory("extern/gotm" EXCLUDE_FROM_ALL)
+add_subdirectory("extern/pdaf" EXCLUDE_FROM_ALL)
 
 # ----------------------------
 # EAT itself
@@ -84,9 +76,3 @@ endif()
 
 add_subdirectory("src")
 add_subdirectory("tests")
-
-#KBinclude(FeatureSummary)
-#KBif(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-   #KB#feature_summary(WHAT ENABLED_FEATURES DISABLED_FEATURES PACKAGES_FOUND)
-   #KBfeature_summary(FILENAME ${CMAKE_CURRENT_BINARY_DIR}/features.log WHAT ALL)
-#KBendif()
