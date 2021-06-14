@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
 
-#KBset(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../cmake/Modules/")
-
 # Create main project.
 project(pdaf VERSION 1.16.0 LANGUAGES Fortran)
 
@@ -18,8 +16,6 @@ endif()
 if(USE_GIT_VERSION_INFO)
    set(GIT_COMMIT_ID ${pdaf_VERSION})
    set(GIT_BRANCH_NAME unknown)
-   configure_file("${PROJECT_SOURCE_DIR}/util/compilation.F90.in" compilation.F90)
-   configure_file("${PROJECT_SOURCE_DIR}/util/pdaf_version.F90.in" pdaf_version.F90)
    option(PDAF_EMBED_VERSION "Embed PDAF version information" OFF)
    if(PDAF_EMBED_VERSION)
       add_custom_target(version
@@ -33,44 +29,35 @@ if(USE_GIT_VERSION_INFO)
    endif()
 endif(USE_GIT_VERSION_INFO)
 
-if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
-   set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fdefault-real-8")
-endif()
-if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
-   set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -r8")
-endif()
-
-#[[-
-configure_file (
-  "${PROJECT_SOURCE_DIR}/pdaf_configure.h.in"
-  "${PROJECT_BINARY_DIR}/pdaf_configure.h"
-  )
--]]
-
 # Customize compiler flags
-#[[--
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
-  set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
+   set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
+   set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fdefault-real-8")
 elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Cray")
-  set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -N 1023")
+   set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -N 1023")
 elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
-  if(WIN32)
-    set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} /Od")
-  else()
-    set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS} -mkl")
+   set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -r8")
+   if(WIN32)
+      set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} /Od")
+   else()
+      set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS} -mkl")
+      #KB For newer versions of CMake - this is the way to go
+      enable_language(C)
+      set(BLA_VENDOR Intel10_64lp_seq)
+      #KB https://cmake.org/cmake/help/latest/module/FindBLAS.html
   endif()
 endif()
 
---]]
-
-find_package(BLAS REQUIRED)
+#KBfind_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
-#KBfind_package(FFTW3)
-#set(LAPACK_LIBRARIES -llapack)
-#set(BLAS_LIBRARIES -lblas)
-#set(FFT_LIBRARIES -lfftw3)
-#KBset(MATH_LIBS ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES} ${FFT_LIBRARIES})
+option(PDAF_USE_MPI "Enable MPI parallelization" ON)
+if(PDAF_USE_MPI AND NOT ${MPI_FOUND})
+   find_package(MPI REQUIRED)
+   message(${MPI_FOUND})
+else()
+   message("PDAF: MPI is already configured - continuing")
+endif(PDAF_USE_MPI AND NOT ${MPI_FOUND})
 
 # Use use position-independent code (-fPIC) everywhere if building shared libraries
 if(BUILD_SHARED_LIBS)

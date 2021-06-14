@@ -1,16 +1,3 @@
-#KBcmake_minimum_required(VERSION 2.8)
-
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
-#[[---
-#KBfind_package(FFTW3)
-#set(LAPACK_LIBRARIES -llapack)
-#set(BLAS_LIBRARIES -lblas)
-#set(FFT_LIBRARIES -lfftw3)
-set(MATH_LIBS ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES} ${FFT_LIBRARIES})
-
----]]
-
 set(MOD_PDAF
     PDAF_timer.F90
     PDAF_memcount.F90
@@ -322,7 +309,7 @@ else()
    set(SRC_LNETF)
 endif(PDAF_USE_LNETF)
 
-# Specific PDAF-routines for 
+# Specific PDAF-routines for
 set(SRC_PF
     PDAF-D_pf_init.F90
     PDAF-D_pf_alloc.F90
@@ -361,12 +348,6 @@ set(SRC_PDAFOMI
     PDAFomi_callback.F90
    )
 
-# Global include directories
-#KBinclude_directories(BEFORE "${CMAKE_BINARY_DIR}"
-                    #KB"${PROJECT_SOURCE_DIR}/../include"
-                    #KB"${CMAKE_CURRENT_BINARY_DIR}/modules"
-#KB                   )
-
 set(SRC_PDAF
     ${SRC_PDAF_GEN}
     ${SRC_SEIK}
@@ -397,26 +378,30 @@ target_include_directories(pdaf-d
         $<INSTALL_INTERFACE:include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/modules>
 )
-option(PDAF_USE_MPI "Enable MPI parallelization" ON)
+
+# In principle the code should be fixed - but here we provide a working fix
+# Set -fallow-argument-mismatch for major version >= 10
+if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
+string(REPLACE "." ";" VERSION_LIST ${CMAKE_Fortran_COMPILER_VERSION})
+list(GET VERSION_LIST 0 VERSION_MAJOR)
+if(${VERSION_MAJOR} GREATER "10")
+#KBset(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch")
+target_compile_options(pdaf-d PRIVATE "-fallow-argument-mismatch")
+endif()
+endif()
+
+# This will only work in newer versions of CMake
+#target_link_libraries(pdaf-d PRIVATE BLAS::BLAS)
+#target_link_libraries(pdaf-d PRIVATE LAPACK::LAPACK)
+# So we use
+target_link_libraries(pdaf-d PRIVATE ${BLAS_LIBRARIES})
+target_link_libraries(pdaf-d PRIVATE ${LAPACK_LIBRARIES})
+
 if(PDAF_USE_MPI)
 #   set(MPI_Fortran_COMPILER_FLAGS,-static_mpi)
-   find_package(MPI REQUIRED)
-   target_include_directories(pdaf-d PRIVATE "${MPI_Fortran_INCLUDE_PATH}")
    target_compile_options(pdaf-d PUBLIC -D_PDAF_USE_MPI_)
    target_include_directories(pdaf-d PRIVATE "${MPI_Fortran_INCLUDE_PATH}")
    target_link_libraries(pdaf-d PRIVATE ${MPI_Fortran_LIBRARIES} ${MPI_Fortran_LINK_FLAGS})
-#KB   target_link_libraries(pdaf-d PRIVATE BLAS::BLAS)
-#KB   target_link_libraries(pdaf-d PRIVATE LAPACK::LAPACK)
-#KB BLA_STATIC 3.18 LAPACK::LAPACK
-
-   target_link_libraries(pdaf-d PRIVATE ${BLAS_LIBRARIES})
-   target_link_libraries(pdaf-d PRIVATE ${LAPACK_LIBRARIES})
-   message(${MPI_FOUND})
-#KB   message(${MPI_VERSION})
-#KB   message(${MPI_Fortran_HAVE_F08_MODULE})
-#KB   message(${MPI_Fortran_INCLUDE_PATH})
-#KB   message(${MPI_Fortran_LIBRARIES})
-#KB   message(${MPI_Fortran_LINK_FLAGS})
 else()
    target_include_directories(pdaf-d PRIVATE "${PROJECT_SOURCE_DIR}/dummympi")
 endif(PDAF_USE_MPI)
@@ -429,16 +414,11 @@ install(TARGETS pdaf-d
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/
         DESTINATION include)
 
-configure_file (
-  "${CMAKE_CURRENT_SOURCE_DIR}/pdaf_configure.h.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/pdaf_configure.h"
-  )
+configure_file ( "${CMAKE_CURRENT_SOURCE_DIR}/pdaf_configure.h.in" "${CMAKE_CURRENT_BINARY_DIR}/pdaf_configure.h")
 
-#add_executable(pdaf_configure
-               #pdaf_configure.F90
-              #)
-#target_include_directories(pdaf_configure PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-#target_link_libraries(pdaf_configure PRIVATE pdaf-d)
+add_executable(pdaf_configure pdaf_configure.F90)
+target_include_directories(pdaf_configure PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(pdaf_configure PRIVATE pdaf-d)
 
 #install(TARGETS pdaf_configure
         #RUNTIME DESTINATION bin
