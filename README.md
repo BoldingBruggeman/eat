@@ -60,8 +60,8 @@ If the above completes software installation, configuration and compilation is d
 
 EAT comes with 3 test cases:
 
-- The SEAMLESS development case. This case is used to develop and test the communication between  filter, observation and model components
-- The 2d case. This case resembles the standard 2D case from the PDAF tutorials.
+- [The SEAMLESS development case](tests/seamless). This case is used to develop and test the communication between  filter, observation and model components
+- [The 2d case](tests/2d). This case resembles the standard 2D case from the PDAF tutorials.
 - A GOTM case. This case is used as an example of how to create a data-assimilation setup for GOTM.
 
 The cases are available in *.../tests* folder. Each of the tests has a README for specific information.
