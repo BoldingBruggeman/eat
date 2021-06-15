@@ -1,20 +1,10 @@
 # Copyright (C) 2021 Bolding & Bruggeman
 
-add_executable(eat_seamless_filter EXCLUDE_FROM_ALL seamless/eat_seamless_filter.F90)
-target_link_libraries(eat_seamless_filter PRIVATE eat_config datetime ${MPI_Fortran_LIBRARIES})
-add_executable(eat_seamless_model EXCLUDE_FROM_ALL seamless/eat_seamless_model.F90)
-target_link_libraries(eat_seamless_model PRIVATE eat_config datetime ${MPI_Fortran_LIBRARIES})
-add_executable(eat_seamless_obs EXCLUDE_FROM_ALL seamless/eat_seamless_obs.F90)
-target_link_libraries(eat_seamless_obs PRIVATE eat_config datetime ${MPI_Fortran_LIBRARIES})
-add_custom_target(eat_seamless_test DEPENDS eat_seamless_filter DEPENDS eat_seamless_model DEPENDS eat_seamless_obs)
-# mpiexec -np 1 eat_seamles_filter : -np 1 eat_seamless_obs :  -np 6 eat_seamless_model
+#KBadd_subdirectory(seamless)
+#KBadd_custom_target(test_eat_seamless DEPENDS eat_seamless_filter DEPENDS eat_seamless_model DEPENDS eat_seamless_obs)
 
-add_library(eat_2d EXCLUDE_FROM_ALL 2d/eat_2d_data.F90)
-add_executable(eat_2d_model EXCLUDE_FROM_ALL 2d/eat_2d_model.F90)
-target_link_libraries(eat_2d_model PRIVATE eat_config datetime eat_2d ${MPI_Fortran_LIBRARIES} ${LAPACK_LIBRARIES})
-add_executable(eat_2d_obs EXCLUDE_FROM_ALL 2d/eat_2d_obs.F90)
-target_link_libraries(eat_2d_obs PRIVATE eat_config datetime eat_2d ${MPI_Fortran_LIBRARIES} ${LAPACK_LIBRARIES})
-add_custom_target(eat_2d_test DEPENDS eat_pdaf_filter DEPENDS eat_2d_obs DEPENDS eat_2d_model)
-# mpiexec -np 1 eat_pdaf : -np 1 eat_2d_obs :  -np 6 eat_2d_model
+add_subdirectory(2d)
+add_custom_target(test_eat_2d DEPENDS eat_pdaf_filter DEPENDS eat_2d_obs DEPENDS eat_2d_model)
 
-#add_custom_target(eat_all_tests eat_2d_test eat_seamless_test)
+#KBadd_custom_target(test_eat_all DEPENDS test_eat_2d DEPENDS test_eat_seamless)
+add_custom_target(test_eat_all DEPENDS test_eat_2d)
