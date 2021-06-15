@@ -2,8 +2,8 @@
 verbosity=1024
 obs_times_file='obs_2d_times.dat.short'
 obs_times_file='obs_2d_times.dat'
-nobsmin=4
-nobsmax=3
+nobsmin=10
+nobsmax=20
 /
 
 &nml_2d_model
