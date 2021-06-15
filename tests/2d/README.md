@@ -1,4 +1,4 @@
-**NOTE - the eat_pdaf_filter is not ready yet so the actual assimilation command given below will**
+**NOTE - the eat_pdaf_filter is not ready yet so the actual assimilation command given below will fail**
 
 ### A simple 2D example
 
@@ -37,7 +37,7 @@ The following commands assumes that OpenMPI has been used. As _mpiexec_ is not s
 First - to get the true solution - run the following command:
 
 ```
-cd $installdir/tests/2d:wq
+cd $installdir/tests/2d
 mpiexec -np 1 $builddir/tests/2d/eat_2d_obs : -np 1 $builddir/tests/2d/eat_2d_model
 ```
 
