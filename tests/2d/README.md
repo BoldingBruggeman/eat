@@ -29,7 +29,7 @@ The _sourcedir_ is the folder where the _eat_ source code is installed via the _
 The commands will be executed in the folder of the test.
 
 ```
-cd $installdir/tests/2d
+cd $sourcedir/tests/2d
 ```
 
 The following commands assumes that OpenMPI has been used. As _mpiexec_ is not standardized using a different implementation of MPI will likely require adjustments to command examples given.
@@ -37,7 +37,7 @@ The following commands assumes that OpenMPI has been used. As _mpiexec_ is not s
 First - to get the true solution - run the following command:
 
 ```
-cd $installdir/tests/2d
+cd $sourcedir/tests/2d
 mpiexec -np 1 $builddir/tests/2d/eat_2d_obs : -np 1 $builddir/tests/2d/eat_2d_model
 ```
 
