@@ -48,7 +48,7 @@ This will produce 19 _true\_????.dat_ files and 17 _obs\_????.dat_ files. Note -
 To do the full assimilation the command below must be executed:
 
 ```bash
-mpiexec --oversubscribe -np 1 $builddir/src/eat_pdaf_filter : -np 1 $builddir/tests/2d/eat_2d_obs : -np 9 $builddir/tests/2d/eat_2d_model
+mpiexec --oversubscribe -np 1 $builddir/tests/2d/eat_2d_obs : -np 1 $builddir/src/eat_pdaf_filter : -np 9 $builddir/tests/2d/eat_2d_model
 ```
 
 Note that above command is one long line and it must be copied to the terminal verbatim.
@@ -64,7 +64,7 @@ The first method is to set the namelist variable _all\_verbose=.false._ in the _
 The second method is to use OpenMPI's version of _mpiexec_'s command line option - _--output-filename logs_. In this case the output are written in the folder _logs_ sorted according to process number.
 
 ```bash
-mpiexec --oversubscribe --output-filename logs -np 1 $builddir/src/eat_pdaf_filter : -np 1 $builddir/tests/2d/eat_2d_obs : -np 9 $builddir/tests/2d/eat_2d_model
+mpiexec --oversubscribe --output-filename logs -np 1 $builddir/tests/2d/eat_2d_obs : -np 1 $builddir/src/eat_pdaf_filter : -np 9 $builddir/tests/2d/eat_2d_model
 ```
 
 #### Plot/animate the 2d case results
