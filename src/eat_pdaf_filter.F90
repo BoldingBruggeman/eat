@@ -170,6 +170,8 @@ subroutine eat_do_pdaf()
                write(error_unit,*) 'filter(PDAF is initialized)'
             end if
          end if
+         eofV=model_states
+write(0,*) 'sum(eofV) ',sum(eofV),eofV(1,:)
          CALL assimilation_pdaf()
       ! End PDAF specific part
 #endif
@@ -181,6 +183,7 @@ subroutine eat_do_pdaf()
       end if
 
       if (nobs <= 0) then
+         if (verbosity >= info) write(stderr,*) 'filter(-> exit)'
          exit
       end if
    end do
@@ -529,10 +532,12 @@ SUBROUTINE obs_op_pdaf(step, dim_p, dim_obs_p, state_p, m_state_p)
 
   integer :: i
 
+write(0,*) 'obs_op_pdaf() ',dim_p, dim_obs_p
   DO i = 1, dim_obs_p
-!     m_state_p(i) = state_p(obs_index_p(i))
-     m_state_p(i) = state_p(i)
-write(0,*) 'QQQQ ',i,state_p(i)
+     m_state_p(i) = state_p(iobs(i))
+!KB     m_state_p(i) = state_p(obs_index_p(i))
+!KB     m_state_p(i) = state_p(i)
+write(0,*) 'obs_op_pdaf() ',i,iobs(i),state_p(iobs(i)),m_state_p(i)
   END DO
 END SUBROUTINE obs_op_pdaf
 
@@ -541,6 +546,7 @@ SUBROUTINE init_obs_pdaf(step, dim_obs_f, observation_f)
   INTEGER, INTENT(in) :: step        ! Current time step
   INTEGER, INTENT(in) :: dim_obs_f   ! Dimension of full observation vector
   REAL, INTENT(out)   :: observation_f(dim_obs_f) ! Full observation vector
+write(0,*) 'init_obs_pdaf() ',dim_obs_f,size(observation_f),size(obs)
   observation_f = obs
 END SUBROUTINE init_obs_pdaf
 
@@ -560,9 +566,9 @@ SUBROUTINE prepoststep_ens_offline(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,st
    REAL, INTENT(inout) :: ens_p(dim_p, dim_ens)      ! PE-local state ensemble
    INTEGER, INTENT(in) :: flag        ! PDAF status flag
 
-write(0,*) 'AA1 ',dim_p, dim_ens, dim_ens_p, dim_obs_p
-write(0,*) 'AA2 ',sum(state_p)
-write(0,*) 'BBB ',sum(ens_p)
+write(0,*) 'prepoststep_ens_offline() 1 ',dim_p, dim_ens, dim_ens_p, dim_obs_p
+write(0,*) 'prepoststep_ens_offline() 2 ',sum(state_p)
+write(0,*) 'prepoststep_ens_offline() 3 ',sum(ens_p)
 
 END SUBROUTINE prepoststep_ens_offline
 
@@ -572,6 +578,7 @@ SUBROUTINE init_obsvar_pdaf(step, dim_obs_p, obs_p, meanvar)
    INTEGER, INTENT(in) :: dim_obs_p     ! PE-local dimension of observation vector
    REAL, INTENT(in) :: obs_p(dim_obs_p) ! PE-local observation vector
    REAL, INTENT(out)   :: meanvar       ! Mean observation error variance
+write(0,*) 'init_obsvar_pdaf() ',rms_obs
    meanvar = rms_obs ** 2
 END SUBROUTINE init_obsvar_pdaf
 
@@ -616,6 +623,8 @@ SUBROUTINE prodRinvA_pdaf(step, dim_obs_p, rank, obs_p, A_p, C_p)
 
    integer :: i,j
    REAL :: ivariance_obs
+
+write(0,*) 'prodRinvA_pdaf() ',dim_obs_p,rank
 
    ivariance_obs = 1.0 / rms_obs ** 2
    DO j = 1, rank
