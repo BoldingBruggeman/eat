@@ -120,7 +120,7 @@ subroutine signal_setup() ! setup signal
          signal=signal_initialize+signal_integrate+signal_send_state
          first=.false.
          if (rank_model_comm == 0 .and. have_filter) then
-            call MPI_SEND(state_size,1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
+            call MPI_SSEND(state_size,1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
          end if
       else
          signal=signal_integrate+signal_send_state
