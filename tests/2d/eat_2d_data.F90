@@ -11,7 +11,6 @@ module eat_2d_data
    IMPLICIT NONE
 
    integer, parameter :: nx=36,ny=18
-!KB   real(real64), allocatable :: field(:,:)
    real(real64) :: field(nx,ny)
    real(real64), parameter :: pi=acos(-1._real64)
 
@@ -28,14 +27,12 @@ subroutine true_field(member,nmember)
    if (present(nmember)) then
       phi=0.5_real64*(1._real64*member+5._real64)/nmember
    end if
-!KBwrite(*,*) 'aaaa ',phi/pi
    do j=1,ny
       do i=1,nx
          field(i,j)=sin(2*pi*(1._real64*i/nx+1._real64*j/ny+phi))
 !KB sin(2*pi*(i/18+j/36)+2*0.5*pi*(k+5)/dim_ens)
       end do
    end do
-!KB   call sleep(1)
 end subroutine true_field
 
 subroutine update_field(nsteps)
@@ -53,7 +50,6 @@ subroutine update_field(nsteps)
       end do
       field(:,1)=tmp
    end do
-!KB   call sleep(1)
 end subroutine update_field
 
 subroutine get_obs(n,iobs,obs)
