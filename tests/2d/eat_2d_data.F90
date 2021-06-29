@@ -81,6 +81,7 @@ subroutine get_obs(n,iobs,obs)
       iobs(k)=i+(j-1)*nx
       obs(k)=field(i,j)
    end do
+   obserr=0.05
    obs=obs+obserr
    write(fn,'(A,I0.4,A)') 'obs_',n,'.dat'
    call write_field(trim(fn),obsfield)

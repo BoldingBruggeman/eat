@@ -74,28 +74,26 @@ program eat_2d_model
 !KB         if (iand(signal,signal_send_state) == signal_send_state) then
 !KB            allocate(state(state_size))
 !KB         end if
-#if 1
       else
+!KB could maybe be done in pre_model_integrate()
+#if 1
          if (have_filter) then
             call MPI_IRECV(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model_filter,request,ierr)
             call MPI_WAIT(request,stat,ierr)
          end if
 #endif
       end if
-!KB      if (verbosity >= info) write(stderr,*) 'model1(signal) ',signal
 
       if (iand(signal,signal_integrate) == signal_integrate) then
          call pre_model_integrate()
          call integrate_2d()
          call post_model_integrate()
       end if
-!KB      if (verbosity >= info) write(stderr,*) 'model2(signal) ',signal
 
       if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
          call MPI_ISEND(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model_filter,request,ierr)
          call MPI_WAIT(request,stat,ierr)
       end if
-!KB      if (verbosity >= info) write(stderr,*) 'model3(signal) ',signal
 
       if (iand(signal,signal_finalize) == signal_finalize) then
          call finalize_2d()
@@ -127,7 +125,7 @@ subroutine signal_setup() ! setup signal
       end if
 
       call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_obs_model,stat,ierr)
-      if (verbosity >= debug) write(stderr,*) 'model(<- time)  ',trim(timestr)
+      if (verbosity >= debug) write(stderr,*) 'model(<-- time)  ',trim(timestr)
       if (ierr /= MPI_SUCCESS) then
          call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
       end if
@@ -180,7 +178,7 @@ subroutine post_model_initialize()
    sim_start = strptime(trim(start), time_format)
    sim_stop  = strptime(trim(stop), time_format)
    if (verbosity >= info) then
-      write(stderr,'(x,4A)') 'model(sim_start->sim_stop) ',sim_start%isoformat(),' -> ',sim_stop%isoformat()
+      write(stderr,'(x,4A)') 'model(sim_start->sim_stop) ',sim_start%isoformat(),' --> ',sim_stop%isoformat()
    end if
    if (.not. ensemble_only) then
       start_time=sim_start
@@ -217,8 +215,9 @@ end subroutine pre_model_integrate
 
 subroutine integrate_2d()
    integer :: nsteps=2
-   if (verbosity >= info) write(stderr,'(A,I4)') ' model(integrate): ',N
-      write(stderr,'(x,4A)') 'model(start_time->stop_time) ',start_time%isoformat(),' -> ',stop_time%isoformat()
+   if (verbosity >= info) write(stderr,'(x,2(A,I4))') 'model(integrate): ',N,' --> ',N+nsteps
+   if (verbosity >= debug) write(stderr,'(x,4A)') 'model(start_time->stop_time) ', &
+                                        start_time%isoformat(),' --> ',stop_time%isoformat()
    if (.not. ensemble_only) then
       N=N+nsteps
    end if

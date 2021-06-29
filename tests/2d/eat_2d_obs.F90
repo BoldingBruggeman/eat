@@ -19,7 +19,6 @@ program eat_2d_obs
    logical :: have_model=.true.
    logical :: have_filter=.true.
    integer :: nmodel=-1
-!KB   integer :: nfilter=-1
    integer :: stderr=error_unit,stdout=output_unit
    integer :: verbosity=info
 !-----------------------------------------------------------------------
@@ -75,10 +74,6 @@ subroutine init_observations()
       have_filter=.false.
    end if
 
-!KB   if (.not. all_verbose .and. member /= 0) then
-!KB      verbosity=silent
-!KB   end if
-
    open(newunit=unit,file=obs_times_file,status='old',action='read',iostat=ios)
    if (verbosity >= fatal) then
       if (ios /= 0) stop 'obs(unable to open obs_times.dat for reading)'
@@ -114,7 +109,7 @@ subroutine do_observations()
    integer :: requests(2)
 !-----------------------------------------------------------------------
    do n=1,size(obs_times)
-      if (verbosity >= info) write(stderr,*) 'obs(-> time)  ',trim(obs_times(n))
+      if (verbosity >= info) write(stderr,*) 'obs(--> time)  ',trim(obs_times(n))
       if (have_model) then
          do m=1,nmodel
             call MPI_SSEND(obs_times(n),19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr)
@@ -128,7 +123,7 @@ subroutine do_observations()
 
       call random_number(x)
       nobs=nobsmin+FLOOR((nobsmax+1-nobsmin)*x)
-      if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> nobs)    ',nobs
+      if (verbosity >= info) write(stderr,'(A,I6)') ' obs(--> nobs)    ',nobs
       if (have_filter) then
          call MPI_SSEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
          if (ierr /= MPI_SUCCESS) then
@@ -149,8 +144,7 @@ subroutine do_observations()
              allocate(obs(nobs))
          end if
          call get_obs(n,iobs(1:nobs),obs(1:nobs))
-write(0,*) 'iobs ',iobs
-         if (verbosity >= info)  write(stderr,'(A,F10.6)') ' obs(-> obs)    ',sum(obs)/nobs
+         if (verbosity >= info)  write(stderr,'(A,F10.6)') ' obs(--> obs)    ',sum(obs)/nobs
       end if
       if (have_filter .and. nobs > 0) then
          call MPI_ISEND(iobs(1:nobs),nobs,MPI_INTEGER,1,1,EAT_COMM_obs_filter,requests(1),ierr)
@@ -165,11 +159,11 @@ write(0,*) 'iobs ',iobs
    ! Here we must NOT use MPI_SSEND()
    if (have_filter) then
       nobs=-1
-      if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> nobs)    ',nobs
+      if (verbosity >= info) write(stderr,'(A,I6)') ' obs(--> nobs)    ',nobs
       call MPI_SEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
    end if
    if (have_model) then
-      if (verbosity >= info) write(stderr,*) 'obs(-> exit)'
+      if (verbosity >= info) write(stderr,*) 'obs(--> exit)'
       do m=1,nmodel
          call MPI_SEND(halt,19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr) !!!! nmodel
       end do
