@@ -61,6 +61,7 @@ set(SRC_PDAF_GEN
     PDAFomi_put_state_local.F90
     PDAFomi_assimilate_global.F90
     PDAFomi_assimilate_local.F90
+    PDAF_force_analysis.F90
    )
 
 option(PDAF_USE_SEIK "Include SEIK filter?" ON)
@@ -384,7 +385,7 @@ target_include_directories(pdaf-d
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 string(REPLACE "." ";" VERSION_LIST ${CMAKE_Fortran_COMPILER_VERSION})
 list(GET VERSION_LIST 0 VERSION_MAJOR)
-if(${VERSION_MAJOR} GREATER "9")
+if(${VERSION_MAJOR} GREATER "10")
 target_compile_options(pdaf-d PRIVATE "-fallow-argument-mismatch")
 endif()
 endif()
@@ -399,8 +400,8 @@ target_link_libraries(pdaf-d PRIVATE ${LAPACK_LIBRARIES})
 if(PDAF_USE_MPI)
 #   set(MPI_Fortran_COMPILER_FLAGS,-static_mpi)
    target_compile_options(pdaf-d PUBLIC -D_PDAF_USE_MPI_)
-   target_include_directories(pdaf-d PRIVATE "${MPI_Fortran_INCLUDE_PATH}")
-   target_link_libraries(pdaf-d PRIVATE ${MPI_Fortran_LIBRARIES} ${MPI_Fortran_LINK_FLAGS})
+   target_include_directories(pdaf-d PUBLIC "${MPI_Fortran_INCLUDE_PATH}")
+   target_link_libraries(pdaf-d PUBLIC ${MPI_Fortran_LIBRARIES} ${MPI_Fortran_LINK_FLAGS})
 else()
    target_include_directories(pdaf-d PRIVATE "${PROJECT_SOURCE_DIR}/dummympi")
 endif(PDAF_USE_MPI)
