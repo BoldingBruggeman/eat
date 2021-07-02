@@ -559,7 +559,23 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
    REAL(REAL64), INTENT(inout) :: ens_p(dim_p, dim_ens)      ! PE-local state ensemble
    INTEGER, INTENT(in) :: flag        ! PDAF status flag
 
-   if (verbosity >= debug) write(stderr,*) 'prepoststep_ens_pdaf()',dim_p, dim_ens, dim_ens_p, dim_obs_p
+   if (verbosity >= info) write(stderr,*) 'prepoststep_ens_pdaf()',step,dim_p,dim_ens,dim_ens_p,dim_obs_p
+
+   block
+   integer :: u
+   integer :: i=1,n
+   character(len=32) :: fn
+   if (step > 0) then
+      write(fn,'(A,I0.4,A)') 'mean_',i,'.dat'
+      open(newunit=u,file=trim(fn))
+      write(u,*) 'step# ',i
+      do n=1,dim_p
+         write(u,'(F9.6)') sum(model_states(n,:))/dim_ens
+      end do
+      close(u)
+      i=i+1
+   end if
+   end block
 END SUBROUTINE prepoststep_ens_pdaf
 
 ! Initialize mean observation error variance
