@@ -24,13 +24,7 @@ program eat_pdaf_filter
    integer :: state_size,ensemble_size
    integer, allocatable :: model_reqs(:)
    integer, allocatable :: model_stats(:,:)
-#define USE_POINTER
-#ifdef USE_POINTER
-!KB   real(real64), pointer :: model_states(:,:) => null()
-   real(real64), pointer :: model_states(:,:)
-#else
-   real(real64), allocatable :: model_states(:,:)
-#endif
+   real(real64), pointer :: model_states(:,:) => null()
    integer :: stderr=error_unit,stdout=output_unit
    integer :: verbosity=info
 
@@ -83,30 +77,19 @@ subroutine eat_init_pdaf()
       call MPI_RECV(state_size,1,MPI_INTEGER,1,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
       if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- state_size) ',state_size
       ensemble_size=size_model_filter_comm-size_filter_comm
-#ifndef USE_POINTER
-!KB
-      allocate(model_states(state_size,ensemble_size))
-#endif
       allocate(model_reqs(ensemble_size))
       allocate(model_stats(MPI_STATUS_SIZE,ensemble_size))
    end if
 
 #define _USE_PDAF_
-#if 1
 #ifdef _USE_PDAF_
    CALL init_pdaf(ierr)
-#ifdef USE_POINTER
-!KB
    call PDAF_set_ens_pointer(model_states,ierr)
-!KB  model_states => eofV
-write(0,*) 'CCCC ',shape(model_states)
-#endif
    if (ierr /= 0) then
       call MPI_ABORT(MPI_COMM_WORLD,-1,ierr)
    else
       write(error_unit,*) 'filter(PDAF is initialized)'
    end if
-#endif
 #endif
 end subroutine eat_init_pdaf
 
@@ -164,28 +147,14 @@ subroutine eat_do_pdaf()
       end if
 
       if (have_obs .and. have_model .and. nobs > 0) then
-#if 0
-         ! PDAF-D_estkf_analysis.F90
-         ! PDAF-D_V1.13.2/tutorial/offline_2D_serial/obs_op_f_pdaf.F90
-         do m=1,nobs
-            di(m)=obs(m)-(model_states())
-         end if
-#endif
 !#ifndef _USE_PDAF_
 #ifdef _USE_PDAF_
          ! Begin PDAF specific part
          ! from .../tutorial/classical/offline_2D_serial/main_offline.F90
-!KBwrite(0,*) 'sum(model_states) ',sum(model_states),model_states(1,:)
          if (verbosity >= info) write(stderr,'(x,A)') 'filter(--> PDAF)'
-#ifndef USE_POINTER
-         eofV=model_states
-#endif
          CALL assimilation_pdaf()
          if (verbosity >= info) write(stderr,'(x,A)') 'filter(<-- PDAF)'
          ! End PDAF specific part
-#ifndef USE_POINTER
-         model_states=eofV
-#endif
 #endif
          do m=1,ensemble_size
             call MPI_ISEND(model_states(:,m),state_size,MPI_DOUBLE,m,m,EAT_COMM_model_filter,model_reqs(m),ierr)
