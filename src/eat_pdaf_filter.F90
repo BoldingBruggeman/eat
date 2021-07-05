@@ -297,7 +297,7 @@ integer :: doexit
    character(len=128) :: &
    filename = 'output.dat'
 
-   namelist /nml_pdaf_config/ screen,filtertype,subtype
+   namelist /nml_pdaf_config/ screen,filtertype,subtype,dim_ens
 
    INQUIRE(FILE=nmlfile, EXIST=fileexists)
    if (fileexists) then
@@ -559,8 +559,99 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
    REAL(REAL64), INTENT(inout) :: ens_p(dim_p, dim_ens)      ! PE-local state ensemble
    INTEGER, INTENT(in) :: flag        ! PDAF status flag
 
-   if (verbosity >= info) write(stderr,*) 'prepoststep_ens_pdaf()',step,dim_p,dim_ens,dim_ens_p,dim_obs_p
+! *** local variables ***
+  INTEGER :: i, j, member             ! Counters
+  LOGICAL, SAVE :: firsttime = .TRUE. ! Routine is called for first time?
+  REAL :: invdim_ens                  ! Inverse ensemble size
+  REAL :: invdim_ensm1                ! Inverse of ensemble size minus 1
+  REAL :: rmserror_est                ! estimated RMS error
+  REAL, ALLOCATABLE :: variance(:)    ! model state variances
+  REAL, ALLOCATABLE :: field(:,:)     ! global model field
+  CHARACTER(len=2) :: ensstr          ! String for ensemble member
+  CHARACTER(len=2) :: stepstr         ! String for time step
+  CHARACTER(len=3) :: anastr          ! String for call type (initial, forecast, analysis)
 
+   if (verbosity >= debug) write(stderr,*) 'prepoststep_ens_pdaf()',dim_p, dim_ens, dim_ens_p, dim_obs_p
+
+! **********************
+! *** INITIALIZATION ***
+! **********************
+
+  IF (firsttime) THEN
+     WRITE (*, '(8x, a)') 'Analyze initial state ensemble'
+     anastr = 'ini'
+  ELSE
+     IF (step<0) THEN
+        WRITE (*, '(8x, a)') 'Analyze and write forecasted state ensemble'
+        anastr = 'for'
+     ELSE
+        WRITE (*, '(8x, a)') 'Analyze and write assimilated state ensemble'
+        anastr = 'ana'
+     END IF
+  END IF
+
+  ! Allocate fields
+  ALLOCATE(variance(dim_p))
+
+  ! Initialize numbers
+  rmserror_est  = 0.0
+  invdim_ens    = 1.0 / REAL(dim_ens)
+  invdim_ensm1  = 1.0 / REAL(dim_ens - 1)
+
+
+! ****************************************************************
+! *** Perform prepoststep. The state and error information is  ***
+! *** completely in the ensemble.                              ***
+! ****************************************************************
+
+  ! *** Compute mean state
+  WRITE (*, '(8x, a)') '--- compute ensemble mean'
+
+  state_p = 0.0
+  DO member = 1, dim_ens
+     DO i = 1, dim_p
+        state_p(i) = state_p(i) + ens_p(i, member)
+     END DO
+  END DO
+  state_p(:) = invdim_ens * state_p(:)
+
+  write (*,*) anastr, 'state ', state_p(1:10)
+
+
+  ! *** Compute sampled variances ***
+  variance(:) = 0.0
+  DO member = 1, dim_ens
+     DO j = 1, dim_p
+        variance(j) = variance(j) &
+             + (ens_p(j, member) - state_p(j)) &
+             * (ens_p(j, member) - state_p(j))
+     END DO
+  END DO
+  variance(:) = invdim_ensm1 * variance(:)
+
+
+! ************************************************************
+! *** Compute RMS errors according to sampled covar matrix ***
+! ************************************************************
+
+  ! total estimated RMS error
+  DO i = 1, dim_p
+     rmserror_est = rmserror_est + variance(i)
+  ENDDO
+  rmserror_est = SQRT(rmserror_est / dim_p)
+
+  DEALLOCATE(variance)
+
+
+! *****************
+! *** Screen IO ***
+! *****************
+
+  ! Output RMS errors given by sampled covar matrix
+  WRITE (*, '(12x, a, es12.4)') &
+       'RMS error according to sampled variance: ', rmserror_est
+
+#if 0
    block
    integer :: u
    integer :: i=1,n
@@ -576,6 +667,8 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
       i=i+1
    end if
    end block
+#endif
+
 END SUBROUTINE prepoststep_ens_pdaf
 
 ! Initialize mean observation error variance
@@ -632,6 +725,9 @@ SUBROUTINE prodRinvA_pdaf(step, dim_obs_p, rank, obs_p, A_p, C_p)
          C_p(i, j) = ivariance_obs * A_p(i, j)
       END DO
    END DO
+
+!   if (verbosity >= info) write(stderr,*) 'prodRinvA_pdaf() A_P',A_p
+
 END SUBROUTINE prodRinvA_pdaf
 
 
