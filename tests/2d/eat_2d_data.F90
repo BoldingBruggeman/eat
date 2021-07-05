@@ -30,7 +30,7 @@ subroutine true_field(member,nmember)
    do j=1,ny
       do i=1,nx
          field(i,j)=sin(2*pi*(1._real64*i/nx+1._real64*j/ny+phi))
-!KB sin(2*pi*(i/18+j/36)+2*0.5*pi*(k+5)/dim_ens)
+         !KB sin(2*pi*(i/18+j/36)+2*0.5*pi*(k+5)/dim_ens)
       end do
    end do
 end subroutine true_field

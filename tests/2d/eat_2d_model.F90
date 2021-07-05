@@ -75,13 +75,12 @@ program eat_2d_model
 !KB            allocate(state(state_size))
 !KB         end if
       else
-!KB could maybe be done in pre_model_integrate()
-#if 1
+         !KB could maybe be done in pre_model_integrate()
          if (have_filter) then
             call MPI_IRECV(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model_filter,request,ierr)
             call MPI_WAIT(request,stat,ierr)
+            field=reshape(state,(/nx,ny/))
          end if
-#endif
       end if
 
       if (iand(signal,signal_integrate) == signal_integrate) then
@@ -91,6 +90,7 @@ program eat_2d_model
       end if
 
       if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
+         state=reshape(field,(/state_size/))
          call MPI_ISEND(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model_filter,request,ierr)
          call MPI_WAIT(request,stat,ierr)
       end if
@@ -187,7 +187,6 @@ subroutine post_model_initialize()
    if (have_filter) then
       write(fn,'(A,*(I0.2,A))') 'ens_',member,'_step',N,'_ini.dat'
    end if
-   state=reshape(field,(/state_size/))
 end subroutine post_model_initialize
 
 !-----------------------------------------------------------------------
@@ -204,7 +203,6 @@ subroutine pre_model_integrate()
          call MPI_IRECV(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model_filter,request,ierr)
          call MPI_WAIT(request,stat,ierr)
 #endif
-!KB         field=reshape(state,(/nx,ny/))
          write(fn,'(A,*(I0.2,A))') 'ens_',member,'_step',N,'_ana.dat'
          call write_field(fn,field)
       end if
