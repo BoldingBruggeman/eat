@@ -304,12 +304,12 @@ integer :: dim_state_p
    character(len=128) :: &
    filename = 'output.dat'
 
-   namelist /nml_pdaf_config/ screen,filtertype,subtype,dim_ens
+   namelist /nml_config_pdaf/ screen,filtertype,subtype,dim_ens
 
    INQUIRE(FILE=nmlfile, EXIST=fileexists)
    if (fileexists) then
       open(newunit=nmlunit,file=nmlfile,status='old',action='read')
-      read(nmlunit,nml=nml_pdaf_config)
+      read(nmlunit,nml=nml_config_pdaf)
       close(nmlunit)
    end if
 

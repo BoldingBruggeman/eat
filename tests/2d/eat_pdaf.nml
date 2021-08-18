@@ -1,8 +1,8 @@
-&nml_pdaf_filter
+&nml_filter_pdaf
    verbosity=1024
 /
 
-&nml_pdaf_config
+&nml_config_pdaf
    screen=3
    filtertype=6
    subtype=1
