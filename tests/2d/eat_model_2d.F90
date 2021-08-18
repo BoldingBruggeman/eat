@@ -1,6 +1,6 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-program eat_2d_model
+program eat_model_2d
 
    !! An re-implementation of the 'model' from here:
    !! http://pdaf.awi.de/files/pdaf_tutorial_onlineserial.pdf
@@ -9,7 +9,7 @@ program eat_2d_model
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use mpi
    use eat_config
-   use eat_2d_data
+   use fields_2d
    use datetime_module, only: datetime, timedelta, strptime
    IMPLICIT NONE
 
@@ -23,14 +23,16 @@ program eat_2d_model
    integer :: stat(MPI_STATUS_SIZE)
    integer :: request
    integer :: state_size=nx*ny
-   character(len=19) :: start,stop,timestr
-   real(real64) :: timestep
+   character(len=19) :: start="1998-01-01 00:00:00"
+   character(len=19) :: stop="1998-01-02 12:00:00"
+   character(len=19) :: timestr
+   character(len=14) :: timestamp
+   real(real64) :: timestep=3600._real64
    real(real64), allocatable :: state(:)
    logical :: ensemble_only=.false.
    integer :: signal
 
    ! Most of this must go to a model specific file
-   character(len=256), parameter :: time_format='%Y-%m-%d %H:%M:%S'
    TYPE(datetime), save :: sim_start, sim_stop
    TYPE(datetime) :: start_time,stop_time
    logical :: have_obs=.true.
@@ -41,7 +43,7 @@ program eat_2d_model
    logical :: fileexists
    integer :: nmlunit,outunit
    logical :: all_verbose=.true.
-   namelist /nml_2d_model/ verbosity,all_verbose
+   namelist /nml_model_2d/ verbosity,all_verbose,start,stop
    character(len=64) :: fn
    integer :: total_steps
    integer :: N=0
@@ -49,7 +51,7 @@ program eat_2d_model
    inquire(FILE=nmlfile,EXIST=fileexists)
    if (fileexists) then
       open(newunit=nmlunit,file=nmlfile)
-      read(unit=nmlunit,nml=nml_2d_model)
+      read(unit=nmlunit,nml=nml_model_2d)
       close(nmlunit)
       if (verbosity >= warn) write(stderr,*) 'model(read namelist)'
    end if
@@ -77,7 +79,7 @@ program eat_2d_model
       else
          !KB could maybe be done in pre_model_integrate()
          if (have_filter) then
-            call MPI_IRECV(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model_filter,request,ierr)
+            call MPI_IRECV(state,state_size,MPI_DOUBLE,0,analysis,EAT_COMM_model_filter,request,ierr)
             call MPI_WAIT(request,stat,ierr)
             field=reshape(state,(/nx,ny/))
          end if
@@ -91,7 +93,7 @@ program eat_2d_model
 
       if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
          state=reshape(field,(/state_size/))
-         call MPI_ISEND(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model_filter,request,ierr)
+         call MPI_ISEND(state,state_size,MPI_DOUBLE,0,forecast,EAT_COMM_model_filter,request,ierr)
          call MPI_WAIT(request,stat,ierr)
       end if
 
@@ -158,25 +160,24 @@ end subroutine pre_model_initialize
 
 subroutine initialize_2d()
    if (verbosity >= info) write(stderr,*) 'model(initialize): '
-   start="1998-01-01 00:00:00"
-   stop="1999-01-01 00:00:00"
+   sim_start = strptime(trim(start), time_format)
+   sim_stop  = strptime(trim(stop), time_format)
+   timestamp = sim_start%strftime("%Y%m%d%H%M%S")
    ! reproduce the fields read in the PDAF tutorial
-   if (member == 1) then
+   if (member == 1 .and. size_model_comm == 1) then
       call true_field(member)
-      write(fn,'(A,I0.4,A)') 'true_',0,'.dat'
+      write(fn,'(3A)') 'true_',timestamp,'.dat'
       call write_field(fn,field)
    end if
 
    call true_field(member,nmember=size_model_comm)
-   write(fn,'(A,*(I0.2,A))') 'ens_',member,'_step',0,'_ini.dat'
+   write(fn,'(A,I0.2,A,A,A)') 'ens_',member,'_ini_',timestamp,'.dat'
    call write_field(fn,field)
 end subroutine initialize_2d
 
 !-----------------------------------------------------------------------
 
 subroutine post_model_initialize()
-   sim_start = strptime(trim(start), time_format)
-   sim_stop  = strptime(trim(stop), time_format)
    if (verbosity >= info) then
       write(stderr,'(x,4A)') 'model(sim_start->sim_stop) ',sim_start%isoformat(),' --> ',sim_stop%isoformat()
    end if
@@ -184,9 +185,9 @@ subroutine post_model_initialize()
       start_time=sim_start
       signal=signal-signal_initialize
    end if
-   if (have_filter) then
-      write(fn,'(A,*(I0.2,A))') 'ens_',member,'_step',N,'_ini.dat'
-   end if
+!KB   if (have_filter) then
+!KB      write(fn,'(A,*(I0.2,A))') 'ens_',member,'_step',N,'_ini.dat'
+!KB   end if
 end subroutine post_model_initialize
 
 !-----------------------------------------------------------------------
@@ -198,13 +199,18 @@ subroutine pre_model_integrate()
       else
          stop_time=strptime(trim(timestr),time_format)
       end if
+      timestamp = start_time%strftime("%Y%m%d%H%M%S")
       if (have_filter) then
 #if 0
          call MPI_IRECV(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model_filter,request,ierr)
          call MPI_WAIT(request,stat,ierr)
 #endif
-         write(fn,'(A,*(I0.2,A))') 'ens_',member,'_step',N,'_ana.dat'
+         write(fn,'(A,I0.2,A,A,A)') 'ens_',member,'_ana_',timestamp,'.dat'
          call write_field(fn,field)
+      else
+         if (member == 1 .and. size_model_comm == 1) then
+            write(fn,'(3A)') 'true_',timestamp,'.dat'
+         end if
       end if
    end if
 end subroutine pre_model_integrate
@@ -212,7 +218,10 @@ end subroutine pre_model_integrate
 !-----------------------------------------------------------------------
 
 subroutine integrate_2d()
-   integer :: nsteps=2
+   integer :: nsteps
+   type(timedelta) :: td
+   td = stop_time-start_time
+   nsteps=nint(td%total_seconds()/timestep)
    if (verbosity >= info) write(stderr,'(x,2(A,I4))') 'model(integrate): ',N,' --> ',N+nsteps
    if (verbosity >= debug) write(stderr,'(x,4A)') 'model(start_time->stop_time) ', &
                                         start_time%isoformat(),' --> ',stop_time%isoformat()
@@ -226,12 +235,9 @@ end subroutine integrate_2d
 !-----------------------------------------------------------------------
 
 subroutine post_model_integrate()
+   timestamp = stop_time%strftime("%Y%m%d%H%M%S")
    start_time=stop_time
-   if (member == 1 .and. size_model_comm == 1) then
-      write(fn,'(A,I0.4,A)') 'true_',N,'.dat'
-   else
-      write(fn,'(A,*(I0.2,A))') 'ens_',member,'_step',N,'_for.dat'
-   end if
+   write(fn,'(A,I0.2,A,A,A)') 'ens_',member,'_for_',timestamp,'.dat'
    call write_field(fn,field)
 end subroutine post_model_integrate
 
@@ -243,4 +249,4 @@ end subroutine finalize_2d
 
 !-----------------------------------------------------------------------
 
-end program eat_2d_model
+end program eat_model_2d

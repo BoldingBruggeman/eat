@@ -1,13 +1,15 @@
-&nml_2d_obs
+&nml_obs_2d
 verbosity=1024
-obs_times_file='obs_2d_times.dat.short'
-obs_times_file='obs_2d_times.dat'
-nobsmin=10
-nobsmax=20
+obs_times_file='obs_times_2d.dat'
+nobsmin=18
+nobsmax=18
+obsstd=0.05
 /
 
-&nml_2d_model
+&nml_model_2d
 verbosity=1024
 all_verbose=.true.
+start="1998-01-01 00:00:00"
+stop="1998-01-02 12:00:00"
 /
 

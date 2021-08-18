@@ -13,20 +13,21 @@ def read_data(filelist):
    data = np.dstack(tuple(data))
    return data
 
-def plot_field(data,noshow=False,save=False,title='',vmin=-1,mmax=1):
+def plot_field(data,noshow=False,save=False,title='',vmin=None,vmax=None):
    for n in range(data.shape[2]):
       plt.figure()
-      m = data[:,:,n].mean()
-      plt.imshow(data[:,:,n], origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
+      m = data[:,:,n].std()
+      plt.imshow(data[:,:,n], origin='upper', interpolation='none', vmin=vmin, vmax=vmax)
       plt.colorbar()
-      plt.title('{0} ({1:03} - {2:6.4f})'.format(title,n,m))
+      plt.title('{0} ({1:03} - stddev={2:6.4f})'.format(title,n,m))
       if save:
          plt.savefig(f.name.rsplit('.', 1)[0] + '.png')
 
 def animate_fields(data,save=False,interval=100,title='',vmin=-1,vmax=1):
+   #KBdata = np.reshape(data,[18,36,17])
    def animate(i):
-      m = data.mean()
-      ax.set_title('{0} ({1:03} - {2:6.4f})'.format(title,i,m))
+      m = data[:,:,i].std()
+      ax.set_title('{0} ({1:03} - stddev={2:6.4f})'.format(title,i,m))
       cax.set_array(data[:,:,i].flatten())
 
    fig, ax = plt.subplots(figsize=(6, 3))
@@ -52,8 +53,8 @@ if __name__ == "__main__":
    parser.add_argument('--animate', action='store_true', help='animate input files')
    parser.add_argument('--interval', default=100, help='interval (ms) between updates')
    parser.add_argument('--title', default='', help='animation title')
-   parser.add_argument('--vmin', default='-1', help='minimum')
-   parser.add_argument('--vmax', default='1', help='minimum')
+   parser.add_argument('--vmin', default=None, help='minimum')
+   parser.add_argument('--vmax', default=None, help='maximum')
    args = parser.parse_args()
 
    if not args.diff:

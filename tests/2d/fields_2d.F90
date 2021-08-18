@@ -1,6 +1,6 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-module eat_2d_data
+module fields_2d
 
    !! An re-implementation of the 'model' from here:
    !! http://pdaf.awi.de/files/pdaf_tutorial_onlineserial.pdf
@@ -10,8 +10,11 @@ module eat_2d_data
 
    IMPLICIT NONE
 
+   character(len=256), parameter :: time_format='%Y-%m-%d %H:%M:%S'
    integer, parameter :: nx=36,ny=18
-   real(real64) :: field(nx,ny)
+   real(real64) :: field(nx,ny),obsfield(nx,ny)
+   integer :: nobsmin=10,nobsmax=40
+   real(real64) :: obsstd=0.05
    real(real64), parameter :: pi=acos(-1._real64)
 
 contains
@@ -37,7 +40,7 @@ end subroutine true_field
 
 subroutine update_field(nsteps)
    integer, intent(in), optional :: nsteps
-   integer :: i,j,k,n=1
+   integer :: i,j,k,n=2
    real(real64) :: tmp(nx)
 
    if (present(nsteps)) n=nsteps
@@ -52,39 +55,42 @@ subroutine update_field(nsteps)
    end do
 end subroutine update_field
 
-subroutine get_obs(n,iobs,obs)
+subroutine get_obs(n,obsstd,iobs,obs)
    integer, intent(in) :: n
+   real(real64), intent(in) :: obsstd
    integer, intent(inout) :: iobs(:)
    real(real64), intent(inout) :: obs(:)
+
    real(real64), allocatable :: obserr(:)
    real(real64) :: x(2)
-   real(real64) :: obsfield(nx,ny)
-   character(len=64) :: fn
    integer :: i,j,k,nobs
    integer :: iseed(4)=(/1000,2034,0,3/)
 
    nobs=size(obs)
-   allocate(obserr(nobs))
-   call dlarnv(3,iseed,nobs,obserr)
    if (n == 1) then
-      call true_field(1)
-   else
-      call update_field()
+      call true_field(0)
    end if
+   call update_field(nsteps=2)
    obsfield=-999._real64
    !KB PDAF-D_V1.13.2/tutorial/offline_2D_serial/init_dim_obs_pdaf.F90
    do k=1,nobs
       call random_number(x)
       i=1+FLOOR(nx*x(1))
+i=k
       j=1+FLOOR(ny*x(2))
+j=k
       obsfield(i,j)=field(i,j)
       iobs(k)=i+(j-1)*nx
       obs(k)=field(i,j)
    end do
-   obserr=0.05
-   obs=obs+obserr
-   write(fn,'(A,I0.4,A)') 'obs_',n,'.dat'
-   call write_field(trim(fn),obsfield)
+   allocate(obserr(nobs))
+   call dlarnv(2,iseed,nobs,obserr)
+#if 1
+   do k=1,nobs
+      write(0,*) 'BBB ',obs(k),obsstd*obserr(k)
+   end do
+#endif
+   obs=obs+obsstd*obserr
 end subroutine get_obs
 
 subroutine write_field(fn,f)
@@ -101,4 +107,4 @@ end subroutine write_field
 
 !-----------------------------------------------------------------------
 
-end module eat_2d_data
+end module fields_2d

@@ -1,13 +1,14 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-program eat_2d_obs
+program eat_obs_2d
 
    !! The observation handler example program for the 2d test case
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use mpi
    use eat_config
-   use eat_2d_data
+   use fields_2d
+   use datetime_module, only: datetime, strptime
    IMPLICIT NONE
 
    integer :: ierr
@@ -15,12 +16,12 @@ program eat_2d_obs
    character(32), allocatable  :: obs_times(:)
    integer, allocatable :: iobs(:)
    real(real64), allocatable :: obs(:)
-   integer :: nobsmin=10,nobsmax=40
    logical :: have_model=.true.
    logical :: have_filter=.true.
    integer :: nmodel=-1
    integer :: stderr=error_unit,stdout=output_unit
    integer :: verbosity=info
+   integer :: filter=1
 !-----------------------------------------------------------------------
 
    call init_observations()
@@ -46,12 +47,12 @@ subroutine init_observations()
    logical :: fileexists
    integer :: nmlunit,outunit
    logical :: all_verbose=.true.
-   namelist /nml_2d_obs/ verbosity,all_verbose,obs_times_file,nobsmin,nobsmax
+   namelist /nml_obs_2d/ verbosity,all_verbose,obs_times_file,nobsmin,nobsmax,obsstd
 !-----------------------------------------------------------------------
    inquire(FILE=nmlfile,EXIST=fileexists)
    if (fileexists) then
       open(newunit=nmlunit,file=nmlfile)
-      read(unit=nmlunit,nml=nml_2d_obs)
+      read(unit=nmlunit,nml=nml_obs_2d)
       close(nmlunit)
       if (verbosity >= warn) write(stderr,*) 'obs(read namelist)'
    end if
@@ -103,7 +104,8 @@ subroutine do_observations()
 
    ! Local variables
    integer :: stats(MPI_STATUS_SIZE,2)
-   integer :: m,n,nobs
+   integer :: m ! model counter
+   integer :: n,nobs
    real(real64) :: x
    character(len=32) :: timestr,halt="0000-00-00 00:00:00"
    integer :: requests(2)
@@ -125,7 +127,7 @@ subroutine do_observations()
       nobs=nobsmin+FLOOR((nobsmax+1-nobsmin)*x)
       if (verbosity >= info) write(stderr,'(A,I6)') ' obs(--> nobs)    ',nobs
       if (have_filter) then
-         call MPI_SSEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
+         call MPI_SSEND(nobs,1,MPI_INTEGER,filter,1,EAT_COMM_obs_filter,ierr)
          if (ierr /= MPI_SUCCESS) then
             if (verbosity >= error) then
                write(stderr,*) 'obs: failing to send to filter process'
@@ -143,12 +145,21 @@ subroutine do_observations()
              deallocate(obs)
              allocate(obs(nobs))
          end if
-         call get_obs(n,iobs(1:nobs),obs(1:nobs))
+         call get_obs(n,obsstd,iobs(1:nobs),obs(1:nobs))
+         block
+         character(len=64) :: fn
+         TYPE(datetime) :: t
+         character(len=14) :: timestamp
+         t = strptime(trim(obs_times(n)),time_format)
+         timestamp = t%strftime("%Y%m%d%H%M%S")
+         write(fn,'(3A)') 'obs_',timestamp,'.dat'
+         call write_field(trim(fn),obsfield)
+         end block
          if (verbosity >= info)  write(stderr,'(A,F10.6)') ' obs(--> obs)    ',sum(obs)/nobs
       end if
       if (have_filter .and. nobs > 0) then
-         call MPI_ISEND(iobs(1:nobs),nobs,MPI_INTEGER,1,1,EAT_COMM_obs_filter,requests(1),ierr)
-         call MPI_ISEND(obs(1:nobs),nobs,MPI_DOUBLE,1,1,EAT_COMM_obs_filter,requests(2),ierr)
+         call MPI_ISEND(iobs(1:nobs),nobs,MPI_INTEGER,filter,1,EAT_COMM_obs_filter,requests(1),ierr)
+         call MPI_ISEND(obs(1:nobs),nobs,MPI_DOUBLE,filter,1,EAT_COMM_obs_filter,requests(2),ierr)
 !KB         call sleep(1)
          call MPI_WAITALL(2,requests,stats,ierr)
          if (ierr /= MPI_SUCCESS) then
@@ -156,16 +167,17 @@ subroutine do_observations()
          end if
       end if
    end do
+
    ! Here we must NOT use MPI_SSEND()
    if (have_filter) then
       nobs=-1
       if (verbosity >= info) write(stderr,'(A,I6)') ' obs(--> nobs)    ',nobs
-      call MPI_SEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
+      call MPI_SEND(nobs,1,MPI_INTEGER,filter,1,EAT_COMM_obs_filter,ierr)
    end if
    if (have_model) then
       if (verbosity >= info) write(stderr,*) 'obs(--> exit)'
       do m=1,nmodel
-         call MPI_SEND(halt,19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr) !!!! nmodel
+         call MPI_SEND(halt,19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr)
       end do
    end if
 end subroutine do_observations
@@ -174,7 +186,7 @@ end subroutine do_observations
 
 subroutine finish_observations()
 
-   !! Finish the eat_2d_obs program by calling MPI_Finalize()
+   !! Finish the eat_obs_2d program by calling MPI_Finalize()
 
 !-----------------------------------------------------------------------
    call MPI_Finalize(ierr)
@@ -182,4 +194,4 @@ end subroutine finish_observations
 
 !-----------------------------------------------------------------------
 
-end program eat_2d_obs
+end program eat_obs_2d
