@@ -1,4 +1,4 @@
-# eat
+# EAT
 Ensemble and Assimilation Tool (EAT). 
 
 
@@ -54,6 +54,8 @@ cmake ../eat
 make
 ```
 
+An easy way to support multiple compilers on a single platform the build directory can include the compiler name like - *build/gfortran* or *build/ifort*. 
+
 If the above completes software installation, configuration and compilation is done successfully.
 
 ## Running a test case
@@ -65,3 +67,5 @@ EAT comes with 3 test cases:
 - A GOTM case. This case is used as an example of how to create a data-assimilation setup for GOTM.
 
 The cases are available in *.../tests* folder. Each of the tests has a README for specific information.
+
+https://github.com/18F/open-source-guide/blob/18f-pages/pages/making-readmes-readable.md

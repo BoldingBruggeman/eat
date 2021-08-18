@@ -9,7 +9,7 @@ This test case resembles the '2d' case from the [PDAF documentation](http://pdaf
 
 #### Compiling the 2d case
 
-It is assumed that a general configuration and compilation of _eat_ has been done. 
+It is assumed that a general configuration and compilation of _EAT_ has been done. 
 
 The _builddir_ below is the user provided folder used by _CMake_ to store the necessary compilation configuration. 
 
@@ -24,12 +24,12 @@ A successful compilation will have compiled 3 executables - _eat_pdaf_filter_, _
 
 #### Running the 2d case
 
-The _sourcedir_ is the folder where the _eat_ source code is installed via the _git clone_ -command.
+The _reposdir_ is the folder where the _EAT_ source code is installed via the _git clone_ -command.
 
 The commands will be executed in the folder of the test.
 
 ```
-cd $sourcedir/tests/2d
+cd $reposdir/tests/2d
 ```
 
 The following commands assumes that OpenMPI has been used. As _mpiexec_ is not standardized using a different implementation of MPI will likely require adjustments to command examples given.
@@ -37,7 +37,7 @@ The following commands assumes that OpenMPI has been used. As _mpiexec_ is not s
 First - to get the true solution - run the following command:
 
 ```
-cd $sourcedir/tests/2d
+cd $reposdir/tests/2d
 mpiexec -np 1 $builddir/tests/2d/eat_2d_obs : -np 1 $builddir/tests/2d/eat_2d_model
 ```
 
