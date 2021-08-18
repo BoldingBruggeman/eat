@@ -16,6 +16,10 @@ module eat_config
 
    private
 
+   ! MPI tags
+   integer, parameter, public :: analysis=1
+   integer, parameter, public :: forecast=2
+
    public :: init_eat_config, version_mpi_config
    integer, parameter, public :: color_obs=1
    integer, parameter, public :: color_model=2
