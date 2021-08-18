@@ -1,6 +1,6 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-program eat_observations
+program eat_obs
 
    !! A observation handler example program in Fortran.
    !! No real observation handling but illustrates communication
@@ -18,12 +18,12 @@ program eat_observations
    integer :: nmodel=-1
 !KB   integer :: nfilter=-1
    integer :: stderr=error_unit,stdout=output_unit
-   integer :: verbosity=warn
+   integer :: verbosity=info
 !-----------------------------------------------------------------------
 
-   call init_observations()
-   call do_observations()
-   call finish_observations()
+   call init_obs()
+   call do_obs()
+   call finish_obs()
 
 !-----------------------------------------------------------------------
 
@@ -31,7 +31,7 @@ contains
 
 !-----------------------------------------------------------------------
 
-subroutine init_observations()
+subroutine init_obs()
 
    !! Observation times are obtained from an external file - prepare to
    !! send to the server
@@ -70,11 +70,11 @@ subroutine init_observations()
       if (ios < 0) exit
       if(len(buf) > 0) obs_times(i) = trim(buf)
    end do
-end subroutine init_observations
+end subroutine init_obs
 
 !-----------------------------------------------------------------------
 
-subroutine do_observations()
+subroutine do_obs()
 
    !! Handle observations and send size and observations to the server
 
@@ -87,16 +87,21 @@ subroutine do_observations()
 !-----------------------------------------------------------------------
    do n=1,size(obs_times)
       if (have_model) then
+         if (verbosity >= info) write(stderr,*) 'obs(-> time)  ',trim(obs_times(n))
          do m=1,nmodel
-            call MPI_SEND(obs_times(n),19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr)
+            call MPI_SSEND(obs_times(n),19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr)
+            if (ierr /= MPI_SUCCESS) then
+               if (verbosity >= error) then
+                  write(stderr,*) 'obs: failing to send to model process#: ',m
+               end if
+            end if
          end do
-      else
-      if (verbosity >= info) write(stderr,*) 'obs(-> time)  ',trim(obs_times(n))
       end if
+
       if (have_filter) then
          nobs=10000*n
          if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> nobs)    ',nobs
-         call MPI_SEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
+         call MPI_SSEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
          if (nobs > 0) then
             if (.not. allocated(obs)) allocate(obs(nobs))
             if (allocated(obs) .and. nobs > size(obs)) then
@@ -105,16 +110,16 @@ subroutine do_observations()
             end if
             CALL RANDOM_NUMBER(obs)
             call MPI_ISEND(obs,nobs,MPI_DOUBLE,1,1,EAT_COMM_obs_filter,request,ierr)
-            call sleep(1)
             call MPI_WAIT(request,stat,ierr)
          end if
       end if
    end do
+
+   ! Here we must NOT use MPI_SSEND()
    if (have_model) then
       do m=1,nmodel
          call MPI_SEND(halt,19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr) !!!! nmodel
       end do
-   else
       if (verbosity >= info) write(stderr,*) 'obs(no more obs) -> halting'
    end if
    if (have_filter) then
@@ -122,18 +127,18 @@ subroutine do_observations()
       if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> nobs)    ',nobs
       call MPI_SEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
    end if
-end subroutine do_observations
+end subroutine do_obs
 
 !-----------------------------------------------------------------------
 
-subroutine finish_observations()
+subroutine finish_obs()
 
    !! Finish the eat_observation program by calling MPI_Finalize()
 
 !-----------------------------------------------------------------------
    call MPI_Finalize(ierr)
-end subroutine finish_observations
+end subroutine finish_obs
 
 !-----------------------------------------------------------------------
 
-end program eat_observations
+end program eat_obs

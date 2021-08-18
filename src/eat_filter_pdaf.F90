@@ -1,6 +1,8 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-program eat_pdaf_filter
+#define _USE_PDAF_
+
+program eat_filter_pdaf
 
    !! A wrapper around the 'off_line PDAF' implmentation to keep it alive during
    !! ensemble simulations
@@ -16,15 +18,17 @@ program eat_pdaf_filter
    integer, allocatable :: iobs(:)
    real(real64), allocatable :: obs(:)
 
-   real(real64) :: rms_obs = 0.05    ! Observation error standard deviation
-
    integer :: ierr
    logical :: have_obs=.true.
    logical :: have_model=.true.
    integer :: state_size,ensemble_size
    integer, allocatable :: model_reqs(:)
    integer, allocatable :: model_stats(:,:)
+#ifdef _USE_PDAF_
    real(real64), pointer :: model_states(:,:) => null()
+#else
+   real(real64), allocatable :: model_states(:,:)
+#endif
    integer :: stderr=error_unit,stdout=output_unit
    integer :: verbosity=info
 
@@ -34,6 +38,11 @@ program eat_pdaf_filter
 
    ! PDAF variables
    integer :: filtertype=6
+!KB
+REAL(real64) :: timenow
+integer :: doexit,steps
+   real(real64) :: rms_obs = 0.05    ! Observation error standard deviation
+
 !-----------------------------------------------------------------------
 
    call eat_init_pdaf()
@@ -53,12 +62,12 @@ subroutine eat_init_pdaf()
    ! Local variables
    integer :: stat(MPI_STATUS_SIZE)
    integer :: ierr
-   namelist /nml_pdaf_filter/ verbosity
+   namelist /nml_filter_pdaf/ verbosity
 !-----------------------------------------------------------------------
    INQUIRE(FILE=nmlfile, EXIST=fileexists)
    if (fileexists) then
       open(newunit=nmlunit,file=nmlfile,status='old',action='read')
-      read(nmlunit,nml=nml_pdaf_filter)
+      read(nmlunit,nml=nml_filter_pdaf)
       close(nmlunit)
       if (verbosity >= warn) write(stderr,*) 'filter(read namelist)'
    end if
@@ -81,7 +90,6 @@ subroutine eat_init_pdaf()
       allocate(model_stats(MPI_STATUS_SIZE,ensemble_size))
    end if
 
-#define _USE_PDAF_
 #ifdef _USE_PDAF_
    CALL init_pdaf(ierr)
    call PDAF_set_ens_pointer(model_states,ierr)
@@ -90,6 +98,8 @@ subroutine eat_init_pdaf()
    else
       write(error_unit,*) 'filter(PDAF is initialized)'
    end if
+#else
+   allocate(model_states(state_size,ensemble_size))
 #endif
 end subroutine eat_init_pdaf
 
@@ -114,7 +124,7 @@ subroutine eat_do_pdaf()
 
       if (have_model .and. nobs > 0) then
          do m=1,ensemble_size
-            call MPI_IRECV(model_states(:,m),state_size,MPI_DOUBLE,m,MPI_ANY_TAG,EAT_COMM_model_filter,model_reqs(m),ierr)
+            call MPI_IRECV(model_states(:,m),state_size,MPI_DOUBLE,m,forecast,EAT_COMM_model_filter,model_reqs(m),ierr)
          end do
       end if
 
@@ -147,7 +157,6 @@ subroutine eat_do_pdaf()
       end if
 
       if (have_obs .and. have_model .and. nobs > 0) then
-!#ifndef _USE_PDAF_
 #ifdef _USE_PDAF_
          ! Begin PDAF specific part
          ! from .../tutorial/classical/offline_2D_serial/main_offline.F90
@@ -157,7 +166,7 @@ subroutine eat_do_pdaf()
          ! End PDAF specific part
 #endif
          do m=1,ensemble_size
-            call MPI_ISEND(model_states(:,m),state_size,MPI_DOUBLE,m,m,EAT_COMM_model_filter,model_reqs(m),ierr)
+            call MPI_ISEND(model_states(:,m),state_size,MPI_DOUBLE,m,analysis,EAT_COMM_model_filter,model_reqs(m),ierr)
          end do
          call MPI_WAITALL(ensemble_size,model_reqs,model_stats(:,:),ierr)
          if (verbosity >= info) write(stderr,'(x,A)') 'filter(--> state)'
@@ -205,9 +214,7 @@ SUBROUTINE init_pdaf(stat)
    integer, intent(out) :: stat
 
 !KB
-integer :: dim_state_p,steps
-REAL(real64) :: timenow
-integer :: doexit
+integer :: dim_state_p
 
   integer :: comm_couple, comm_filter, comm_model, n_modeltasks, task_id
   logical :: filterpe=.true.
@@ -465,7 +472,11 @@ SUBROUTINE assimilation_pdaf()
            init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
            g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status)
    END IF
-   if (verbosity >= debug) write(stderr,*) 'PDAF STATUS= ',status
+   if (verbosity >= debug) write(stderr,*) 'PDAF PUT STATUS= ',status
+
+   CALL PDAF_get_state(steps, timenow, doexit, next_observation_pdaf, &
+        distribute_state_pdaf, prepoststep_ens_pdaf, status)
+   if (verbosity >= debug) write(stderr,*) 'PDAF GET STATUS= ',status
 END SUBROUTINE assimilation_pdaf
 
 !-----------------------------------------------------------------------
@@ -628,6 +639,25 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
      END DO
   END DO
   variance(:) = invdim_ensm1 * variance(:)
+
+   block
+   real(real64) :: s=0._real64,ss=0._real64
+   real(real64) :: mean,var,std
+   real(real64) :: x
+   s=0._real64
+   ss=0._real64
+   DO i = 1, dim_obs_p
+      x = obs(i)-state_p(iobs(i))
+      s = s+x
+      ss = ss+x*x
+   END DO
+   mean=s/dim_obs_p
+   var=(ss-s*s/dim_obs_p)/(dim_obs_p-1)
+   std=sqrt(var)
+   if (verbosity >= info) then
+      write(stderr,*) 'prepoststep_ens_pdaf() - mean, var, std',steps,mean,var,std
+   end if
+   end block
 
 
 ! ************************************************************
@@ -793,4 +823,4 @@ call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
 END SUBROUTINE init_dim_obs_f_pdaf
 #endif
 
-end program eat_pdaf_filter
+end program eat_filter_pdaf
