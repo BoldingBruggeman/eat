@@ -16,7 +16,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # To check version of configuration file
-#KBadd_definitions(-D_CFG_VERSION_=${gotm_VERSION_MAJOR})
 set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
 include_directories("${CMAKE_BINARY_DIR}/modules")
 
@@ -28,14 +27,6 @@ option(EAT_USE_MPI "Enable MPI parallelization" ON)
 set(PDAF_USE_MPI ${EAT_USE_MPI} CACHE BOOL "Compile PDAF with MPI support" FORCE)
 
 option(EAT_USE_PDAF "Include support for the PDAF library" ON)
-
-set(GOTM_USE_CVMIX OFF CACHE BOOL "Include support for the CVMix turbulence closure models (github.com/CVMix)" FORCE)
-
-set(GOTM_USE_FABM ON CACHE BOOL "Include support for Framework for Aquatic Biogeochemical Models (fabm.net)" FORCE)
-
-set(GOTM_USE_STIM OFF CACHE BOOL "Include support for Simple Thermodynamic Ice Models - STIM" FORCE)
-
-mark_as_advanced(GOTM_USE_CVMIX GOTM_USE_FABM GOTM_USE_STIM)
 
 # ----------------------------
 # Dependencies
@@ -49,7 +40,6 @@ endif()
 endif(EAT_USE_MPI)
 
 add_subdirectory("extern/datetime-fortran" EXCLUDE_FROM_ALL)
-add_subdirectory("extern/gotm" EXCLUDE_FROM_ALL)
 add_subdirectory("extern/pdaf" EXCLUDE_FROM_ALL)
 
 # ----------------------------
@@ -59,19 +49,19 @@ add_subdirectory("extern/pdaf" EXCLUDE_FROM_ALL)
 # Set default installation prefix (done after dependencies to ensure ours takes precedence)
 if(WIN32)
   if(DEFINED ENV{LOCALAPPDATA})
-    set(DEFAULT_PREFIX "$ENV{LOCALAPPDATA}/gotm")
+    set(DEFAULT_PREFIX "$ENV{LOCALAPPDATA}/eat")
   else()
-    set(DEFAULT_PREFIX "$ENV{APPDATA}/gotm")
+    set(DEFAULT_PREFIX "$ENV{APPDATA}/eat")
   endif()
 else()
-  set(DEFAULT_PREFIX "$ENV{HOME}/local/gotm")
+  set(DEFAULT_PREFIX "$ENV{HOME}/local/eat")
 endif()
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   # Still on CMake default - override with our own default.
-  set(CMAKE_INSTALL_PREFIX ${DEFAULT_PREFIX} CACHE PATH "Directory to install GOTM in" FORCE)
+  set(CMAKE_INSTALL_PREFIX ${DEFAULT_PREFIX} CACHE PATH "Directory to install EAT in" FORCE)
 else()
   # Just set the doc string for the variable.
-  set(CMAKE_INSTALL_PREFIX ${DEFAULT_PREFIX} CACHE PATH "Directory to install GOTM in")
+  set(CMAKE_INSTALL_PREFIX ${DEFAULT_PREFIX} CACHE PATH "Directory to install EAT in")
 endif()
 
 add_subdirectory("src")
