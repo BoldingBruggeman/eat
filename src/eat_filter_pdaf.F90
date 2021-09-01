@@ -172,7 +172,7 @@ subroutine eat_do_pdaf()
          if (verbosity >= info) write(stderr,'(x,A)') 'filter(--> state)'
       end if
 
-      if (nobs <= 0) then
+      if (nobs < 0) then
          if (verbosity >= info) write(stderr,*) 'filter(--> exit)'
          exit
       end if
