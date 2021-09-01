@@ -28,6 +28,8 @@ set(PDAF_USE_MPI ${EAT_USE_MPI} CACHE BOOL "Compile PDAF with MPI support" FORCE
 
 option(EAT_USE_PDAF "Include support for the PDAF library" ON)
 
+option(EAT_USE_GOTM "Build the GOTM driver for EAT" ON)
+
 # ----------------------------
 # Dependencies
 # ----------------------------
@@ -41,6 +43,15 @@ endif(EAT_USE_MPI)
 
 add_subdirectory("extern/datetime-fortran" EXCLUDE_FROM_ALL)
 add_subdirectory("extern/pdaf" EXCLUDE_FROM_ALL)
+
+if(EAT_USE_GOTM)
+#KB    find_package(gotm REQUIRED CONFIG HINTS "${GOTM_PREFIX}" NO_DEFAULT_PATH)
+#KB    mark_as_advanced(CLEAR GOTM_PREFIX)
+#KB    add_subdirectory("models/gotm" EXCLUDE_FROM_ALL)
+#KB    set(GOTM_BUILD_LIBRARIES_ONLY ON)
+    add_subdirectory("extern/gotm")
+    add_subdirectory("models/gotm")
+endif(EAT_USE_GOTM)
 
 # ----------------------------
 # EAT itself
