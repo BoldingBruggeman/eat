@@ -43,7 +43,7 @@ mpiexec -np 1 $builddir/tests/2d/eat_obs_2d : -np 1 $builddir/tests/2d/eat_model
 
 Note that both the observation and model programs must be executed.
 
-This will produce 19 _true\_????.dat_ files and 17 _obs\_????.dat_ files. Note - as the observation files are generated randomly this will **not** be the observations used by the assimilation done below.
+This will produce 19 _true\_??????????????.dat_ files and 17 _obs\_??????????????.dat_ files. Note - as the observation files are generated randomly this will **not** be the observations used by the assimilation done below.
 
 To do the full assimilation the command below must be executed:
 
@@ -99,23 +99,23 @@ To view the true solution on the screen:
 To view the observation fields on the screen:
 
 ```bash
-./plot_fields.py obs_????.dat
+./plot_fields.py obs_????????????.dat
 ```
 
 To save .pngs of the fields:
 
 ```bash
-./plot_fields.py obs_????.dat --noview --save
+./plot_fields.py obs_????????????.dat --noview --save
 ```
 
 To create an online animation of the fields:
 
 ```bash
-./plot_fields.py obs_????.dat --animate
+./plot_fields.py obs_????????????.dat --animate
 ```
 
 Note it is also possible to save to a .mp4 file (note this might fail due to missing Python requirements):
 ```bash
-./plot_fields.py obs_????.dat --animate --save
+./plot_fields.py obs_????????????.dat --animate --save
 ```
 
