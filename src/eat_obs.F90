@@ -87,7 +87,7 @@ subroutine do_obs()
 !-----------------------------------------------------------------------
    do n=1,size(obs_times)
       if (have_model) then
-         if (verbosity >= info) write(stderr,*) 'obs(-> time)  ',trim(obs_times(n))
+         if (verbosity >= info) write(stderr,*) 'obs(-> model)  ',trim(obs_times(n))
          do m=1,nmodel
             call MPI_SSEND(obs_times(n),19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr)
             if (ierr /= MPI_SUCCESS) then
@@ -100,7 +100,7 @@ subroutine do_obs()
 
       if (have_filter) then
          nobs=10000*n
-         if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> nobs)    ',nobs
+         if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> filter) ',nobs
          call MPI_SSEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
          if (nobs > 0) then
             if (.not. allocated(obs)) allocate(obs(nobs))
@@ -124,7 +124,7 @@ subroutine do_obs()
    end if
    if (have_filter) then
       nobs=-1
-      if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> nobs)    ',nobs
+      if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> filter) ',nobs
       call MPI_SEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
    end if
 end subroutine do_obs
