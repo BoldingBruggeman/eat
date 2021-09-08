@@ -2,6 +2,8 @@
 
 2: GOTM test case - version 6
 
-3: Install eat_observations.py for GOTM.
+3: Install eat_obs_gotm.py for GOTM.
 
-4:
+4: eat_obs_gotm-py - add sending iobs vector.
+
+5: GOTM - pack and unpack state vector
