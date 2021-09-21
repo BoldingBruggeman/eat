@@ -1,43 +1,42 @@
-**NOTE - the eat_pdaf_filter is not ready yet so the actual assimilation command given below will fail**
-
 ### A simple 2D example
 
-This test case resembles the '2d' case from the [PDAF documentation](http://pdaf.awi.de/files/pdaf_tutorial_the_model.pdf) withe the following differences:
+As an example and as proof of concept the '2d' case from the [PDAF documentation](http://pdaf.awi.de/files/pdaf_tutorial_the_model.pdf) has be implemented in EAT. The implementation is very similar to the original PDAF case but with the following differences:
 
-- All files are generated - i.e. there are no data-files provided by the set-up.
-- The observation points are randomly distributed on the domain and the number of points varies between the _nobsmin_ and _nobsmax_ in the _eat_2d.nml_ namelist file.
+- All files are generated - i.e. there are no data files provided by the set-up.
+- The observation points are randomly distributed in the domain and the number of points varies between the _nobsmin_ and _nobsmax_  variables in the _eat_2d.nml_ namelist file.
+- The standard deviation of the observations can be specified in the *eat_2d.nml* namelist file.
 
-#### Compiling the 2d case
+The model simulation is a progressing wave through a rectangular basin. The difference between the ensemble members is all in the initial conditions where a phase shift is introduced. 
 
-It is assumed that a general configuration and compilation of _EAT_ has been done. 
+![eat_2d](/home/kb/source/repos/EAT/eat/tests/2d/eat_2d_true.gif)
 
-The _builddir_ below is the user provided folder used by _CMake_ to store the necessary compilation configuration. 
+Observations are generated from the true solution by adding normal distributed random noise.
 
-Then the compilation of the test case is done as follows:
+#### Compiling the 2d case:
+
+All commands will be executed in the folder of the test.
+
+```
+cd $reposdir/eat/tests/2d
+```
+
+It is not strictly necessary to have built and installed  EAT - as it will be done as part of the command give below (if not already done). 
+
+The compilation of the test case is done as follows:
 
 ```bash
-cd $builddir
-make test_eat_2d
+cmake --build ../../../build --target test_eat_2d install
 ```
 
-A successful compilation will have compiled 3 executables - _eat_pdaf_filter_, _eat_obs_2d_ and _eat_model_2d_. For the test cases there is no _make install_ and the exectutables will be in the folders where their respective source files are.
+A successful compilation will have generated 3 executables - _eat_pdaf_filter_, _eat_obs_2d_ and _eat_model_2d_. The *eat_filter_pdaf* have been installed but *eat_obs_2d* and *eat_model_2d*  will be available in the folders where their respective source files are in the build folder.
 
 #### Running the 2d case
-
-The _reposdir_ is the folder where the _EAT_ source code is installed via the _git clone_ -command.
-
-The commands will be executed in the folder of the test.
-
-```
-cd $reposdir/tests/2d
-```
 
 The following commands assumes that OpenMPI has been used. As _mpiexec_ is not standardized using a different implementation of MPI will likely require adjustments to command examples given.
 
 First - to get the true solution - run the following command:
 
-```
-cd $reposdir/tests/2d
+```bash
 mpiexec -np 1 $builddir/tests/2d/eat_obs_2d : -np 1 $builddir/tests/2d/eat_model_2d
 ```
 
@@ -48,14 +47,14 @@ This will produce 19 _true\_??????????????.dat_ files and 17 _obs\_?????????????
 To do the full assimilation the command below must be executed:
 
 ```bash
-mpiexec --oversubscribe -np 1 $builddir/tests/2d/eat_obs_2d : -np 1 $builddir/src/eat_pdaf_filter : -np 9 $builddir/tests/2d/eat_model_2d
+mpiexec --oversubscribe -np 1 $builddir/tests/2d/eat_obs_2d : -np 1 $bindir/eat_filter_pdaf : -np 9 $builddir/tests/2d/eat_model_2d
 ```
 
-Note that above command is one long line and it must be copied to the terminal verbatim.
+Note that above command is one long line and it must be copied to the terminal verbatim. The number of ensemble members **must** be 9 in accordance with the implementation from PDAF. 
 
-Note also that _--oversubscribed_ is required by OpenMPI to start more processes than cores on the computer.
+Note also that _--oversubscribed_ is required by OpenMPI to start more processes than cores on the computer (here 11).
 
-The command will use _mpiexec_ to start 3 programs - a _filter_-program, an _observation_-program and a _model_-program. The first 2 each start 1 process and the last start 9 processes (in accordance with the configuration of the PDAF-setup).
+The command will use _mpiexec_ to start 3 programs - the _filter_-program, the  _observation_-program and the _model_-program. The first 2 each start 1 process and the last start 9 processes.
 
 The command will write output from all processes to the screen and it can be difficult to trace progress. There are two methods available that can increase the clarity. 
 
@@ -64,8 +63,10 @@ The first method is to set the namelist variable _all\_verbose=.false._ in the _
 The second method is to use OpenMPI's version of _mpiexec_'s command line option - _--output-filename logs_. In this case the output are written in the folder _logs_ sorted according to process number.
 
 ```bash
-mpiexec --oversubscribe --output-filename logs -np 1 $builddir/tests/2d/eat_obs_2d : -np 1 $builddir/src/eat_pdaf_filter : -np 9 $builddir/tests/2d/eat_model_2d
+mpiexec --oversubscribe --output-filename logs -np 1 $builddir/tests/2d/eat_obs_2d : -np 1 $bindir/eat_filter_pdaf : -np 9 $builddir/tests/2d/eat_model_2d
 ```
+
+The command will generate a large number of files - for each time of observations  forecasted and analyzed fields for each ensemble member. The naming scheme of the files contains the type of file (*true, obs, for* and *ana* ) as well a a time stamp.
 
 #### Plot/animate the 2d case results
 
@@ -93,19 +94,19 @@ optional arguments:
 To view the true solution on the screen:
 
 ```bash
-./plot_fields.py true_????.dat
+./plot_fields.py true_??????????????.dat
 ```
 
 To view the observation fields on the screen:
 
 ```bash
-./plot_fields.py obs_????????????.dat
+./plot_fields.py obs_??????????????.dat
 ```
 
 To save .pngs of the fields:
 
 ```bash
-./plot_fields.py obs_????????????.dat --noview --save
+./plot_fields.py obs_??????????????.dat --noview --save
 ```
 
 To create an online animation of the fields:
@@ -114,8 +115,9 @@ To create an online animation of the fields:
 ./plot_fields.py obs_????????????.dat --animate
 ```
 
-Note it is also possible to save to a .mp4 file (note this might fail due to missing Python requirements):
+Note it is also possible to save to a file - either animated GIF or MP4 (note this might fail due to missing Python requirements):
 ```bash
-./plot_fields.py obs_????????????.dat --animate --save
+./plot_fields.py obs_??????????????.dat --animate --save
 ```
 
+![eat_2d_obs](/home/kb/source/repos/EAT/eat/tests/2d/eat_2d_obs.gif)
