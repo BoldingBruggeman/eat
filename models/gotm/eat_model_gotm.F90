@@ -7,29 +7,21 @@ program eat_model_gotm
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use mpi
    use eat_config
-!KB For version 7
-!KB   use gotm, only: initialize_gotm, integrate_gotm, finalize_gotm
-   use gotm, only: initialize_gotm => init_gotm
-   use gotm, only: integrate_gotm => time_loop
-   use gotm, only: finalize_gotm => clean_up
+   use gotm, only: initialize_gotm, integrate_gotm, finalize_gotm
    use time, only: start,stop,timestep
    use time, only: MinN,MaxN
    use datetime_module, only: datetime, timedelta, clock, strptime
+   use field_manager
+   use register_all_variables, only: fm
    IMPLICIT NONE
-
-   integer, parameter :: signal_initialize=1
-   integer, parameter :: signal_integrate=2
-   integer, parameter :: signal_finalize=4
-   integer, parameter :: signal_send_state=8
 
    integer :: ierr
    integer :: member
    integer :: stat(MPI_STATUS_SIZE)
    integer :: request
-!KB   integer :: state_size
-   integer :: state_size=1234 !!!!KB
-   character(len=19) :: timestr
+   integer :: state_size=1657 !!!!KB
    real(real64), allocatable :: state(:)
+   character(len=19) :: timestr
    logical :: ensemble_only=.false.
    integer :: signal
 
@@ -44,13 +36,15 @@ program eat_model_gotm
    character(len=*), parameter :: nmlfile='eat_gotm.nml'
    logical :: fileexists
    integer :: nmlunit,outunit
-   logical :: all_verbose=.false.
-   namelist /nml_model_gotm/ verbosity,all_verbose
+   logical :: all_verbose=.true.
+   namelist /nml_eat_model/ verbosity,all_verbose
+
+   type (type_field_set) :: field_set
 !-----------------------------------------------------------------------
    inquire(FILE=nmlfile,EXIST=fileexists)
    if (fileexists) then
       open(newunit=nmlunit,file=nmlfile)
-      read(unit=nmlunit,nml=nml_model_gotm)
+      read(unit=nmlunit,nml=nml_eat_model)
       close(nmlunit)
       if (verbosity >= warn) write(stderr,*) 'model(read namelist)'
    end if
@@ -66,7 +60,6 @@ program eat_model_gotm
    call pre_model_initialize()
 
    do
-!KB      call model%signal_setup()
       call signal_setup()
       if (verbosity >= debug) write(stderr,*) 'model(signal) ',signal
 
@@ -74,7 +67,14 @@ program eat_model_gotm
          call initialize_gotm()
          call post_model_initialize()
          if (iand(signal,signal_send_state) == signal_send_state) then
+            call state_vector_size(state_size)
             allocate(state(state_size))
+         end if
+      else
+         if (have_filter .and. iand(signal,signal_recv_state) == signal_recv_state) then
+            call MPI_IRECV(state,state_size,MPI_DOUBLE,0,analysis,EAT_COMM_model_filter,request,ierr)
+            call MPI_WAIT(request,stat,ierr)
+            call state_to_fields()
          end if
       end if
 
@@ -84,10 +84,9 @@ program eat_model_gotm
          call post_model_integrate()
       end if
 
-      if (iand(signal,signal_send_state) == signal_send_state) then
-         CALL RANDOM_NUMBER(state)
-         state=state+rank-1
-         call MPI_ISEND(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model,request,ierr)
+      if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
+         call fields_to_state()
+         call MPI_ISEND(state,state_size,MPI_DOUBLE,0,forecast,EAT_COMM_model_filter,request,ierr)
          call MPI_WAIT(request,stat,ierr)
       end if
 
@@ -96,6 +95,7 @@ program eat_model_gotm
          exit
       end if
    end do
+   if (verbosity >= info) write(stderr,*) 'model(exit)'
    call MPI_Finalize(ierr)
 
 !-----------------------------------------------------------------------
@@ -111,20 +111,26 @@ subroutine signal_setup()
       signal=signal_initialize+signal_integrate+signal_finalize
    else
       if (first) then
-         signal=signal+signal_integrate
-         MinN=1
          first=.false.
+         signal=signal_initialize+signal_integrate
+         MinN=1
+         if (have_filter .and. rank_model_comm == 0) then
+            call MPI_SSEND(state_size,1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
+         end if
+         if (have_filter) signal=signal+signal_send_state
       else
          signal=signal_integrate
+         if (have_filter) signal=signal+signal_send_state+signal_recv_state
          MinN=MaxN+1
       end if
-
       call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_obs_model,stat,ierr)
+      if (verbosity >= debug) write(stderr,*) 'model(<-- time)  ',trim(timestr)
       if (ierr /= MPI_SUCCESS) then
          call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
       end if
       if(trim(timestr) == "0000-00-00 00:00:00") then
          signal=signal+signal_finalize
+         if (have_filter) signal=signal-signal_send_state
       end if
       member=stat(MPI_TAG)
    end if
@@ -137,8 +143,6 @@ subroutine pre_model_initialize()
       if (verbosity >= warn) write(stderr,*) "model(no observation program present)"
       have_obs=.false.
       ensemble_only=.true.
-   else
-      signal=signal_initialize
    end if
 
    if (EAT_COMM_model_filter == MPI_COMM_NULL) then
@@ -171,7 +175,6 @@ subroutine post_model_initialize()
    end if
    if (.not. ensemble_only) then
       start_time=sim_start
-      signal=signal_initialize+signal_integrate
    end if
 end subroutine post_model_initialize
 
@@ -199,5 +202,138 @@ subroutine post_model_integrate()
 end subroutine post_model_integrate
 
 !-----------------------------------------------------------------------
+!BOP
+!
+! !IROUTINE:
+!
+! !INTERFACE:
+   subroutine state_vector_size(state_size)
+!
+! !DESCRIPTION:
+!
+! !USES:
+   IMPLICIT NONE
+!
+! !OUTPUT PARAMETERS:
+   integer, intent(out)                :: state_size
+!
+! !REVISION HISTORY:
+!  Original author(s): Karsten Bolding & Jorn Bruggeman
+!
+! !LOCAL VARIABLES:
+   class (type_field_set_member),pointer    :: member
+!EOP
+!-------------------------------------------------------------------------
+!BOC
+   field_set = fm%get_state()
+   member => field_set%first
+   state_size = 0
+   do while (associated(member))
+      if (verbosity >= info)  write(stderr,*) '   state vector:  ',trim(member%field%name)
+      if (associated(member%field%data%p0d)) then
+         state_size = state_size+1
+      elseif (associated(member%field%data%p1d)) then
+         ! Depth-dependent variable with data pointed to by member%field%data%p1d
+         state_size = state_size+size(member%field%data%p1d)
+      else
+         stop 'no data assigned to state field'
+      end if
+      member => member%next
+   end do
+   if (verbosity >= info)  write(stderr,*) '   state vector size:  ',state_size
+   end subroutine state_vector_size
+!EOC
+
+!-----------------------------------------------------------------------
+!BOP
+!
+! !IROUTINE: Save the model results in file
+!
+! !INTERFACE:
+   subroutine state_to_fields()
+!
+! !DESCRIPTION:
+!
+! !USES:
+   IMPLICIT NONE
+!
+! !REVISION HISTORY:
+!  Original author(s): Karsten Bolding & Jorn Bruggeman
+!
+! !LOCAL VARIABLES:
+   integer                                  :: n,len
+   class (type_field_set_member),pointer    :: member
+!EOP
+!-------------------------------------------------------------------------
+!BOC
+   member => field_set%first
+   n = 1
+   len = 0
+   do while (associated(member))
+      ! This field is part of the model state. Its name is member%field%name.
+      if (associated(member%field%data%p0d)) then
+         ! Depth-independent variable with data pointed to by child%field%data%p0d
+         member%field%data%p0d = state(n)
+         n = n + 1
+      elseif (associated(member%field%data%p1d)) then
+         ! Depth-dependent variable with data pointed to by member%field%data%p1d
+         len = size(member%field%data%p1d)
+         member%field%data%p1d = state(n:n+len-1)
+         n = n + len
+      else
+         stop 'no data assigned to state field'
+      end if
+      member => member%next
+   end do
+   end subroutine state_to_fields
+!EOC
+
+!-----------------------------------------------------------------------
+!BOP
+!
+! !IROUTINE: Data from fields to state vector
+!
+! !INTERFACE:
+   subroutine fields_to_state()
+!
+! !DESCRIPTION:
+!
+! !USES:
+   IMPLICIT NONE
+!
+! !REVISION HISTORY:
+!  Original author(s): Karsten Bolding & Jorn Bruggeman
+!
+! !LOCAL VARIABLES:
+   integer                                  :: n,len
+   class (type_field_set_member),pointer    :: member
+!EOP
+!-------------------------------------------------------------------------
+!BOC
+   member => field_set%first
+   n = 1
+   len = 0
+   do while (associated(member))
+      ! This field is part of the model state. Its name is member%field%name.
+      if (associated(member%field%data%p0d)) then
+         ! Depth-independent variable with data pointed to by member%field%data%data%p0d
+         state(n) = member%field%data%p0d
+         n = n+1
+      elseif (associated(member%field%data%p1d)) then
+         ! Depth-dependent variable with data pointed to by member%field%data%p1d
+         len = size(member%field%data%p1d)
+         state(n:n+len-1) = member%field%data%p1d
+         n = n+len
+      else
+         stop 'no data assigned to state field'
+      end if
+      member => member%next
+   end do
+   end subroutine fields_to_state
+!EOC
+
+!-----------------------------------------------------------------------
 
 end program eat_model_gotm
+
+!-----------------------------------------------------------------------

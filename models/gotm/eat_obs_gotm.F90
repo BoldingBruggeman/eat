@@ -1,6 +1,6 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-program eat_obs
+program eat_obs_gotm
 
    !! A observation handler example program in Fortran.
    !! No real observation handling but illustrates communication
@@ -16,9 +16,9 @@ program eat_obs
    logical :: have_model=.true.
    logical :: have_filter=.true.
    integer :: nmodel=-1
-!KB   integer :: nfilter=-1
    integer :: stderr=error_unit,stdout=output_unit
    integer :: verbosity=info
+   integer :: filter=1
 !-----------------------------------------------------------------------
 
    call init_obs()
@@ -40,7 +40,20 @@ subroutine init_obs()
    integer :: unit,ios
    character(len=32) :: buf
    integer :: i,n
+   character(len=*), parameter :: nmlfile='eat_gotm.nml'
+   logical :: fileexists
+   integer :: nmlunit,outunit
+   character(len=128)  :: obs_times_file='obs_times.dat'
+   namelist /nml_eat_obs/ verbosity,obs_times_file
 !-----------------------------------------------------------------------
+   inquire(FILE=nmlfile,EXIST=fileexists)
+   if (fileexists) then
+      open(newunit=nmlunit,file=nmlfile)
+      read(unit=nmlunit,nml=nml_eat_obs)
+      close(nmlunit)
+      if (verbosity >= warn) write(stderr,*) 'obs(read namelist)'
+   end if
+
    call init_eat_config(color_obs+verbosity)
 
    if (EAT_COMM_obs_model == MPI_COMM_NULL) then
@@ -55,7 +68,7 @@ subroutine init_obs()
       have_filter=.false.
    end if
 
-   open(newunit=unit,file="obs_times.dat",status='old',action='read',iostat=ios)
+   open(newunit=unit,file=trim(obs_times_file),status='old',action='read',iostat=ios)
    if (ios /= 0) stop 'init_obs(): unable to open obs_times.dat for reading'
    n=0
    do
@@ -79,11 +92,13 @@ subroutine do_obs()
    !! Handle observations and send size and observations to the server
 
    ! Local variables
-   integer :: stat(MPI_STATUS_SIZE)
-   integer :: m,n,nobs
+   integer :: m ! ensemble counter
+   integer :: n,nobs
+   integer, allocatable :: iobs(:)
    real(real64), allocatable :: obs(:)
+   integer :: requests(2)
+   integer :: stats(MPI_STATUS_SIZE,2)
    character(len=32) :: timestr,halt="0000-00-00 00:00:00"
-   integer :: request
 !-----------------------------------------------------------------------
    do n=1,size(obs_times)
       if (have_model) then
@@ -101,32 +116,49 @@ subroutine do_obs()
       if (have_filter) then
          nobs=10000*n
          if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> filter) ',nobs
-         call MPI_SSEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
-         if (nobs > 0) then
-            if (.not. allocated(obs)) allocate(obs(nobs))
-            if (allocated(obs) .and. nobs > size(obs)) then
-                deallocate(obs)
-                allocate(obs(nobs))
+         call MPI_SSEND(nobs,1,MPI_INTEGER,filter,1,EAT_COMM_obs_filter,ierr)
+         if (ierr /= MPI_SUCCESS) then
+            if (verbosity >= error) then
+               write(stderr,*) 'obs: failing to send to filter process'
             end if
-            CALL RANDOM_NUMBER(obs)
-            call MPI_ISEND(obs,nobs,MPI_DOUBLE,1,1,EAT_COMM_obs_filter,request,ierr)
-            call MPI_WAIT(request,stat,ierr)
+         end if
+      end if
+      if (nobs > 0) then
+         if (.not. allocated(iobs)) allocate(iobs(nobs))
+         if (allocated(iobs) .and. nobs > size(iobs)) then
+             deallocate(iobs)
+             allocate(iobs(nobs))
+         end if
+         if (.not. allocated(obs)) allocate(obs(nobs))
+         if (allocated(obs) .and. nobs > size(obs)) then
+             deallocate(obs)
+             allocate(obs(nobs))
+         end if
+         CALL RANDOM_NUMBER(obs)
+         call MPI_ISEND(iobs(1:nobs),nobs,MPI_INTEGER,1,1,EAT_COMM_obs_filter,requests(1),ierr)
+         call MPI_ISEND(obs(1:nobs),nobs,MPI_DOUBLE,1,1,EAT_COMM_obs_filter,requests(2),ierr) ! change to 2
+         call MPI_WAITALL(2,requests,stats,ierr) ! change to 2
+         if (ierr /= MPI_SUCCESS) then
+            if (verbosity >= error) write(stderr,*) 'obs: failing to wait for requests'
          end if
       end if
    end do
 
    ! Here we must NOT use MPI_SSEND()
-   if (have_model) then
-      do m=1,nmodel
-         call MPI_SEND(halt,19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr) !!!! nmodel
-      end do
-      if (verbosity >= info) write(stderr,*) 'obs(no more obs) -> halting'
-   end if
    if (have_filter) then
       nobs=-1
-      if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> filter) ',nobs
-      call MPI_SEND(nobs,1,MPI_INTEGER,1,1,EAT_COMM_obs_filter,ierr)
+      call MPI_SEND(nobs,1,MPI_INTEGER,filter,1,EAT_COMM_obs_filter,ierr)
+      if (ierr /= MPI_SUCCESS .and. verbosity >= error) write(stderr,*) 'obs: failing to send nobs=-1'
+      if (verbosity >= info) write(stderr,'(A,I6)') ' obs(--> filter(exit))'
    end if
+   if (have_model) then
+      do m=1,nmodel
+         call MPI_SEND(halt,19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr)
+         if (ierr /= MPI_SUCCESS .and. verbosity >= error) write(stderr,*) 'obs: failing to send - halt - to member#',m
+      end do
+      if (verbosity >= info) write(stderr,*) 'obs(--> model(exit))'
+   end if
+   if (verbosity >= info) write(stderr,*) 'obs(exit)'
 end subroutine do_obs
 
 !-----------------------------------------------------------------------
@@ -141,4 +173,4 @@ end subroutine finish_obs
 
 !-----------------------------------------------------------------------
 
-end program eat_obs
+end program eat_obs_gotm
