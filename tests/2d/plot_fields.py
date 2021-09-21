@@ -13,7 +13,7 @@ def read_data(filelist):
    data = np.dstack(tuple(data))
    return data
 
-def plot_field(data,noshow=False,save=False,title='',vmin=None,vmax=None):
+def plot_fields(infiles,data,noshow=False,save=False,title='',vmin=None,vmax=None):
    for n in range(data.shape[2]):
       plt.figure()
       m = data[:,:,n].std()
@@ -21,9 +21,9 @@ def plot_field(data,noshow=False,save=False,title='',vmin=None,vmax=None):
       plt.colorbar()
       plt.title('{0} ({1:03} - stddev={2:6.4f})'.format(title,n,m))
       if save:
-         plt.savefig(f.name.rsplit('.', 1)[0] + '.png')
+         plt.savefig(infiles[n].name.rsplit('.', 1)[0] + '.png')
 
-def animate_fields(data,save=False,interval=100,title='',vmin=-1,vmax=1):
+def animate_fields(data,save=False,filetype='mp4',interval=100,title='',vmin=-1,vmax=1):
    #KBdata = np.reshape(data,[18,36,17])
    def animate(i):
       m = data[:,:,i].std()
@@ -38,7 +38,7 @@ def animate_fields(data,save=False,interval=100,title='',vmin=-1,vmax=1):
    anim = FuncAnimation(fig, animate, interval=interval, frames=data.shape[2])
 #   plt.draw()
    if save:
-      anim.save('eat_2d.mp4', fps=3)
+      anim.save('eat_2d.{}'.format(filetype) , fps=3)
    else:
       plt.show()
 
@@ -51,6 +51,7 @@ if __name__ == "__main__":
    parser.add_argument('--noshow', action='store_true', help=' do not show on screen')
    parser.add_argument('--save', action='store_true', help='save png/mp4 file(s)')
    parser.add_argument('--animate', action='store_true', help='animate input files')
+   parser.add_argument('--filetype', default='mp4', choices=['mp4', 'gif'], help='format of the animation file')
    parser.add_argument('--interval', default=100, help='interval (ms) between updates')
    parser.add_argument('--title', default='', help='animation title')
    parser.add_argument('--vmin', default=None, help='minimum')
@@ -74,8 +75,8 @@ if __name__ == "__main__":
    print(data.shape)
 
    if not args.animate:
-       plot_field(data,save=args.save,title=args.title,vmin=args.vmin,vmax=args.vmax)
+       plot_fields(args.infiles,data,save=args.save,title=args.title,vmin=args.vmin,vmax=args.vmax)
        if not args.noshow:
           plt.show()
    else:
-       animate_fields(data,save=args.save,interval=args.interval,title=args.title,vmin=args.vmin,vmax=args.vmax)
+       animate_fields(data,save=args.save,filetype=args.filetype,interval=args.interval,title=args.title,vmin=args.vmin,vmax=args.vmax)
