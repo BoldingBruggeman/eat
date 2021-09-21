@@ -8,7 +8,7 @@ As an example and as proof of concept the '2d' case from the [PDAF documentation
 
 The model simulation is a progressing wave through a rectangular basin. The difference between the ensemble members is all in the initial conditions where a phase shift is introduced. 
 
-![eat_2d](/home/kb/source/repos/EAT/eat/tests/2d/eat_2d_true.gif)
+![eat_2d](./eat_2d_true.gif)
 
 Observations are generated from the true solution by adding normal distributed random noise.
 
@@ -120,4 +120,4 @@ Note it is also possible to save to a file - either animated GIF or MP4 (note th
 ./plot_fields.py obs_??????????????.dat --animate --save
 ```
 
-![eat_2d_obs](/home/kb/source/repos/EAT/eat/tests/2d/eat_2d_obs.gif)
+![eat_2d_obs](./eat_2d_obs.gif)
