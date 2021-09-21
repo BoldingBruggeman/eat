@@ -1,5 +1,5 @@
 &nml_filter_pdaf
-   verbosity=1024
+!   verbosity=512
 /
 
 &nml_config_pdaf

@@ -1,0 +1,9 @@
+&nml_eat_model
+!   verbosity=512
+!   all_verbose=.false.
+/
+
+&nml_eat_obs
+!   verbosity=512
+!   obs_times_file ='obs_times.dat' 
+/
