@@ -16,25 +16,25 @@ The following command must be executed in the GOTM case folder.
 
 The result will be:
 
-![ensemble](/home/kb/source/repos/EAT/eat/models/gotm/ensemble.png)
+![ensemble](./ensemble.png)
 
 ## Ensemble simulation with time periods provided by observation program.
 
 The simulation can be split in time chunks according to times provided in the file *obs_times.dat* like:
 
-![obs_times](/home/kb/source/repos/EAT/eat/models/gotm/obs_times.png)
+![obs_times](./obs_times.png)
 
 The simulation start and stop time are given in the YAML-configuration file. The date/times from *obs_times.dat* is used to split the simulation in shorter parts.
 
 `mpiexec --oversubscribe -np 1 python $reposdir/eat/models/gotm/eat_obs_gotm.py : -np 5 $bindir/eat_model_gotm`
 
-![ensemble_split](/home/kb/source/repos/EAT/eat/models/gotm/ensemble_split.png)
+![ensemble_split](./ensemble_split.png)
 
 Each ensemble member will create a log file - as a normal GOTM simulation does. The naming of the log files follows the scheme of the GOTM-yaml files.
 
 As a new feature - the observation times are indicated in the log files as:
 
-![logfile](/home/kb/source/repos/EAT/eat/models/gotm/logfile.png)
+![logfile](./logfile.png)
 
 ## Full assimilation simulation
 
