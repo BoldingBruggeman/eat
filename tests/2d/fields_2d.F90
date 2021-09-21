@@ -76,9 +76,7 @@ subroutine get_obs(n,obsstd,iobs,obs)
    do k=1,nobs
       call random_number(x)
       i=1+FLOOR(nx*x(1))
-i=k
       j=1+FLOOR(ny*x(2))
-j=k
       obsfield(i,j)=field(i,j)
       iobs(k)=i+(j-1)*nx
       obs(k)=field(i,j)
