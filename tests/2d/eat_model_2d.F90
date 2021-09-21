@@ -13,11 +13,6 @@ program eat_model_2d
    use datetime_module, only: datetime, timedelta, strptime
    IMPLICIT NONE
 
-   integer, parameter :: signal_initialize=1
-   integer, parameter :: signal_integrate=2
-   integer, parameter :: signal_finalize=4
-   integer, parameter :: signal_send_state=8
-
    integer :: ierr
    integer :: member
    integer :: stat(MPI_STATUS_SIZE)
@@ -43,7 +38,7 @@ program eat_model_2d
    logical :: fileexists
    integer :: nmlunit,outunit
    logical :: all_verbose=.true.
-   namelist /nml_model_2d/ verbosity,all_verbose,start,stop
+   namelist /nml_eat_model/ verbosity,all_verbose,start,stop
    character(len=64) :: fn
    integer :: total_steps
    integer :: N=0
@@ -51,7 +46,7 @@ program eat_model_2d
    inquire(FILE=nmlfile,EXIST=fileexists)
    if (fileexists) then
       open(newunit=nmlunit,file=nmlfile)
-      read(unit=nmlunit,nml=nml_model_2d)
+      read(unit=nmlunit,nml=nml_eat_model)
       close(nmlunit)
       if (verbosity >= warn) write(stderr,*) 'model(read namelist)'
    end if
@@ -117,25 +112,24 @@ subroutine signal_setup() ! setup signal
       signal=signal_initialize+signal_integrate+signal_finalize
    else
       if (first) then
-         signal=signal_initialize+signal_integrate+signal_send_state
          first=.false.
-         if (rank_model_comm == 0 .and. have_filter) then
+         signal=signal_initialize+signal_integrate
+         if (have_filter .and. rank_model_comm == 0) then
             call MPI_SSEND(state_size,1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
          end if
+         if (have_filter) signal=signal+signal_send_state
       else
-         signal=signal_integrate+signal_send_state
+         signal=signal_integrate
+         if (have_filter) signal=signal+signal_send_state+signal_recv_state
       end if
-
       call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_obs_model,stat,ierr)
-      if (verbosity >= debug) write(stderr,*) 'model(<-- time)  ',trim(timestr)
+      if (verbosity >= info) write(stderr,*) 'model(<-- time)  ',trim(timestr)
       if (ierr /= MPI_SUCCESS) then
          call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
       end if
       if(trim(timestr) == "0000-00-00 00:00:00") then
          signal=signal+signal_finalize
-         if (have_filter) then
-            signal=signal-signal_send_state
-         end if
+         if (have_filter) signal=signal-signal_send_state
       end if
       member=stat(MPI_TAG)
    end if
@@ -183,7 +177,6 @@ subroutine post_model_initialize()
    end if
    if (.not. ensemble_only) then
       start_time=sim_start
-      signal=signal-signal_initialize
    end if
 !KB   if (have_filter) then
 !KB      write(fn,'(A,*(I0.2,A))') 'ens_',member,'_step',N,'_ini.dat'
@@ -201,17 +194,13 @@ subroutine pre_model_integrate()
       end if
       timestamp = start_time%strftime("%Y%m%d%H%M%S")
       if (have_filter) then
-#if 0
-         call MPI_IRECV(state,state_size,MPI_DOUBLE,0,member,EAT_COMM_model_filter,request,ierr)
-         call MPI_WAIT(request,stat,ierr)
-#endif
          write(fn,'(A,I0.2,A,A,A)') 'ens_',member,'_ana_',timestamp,'.dat'
-         call write_field(fn,field)
       else
          if (member == 1 .and. size_model_comm == 1) then
             write(fn,'(3A)') 'true_',timestamp,'.dat'
          end if
       end if
+      call write_field(fn,field)
    end if
 end subroutine pre_model_integrate
 

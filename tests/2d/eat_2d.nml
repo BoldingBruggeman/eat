@@ -1,14 +1,14 @@
-&nml_obs_2d
-verbosity=1024
+&nml_eat_obs
+!verbosity=1024
 obs_times_file='obs_times_2d.dat'
 nobsmin=18
 nobsmax=18
 obsstd=0.05
 /
 
-&nml_model_2d
-verbosity=1024
-all_verbose=.true.
+&nml_eat_model
+!verbosity=1024
+!all_verbose=.false.
 start="1998-01-01 00:00:00"
 stop="1998-01-02 12:00:00"
 /
