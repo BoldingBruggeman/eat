@@ -1,6 +1,7 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
 #define _USE_PDAF_
+#undef _USE_PDAF_
 
 program eat_filter_pdaf
 
@@ -139,6 +140,7 @@ subroutine eat_do_pdaf()
             deallocate(obs)
             allocate(obs(nobs))
          end if
+         if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- iobs, obs)'
          call MPI_IRECV(iobs(1:nobs),nobs,MPI_INTEGER,0,1,EAT_COMM_obs_filter,obs_requests(1),ierr)
          call MPI_IRECV(obs(1:nobs),nobs,MPI_DOUBLE,0,1,EAT_COMM_obs_filter,obs_requests(2),ierr)
       end if
@@ -146,9 +148,11 @@ subroutine eat_do_pdaf()
       if (have_model .and. nobs > 0) then
          if (verbosity >= info) write(stderr,'(x,A)') 'filter(<-- state)'
          call MPI_WAITALL(ensemble_size,model_reqs,model_stats(:,:),ierr)
-         do m=1,ensemble_size
-            if (verbosity >= debug) write(stderr,'(x,A,I4,*(F10.5))') 'filter(<-- state)',m,sum(model_states(:,m))/state_size
-         end do
+         if (verbosity >= debug) then
+            do m=1,ensemble_size
+               write(stderr,'(x,A,I4,*(F10.5))') 'filter(<-- state)',m,sum(model_states(:,m))/state_size
+            end do
+         end if
       end if
 
       if (have_obs .and. nobs > 0) then
@@ -168,12 +172,12 @@ subroutine eat_do_pdaf()
          do m=1,ensemble_size
             call MPI_ISEND(model_states(:,m),state_size,MPI_DOUBLE,m,analysis,EAT_COMM_model_filter,model_reqs(m),ierr)
          end do
-         call MPI_WAITALL(ensemble_size,model_reqs,model_stats(:,:),ierr)
+         call MPI_WAITALL(ensemble_size,model_reqs,model_stats,ierr)
          if (verbosity >= info) write(stderr,'(x,A)') 'filter(--> state)'
       end if
 
       if (nobs < 0) then
-         if (verbosity >= info) write(stderr,*) 'filter(--> exit)'
+         if (verbosity >= info) write(stderr,*) 'filter(exit)'
          exit
       end if
    end do
