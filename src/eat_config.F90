@@ -21,9 +21,20 @@ module eat_config
    integer, parameter, public :: forecast=2
 
    public :: init_eat_config, version_mpi_config
+
+   ! signals used to guide integration
+   integer, parameter, public :: signal_initialize=1
+   integer, parameter, public :: signal_integrate=2
+   integer, parameter, public :: signal_finalize=4
+   integer, parameter, public :: signal_recv_state=8
+   integer, parameter, public :: signal_send_state=16
+
+   ! constants used to define communicators
    integer, parameter, public :: color_obs=1
    integer, parameter, public :: color_model=2
    integer, parameter, public :: color_filter=4
+
+   ! constants used to define logging verbosity
    integer, parameter, public :: debug=2048
    integer, parameter, public :: info=1024
    integer, parameter, public :: warn=512
