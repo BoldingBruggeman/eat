@@ -119,13 +119,13 @@ subroutine eat_do_pdaf()
 !-----------------------------------------------------------------------
    do
       if (have_obs) then
-         call MPI_RECV(nobs,1,MPI_INTEGER,0,1,EAT_COMM_obs_filter,stat,ierr)
+         call MPI_RECV(nobs,1,MPI_INTEGER,0,tag_nobs,EAT_COMM_obs_filter,stat,ierr)
          if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- nobs) ',nobs
       end if
 
       if (have_model .and. nobs > 0) then
          do m=1,ensemble_size
-            call MPI_IRECV(model_states(:,m),state_size,MPI_DOUBLE,m,forecast,EAT_COMM_model_filter,model_reqs(m),ierr)
+            call MPI_IRECV(model_states(:,m),state_size,MPI_DOUBLE,m,tag_forecast,EAT_COMM_model_filter,model_reqs(m),ierr)
          end do
       end if
 
@@ -141,8 +141,8 @@ subroutine eat_do_pdaf()
             allocate(obs(nobs))
          end if
          if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- iobs, obs)'
-         call MPI_IRECV(iobs(1:nobs),nobs,MPI_INTEGER,0,1,EAT_COMM_obs_filter,obs_requests(1),ierr)
-         call MPI_IRECV(obs(1:nobs),nobs,MPI_DOUBLE,0,1,EAT_COMM_obs_filter,obs_requests(2),ierr)
+         call MPI_IRECV(iobs(1:nobs),nobs,MPI_INTEGER,0,tag_iobs,EAT_COMM_obs_filter,obs_requests(1),ierr)
+         call MPI_IRECV(obs(1:nobs),nobs,MPI_DOUBLE,0,tag_obs,EAT_COMM_obs_filter,obs_requests(2),ierr)
       end if
 
       if (have_model .and. nobs > 0) then
@@ -170,7 +170,7 @@ subroutine eat_do_pdaf()
          ! End PDAF specific part
 #endif
          do m=1,ensemble_size
-            call MPI_ISEND(model_states(:,m),state_size,MPI_DOUBLE,m,analysis,EAT_COMM_model_filter,model_reqs(m),ierr)
+            call MPI_ISEND(model_states(:,m),state_size,MPI_DOUBLE,m,tag_analysis,EAT_COMM_model_filter,model_reqs(m),ierr)
          end do
          call MPI_WAITALL(ensemble_size,model_reqs,model_stats,ierr)
          if (verbosity >= info) write(stderr,'(x,A)') 'filter(--> state)'

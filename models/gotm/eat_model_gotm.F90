@@ -72,7 +72,7 @@ program eat_model_gotm
          end if
       else
          if (have_filter .and. iand(signal,signal_recv_state) == signal_recv_state) then
-            call MPI_IRECV(state,state_size,MPI_DOUBLE,0,analysis,EAT_COMM_model_filter,request,ierr)
+            call MPI_IRECV(state,state_size,MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
             call MPI_WAIT(request,stat,ierr)
             call state_to_fields()
          end if
@@ -86,7 +86,7 @@ program eat_model_gotm
 
       if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
          call fields_to_state()
-         call MPI_ISEND(state,state_size,MPI_DOUBLE,0,forecast,EAT_COMM_model_filter,request,ierr)
+         call MPI_ISEND(state,state_size,MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,request,ierr)
          call MPI_WAIT(request,stat,ierr)
       end if
 

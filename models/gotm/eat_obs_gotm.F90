@@ -114,9 +114,9 @@ subroutine do_obs()
       end if
 
       if (have_filter) then
-         nobs=10000*n
+         nobs=10*n
          if (verbosity >= info) write(stderr,'(A,I6)') ' obs(-> filter) ',nobs
-         call MPI_SSEND(nobs,1,MPI_INTEGER,filter,1,EAT_COMM_obs_filter,ierr)
+         call MPI_SSEND(nobs,1,MPI_INTEGER,filter,tag_nobs,EAT_COMM_obs_filter,ierr)
          if (ierr /= MPI_SUCCESS) then
             if (verbosity >= error) then
                write(stderr,*) 'obs: failing to send to filter process'
@@ -135,9 +135,9 @@ subroutine do_obs()
              allocate(obs(nobs))
          end if
          CALL RANDOM_NUMBER(obs)
-         call MPI_ISEND(iobs(1:nobs),nobs,MPI_INTEGER,1,1,EAT_COMM_obs_filter,requests(1),ierr)
-         call MPI_ISEND(obs(1:nobs),nobs,MPI_DOUBLE,1,1,EAT_COMM_obs_filter,requests(2),ierr) ! change to 2
-         call MPI_WAITALL(2,requests,stats,ierr) ! change to 2
+         call MPI_ISEND(iobs(1:nobs),nobs,MPI_INTEGER,1,tag_iobs,EAT_COMM_obs_filter,requests(1),ierr)
+         call MPI_ISEND(obs(1:nobs),nobs,MPI_DOUBLE,1,tag_obs,EAT_COMM_obs_filter,requests(2),ierr)
+         call MPI_WAITALL(2,requests,stats,ierr)
          if (ierr /= MPI_SUCCESS) then
             if (verbosity >= error) write(stderr,*) 'obs: failing to wait for requests'
          end if
@@ -147,7 +147,7 @@ subroutine do_obs()
    ! Here we must NOT use MPI_SSEND()
    if (have_filter) then
       nobs=-1
-      call MPI_SEND(nobs,1,MPI_INTEGER,filter,1,EAT_COMM_obs_filter,ierr)
+      call MPI_SEND(nobs,1,MPI_INTEGER,filter,tag_nobs,EAT_COMM_obs_filter,ierr)
       if (ierr /= MPI_SUCCESS .and. verbosity >= error) write(stderr,*) 'obs: failing to send nobs=-1'
       if (verbosity >= info) write(stderr,'(A,I6)') ' obs(--> filter(exit))'
    end if

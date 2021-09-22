@@ -74,7 +74,7 @@ program eat_model_2d
       else
          !KB could maybe be done in pre_model_integrate()
          if (have_filter) then
-            call MPI_IRECV(state,state_size,MPI_DOUBLE,0,analysis,EAT_COMM_model_filter,request,ierr)
+            call MPI_IRECV(state,state_size,MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
             call MPI_WAIT(request,stat,ierr)
             field=reshape(state,(/nx,ny/))
          end if
@@ -88,7 +88,7 @@ program eat_model_2d
 
       if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
          state=reshape(field,(/state_size/))
-         call MPI_ISEND(state,state_size,MPI_DOUBLE,0,forecast,EAT_COMM_model_filter,request,ierr)
+         call MPI_ISEND(state,state_size,MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,request,ierr)
          call MPI_WAIT(request,stat,ierr)
       end if
 

@@ -2,17 +2,21 @@ from mpi4py import MPI
 import numpy
 import time
 
-# For MPI_split
+# For MPI_split - MUST match colors defined in eat_config.F90
 color_obs=1
 color_model=2
 color_filter=4
 
-# Tags
+# Tags - MUST match tags defined in eat_config.F90
 tag_timestr=1
-tag_nobs=2
-tag_obs=3
+tag_nobs=1
+tag_iobs=1
+tag_obs=1
+tag_analysis=1
+tag_forecast=2
 
-# Setup communicators
+
+# Set up communicators
 MPI_COMM_obs = MPI.COMM_WORLD.Split(color=color_obs)
 rank = MPI_COMM_obs.Get_rank()
 size = MPI_COMM_obs.Get_size()
@@ -52,21 +56,28 @@ MPI.COMM_WORLD.Barrier()
 with open('obs_times.dat') as f:
     for i, l in enumerate(f):
         obs_time = l.rstrip('\n').strip('\'')
-        print(obs_time)
         if have_model:
+           print(' obs(-> model) {}'.format(obs_time))
            for dest in range(1, nmodel+1):
               MPI_COMM_obs_model.Send([obs_time.encode('ascii'), MPI.CHARACTER], dest=dest, tag=tag_timestr)
         if have_filter:
-           nobs = 10000*(i + 1)
+           nobs = 10*(i + 1)
+           print(' obs(-> filter) {}'.format(nobs))
            MPI_COMM_obs_filter.Send(numpy.array(nobs, dtype='i4'), dest=1, tag=tag_nobs)
-           dat = numpy.random.random(nobs)
-           MPI_COMM_obs_filter.Isend(dat, dest=1, tag=tag_obs).wait()
-
-if have_model:
-   for dest in range(1, nmodel+1):
-      MPI_COMM_obs_model.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=dest, tag=tag_timestr)
+           if nobs > 0:
+              # We need to send a vector with the indices of observations in the state vector
+              # 
+              iobs = numpy.random.randint(1, high=nobs, size=nobs)
+              r1 = MPI_COMM_obs_filter.Isend(numpy.array(iobs, dtype='i4'), dest=1, tag=1)
+              obs = numpy.random.random(nobs)
+              r2 = MPI_COMM_obs_filter.Isend(numpy.array(obs), dest=1, tag=1)
+              MPI.Request.Waitall([r1, r2])
 
 if have_filter:
    nobs=-1
    MPI_COMM_obs_filter.Send(numpy.array(nobs, dtype='i4'), dest=1, tag=tag_nobs)
-   
+ 
+if have_model:
+   for dest in range(1, nmodel+1):
+      MPI_COMM_obs_model.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=dest, tag=tag_timestr)
+
