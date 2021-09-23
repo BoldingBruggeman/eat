@@ -16,6 +16,7 @@ set(SRC_PDAF_GEN
     PDAF-D_alloc_filters.F90
     PDAF-D_print_info.F90
     PDAF-D_print_version.F90
+    PDAF_set_comm_pdaf.F90
     PDAF_options_filters.F90
     PDAF-D_get_state.F90
     PDAF-D_get_state_si.F90
