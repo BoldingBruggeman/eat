@@ -91,9 +91,10 @@ Step 3: Copy PDAF CMake configuration files from EAT to PDAF.
 PDAF does not come with CMake based configuration files. The following will prepare the PDAF source code to integrate and build with EAT.
 
 ```bash
-cp PDAF_CMake/CMakeLists.txt extern/pdaf
-cp PDAF_CMake/src/CMakeLists.txt extern/pdaf/src
-cp PDAF_CMake/src/pdaf_configure.h.in extern/pdaf/src
+cp PDAF_CMake/CMakeLists.txt extern/pdaf/
+cp PDAF_CMake/src/CMakeLists.txt extern/pdaf/src/
+cp PDAF_CMake/src/pdaf_configure.h.in extern/pdaf/src/
+cp PDAF_CMAKE/src/pdaf_configure.F90 extern/pdaf/src/
 ```
 
 Again - the folder where the files are copied must be adjusted to fit where the PDAF source code is installed. In the example above a link has been created to *$reposdir/eat/extern/pdaf*.
