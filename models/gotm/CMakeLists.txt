@@ -6,6 +6,7 @@ target_link_libraries(eat_obs_gotm PRIVATE eat_config ${MPI_Fortran_LIBRARIES})
 
 install(TARGETS eat_model_gotm
    EXPORT gotmConfig
+   RUNTIME DESTINATION bin
    LIBRARY DESTINATION lib
    ARCHIVE DESTINATION lib
 )
