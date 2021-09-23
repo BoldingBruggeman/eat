@@ -68,7 +68,11 @@ Step 1: register and download the PDAF code
 
 The get access to the PDAF source code [registration](http://pdaf.awi.de/register/index.php) is required. Please follow the instructions given on the registration page and proceed to step 2 when the code is downloaded and installed.
 
-Step 2: link the PDAF-code to the EAT code.
+Step 2: make the PDAF-code available to EAT
+
+There are two methods to specify where the PDAF code is.
+
+The first method is to create a link to point to the downloaded and un-packed PDAF source code:
 
 ```bash
 cd $reposdir/eat/extern
@@ -77,6 +81,10 @@ cd ..
 ```
 
 The PDAF source code folder given in the above link command must be adjusted to fit the actual folder where the PDAF code is downloaded.
+
+Note the name of the linked folder must be *pdaf*.
+
+The next method is to provide an additional argument to the *cmake* command as shown below.
 
 Step 3: Copy PDAF CMake configuration files from EAT to PDAF.
 
@@ -88,6 +96,8 @@ cp PDAF_CMake/src/CMakeLists.txt extern/pdaf/src
 cp PDAF_CMake/src/pdaf_configure.h.in extern/pdaf/src
 ```
 
+Again - the folder where the files are copied must be adjusted to fit where the PDAF source code is installed. In the example above a link has been created to *$reposdir/eat/extern/pdaf*.
+
 The above PDAF related steps are necessary for now - but might be changed/relaxed at a later stage.
 
 ## Compilation
@@ -96,6 +106,13 @@ EAT uses [CMake](https://www.cmake.org) to configure and compile the software. C
 
 ```bash
 cmake -B ../build
+cmake --build ../build --target install
+```
+
+To specify the folder with the PDAF source code on the command line - use:
+
+```bash
+cmake -DEAT_PDAF_BASE=<folder_with_PDAF_code> -B ../build
 cmake --build ../build --target install
 ```
 
@@ -117,11 +134,3 @@ EAT comes with two fully functional configurations.
 
 1. The first - [2d](tests/2d) is a re-implementation of the example used in the [PDAF tutorials](http://pdaf.awi.de/files/pdaf_tutorial_the_model.pdf).
 2. The second is uses GOTM as the model-component - with EAT interface code [here](models/gotm) and model configuration in [nns_annual](tests/nns_annual).
-
-## Running the 2D standard test case
-
-EAT comes with 2 test cases:
-
-- [The SEAMLESS development case](tests/seamless). This case is used to develop and test the communication between  observation, filter and model components
-- [The 2d case](tests/2d). This case resembles the standard 2D case from the [PDAF tutorials](http://pdaf.awi.de/files/pdaf_tutorial_the_model.pdf).
-

@@ -42,7 +42,13 @@ endif()
 endif(EAT_USE_MPI)
 
 add_subdirectory("extern/datetime-fortran" EXCLUDE_FROM_ALL)
-add_subdirectory("extern/pdaf" EXCLUDE_FROM_ALL)
+
+# As PDAF can't be added as a submodule we need to find out where it is located
+# First we look in EAT_PDAF_BASE (as configured via the call to cmake) - next we look in .../extern/pdaf
+if(EAT_USE_PDAF)
+   find_path(PDAF_BASE src/PDAF-D_init.F90 HINTS ${EAT_PDAF_BASE} ${CMAKE_CURRENT_LIST_DIR}/extern/pdaf DOC "Path to PDAF source directory.")
+   add_subdirectory(${PDAF_BASE} "extern/pdaf" EXCLUDE_FROM_ALL)
+endif(EAT_USE_PDAF)
 
 if(EAT_USE_GOTM)
 #KB    find_package(gotm REQUIRED CONFIG HINTS "${GOTM_PREFIX}" NO_DEFAULT_PATH)
