@@ -83,7 +83,7 @@ subroutine get_obs(n,obsstd,iobs,obs)
    end do
    allocate(obserr(nobs))
    call dlarnv(2,iseed,nobs,obserr)
-#if 1
+#if 0
    do k=1,nobs
       write(0,*) 'BBB ',obs(k),obsstd*obserr(k)
    end do

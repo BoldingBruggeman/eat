@@ -1,7 +1,7 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
 #define _USE_PDAF_
-#undef _USE_PDAF_
+!KB#undef _USE_PDAF_
 
 program eat_filter_pdaf
 
