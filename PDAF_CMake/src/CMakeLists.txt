@@ -29,6 +29,8 @@ set(SRC_PDAF_GEN
     PDAF_local_weights.F90
     PDAF_local_weight.F90
     PDAF-D_gather_ens.F90
+    PDAF_force_analysis.F90
+    PDAF_set_memberid.F90
     PDAF-D_get_memberid.F90
     PDAF-D_get_obsmemberid.F90
     PDAF-D_smoother_shift.F90
@@ -341,6 +343,63 @@ set(SRC_OBSGEN
     PDAF-D_gen_obs.F90
    )
 
+# Routines for 3DVAR
+option(PDAF_USE_3DVAR "Include 3DVAR filter?" ON)
+if(PDAF_USE_3DVAR)
+   add_definitions(-D_PDAF_3DVAR_)
+   set(SRC_3DVAR
+       PDAF-D_3dvar_init.F90
+       PDAF-D_3dvar_alloc.F90
+       PDAF_3dvar_options.F90
+       PDAF-D_3dvar_memtime.F90
+       PDAF-D_put_state_3dvar.F90
+       PDAF-D_assimilate_3dvar.F90
+       PDAF-D_3dvar_update.F90
+       PDAF-D_3dvar_analysis_cvt.F90
+       PDAF-D_3dvar_optim_lbfgs.F90
+       PDAF-D_3dvar_optim_cgplus.F90
+       PDAF-D_3dvar_costf_cvt.F90
+       PDAF-D_3dvar_costf_cg_cvt.F90
+       PDAF-D_3dvar_optim_cg.F90
+       PDAF-D_put_state_en3dvar_lestkf.F90
+       PDAF-D_assimilate_en3dvar_lestkf.F90
+       PDAF-D_en3dvar_update_lestkf.F90
+       PDAF-D_put_state_en3dvar_estkf.F90
+       PDAF-D_assimilate_en3dvar_estkf.F90
+       PDAF-D_en3dvar_update_estkf.F90
+       PDAF-D_en3dvar_analysis_cvt.F90
+       PDAF-D_en3dvar_optim_lbfgs.F90
+       PDAF-D_en3dvar_optim_cgplus.F90
+       PDAF-D_en3dvar_optim_cg.F90
+       PDAF-D_en3dvar_costf_cvt.F90
+       PDAF-D_en3dvar_costf_cg_cvt.F90
+       PDAF-D_put_state_hyb3dvar_lestkf.F90
+       PDAF-D_assimilate_hyb3dvar_lestkf.F90
+       PDAF-D_hyb3dvar_update_lestkf.F90
+       PDAF-D_hyb3dvar_analysis_cvt.F90
+       PDAF-D_put_state_hyb3dvar_estkf.F90
+       PDAF-D_assimilate_hyb3dvar_estkf.F90
+       PDAF-D_hyb3dvar_update_estkf.F90
+       PDAF-D_hyb3dvar_optim_lbfgs.F90
+       PDAF-D_hyb3dvar_optim_cgplus.F90
+       PDAF-D_hyb3dvar_optim_cg.F90
+       PDAF-D_hyb3dvar_costf_cvt.F90
+       PDAF-D_hyb3dvar_costf_cg_cvt.F90
+       PDAFomi_assimilate_3dvar.F90
+       PDAFomi_assimilate_en3dvar_estkf.F90
+       PDAFomi_assimilate_en3dvar_lestkf.F90
+       PDAFomi_assimilate_hyb3dvar_estkf.F90
+       PDAFomi_assimilate_hyb3dvar_lestkf.F90
+       PDAFomi_put_state_3dvar.F90
+       PDAFomi_put_state_en3dvar_estkf.F90
+       PDAFomi_put_state_en3dvar_lestkf.F90
+       PDAFomi_put_state_hyb3dvar_estkf.F90
+       PDAFomi_put_state_hyb3dvar_lestkf.F90
+      )
+else()
+   set(SRC_3DVAR)
+endif(PDAF_USE_3DVAR)
+
 # Routines for PDAF-OMI
 set(SRC_PDAFOMI
     PDAFomi_obs_f.F90
@@ -365,6 +424,7 @@ set(SRC_PDAF
     ${SRC_LNETF}
     ${SRC_PF}
     ${SRC_OBSGEN}
+    ${SRC_3DVAR}
     ${SRC_PDAFOMI}
    )
 
