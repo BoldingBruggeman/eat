@@ -21,3 +21,12 @@ months, a relaxation to results obtained with a prognostic three-dimensional
 model of the North Sea (Pohlmann, 1996). By doing so, the horizontal advection,
 which is the dominant process for salinity dynamics in the Northern North Sea, 
 is parameterised.
+
+The simulated temperature looks like:
+
+![temp](./temp.png)
+
+The simulated salinity looks like:
+
+![salt](./salt.png)
+
