@@ -1,7 +1,7 @@
 [submodule "extern/datetime-fortran"]
 	path = extern/datetime-fortran
-	url = https://github.com/wavebitscientific/datetime-fortran.git
+	url = ../../wavebitscientific/datetime-fortran.git
 [submodule "extern/gotm"]
 	path = extern/gotm
-	url = https://github.com/gotm-model/code.git
+	url = ../../gotm-model/code.git
 	branch = v6.0
