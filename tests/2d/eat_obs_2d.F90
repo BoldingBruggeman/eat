@@ -102,7 +102,7 @@ subroutine do_observations()
 
    ! Local variables
    integer :: m ! ensemble counter
-   integer :: n,nobs
+   integer :: n,nobs=0
    integer, allocatable :: iobs(:)
    real(real64), allocatable :: obs(:)
    real(real64) :: x
