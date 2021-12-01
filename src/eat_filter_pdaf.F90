@@ -547,7 +547,7 @@ SUBROUTINE obs_op_pdaf(step, dim_p, dim_obs_p, state_p, m_state_p)
    DO i = 1, dim_obs_p
       m_state_p(i) = state_p(iobs(i))
    END DO
-write(0,*) 'AAAA',m_state_p
+!KBwrite(0,*) 'AAAA',m_state_p
 END SUBROUTINE obs_op_pdaf
 
 ! Routine to provide vector of measurements
@@ -557,7 +557,7 @@ SUBROUTINE init_obs_pdaf(step, dim_obs_f, observation_f)
   REAL(REAL64), INTENT(out)   :: observation_f(dim_obs_f) ! Full observation vector
   if (verbosity >= debug) write(stderr,*) 'init_obs_pdaf() ',dim_obs_f,size(observation_f)
   observation_f = obs(1:dim_obs_f)
-write(0,*) 'BBBB',observation_f
+!KBwrite(0,*) 'BBBB',observation_f
 END SUBROUTINE init_obs_pdaf
 
 
@@ -632,7 +632,7 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
   END DO
   state_p(:) = invdim_ens * state_p(:)
 
-  write (*,*) anastr, 'state ', state_p(1:10)
+!KB  write (*,*) anastr, 'state ', state_p(1:10)
 
 
   ! *** Compute sampled variances ***
@@ -660,7 +660,7 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
    mean=s/dim_obs_p
    var=(ss-s*s/dim_obs_p)/(dim_obs_p-1)
    std=sqrt(var)
-   if (verbosity >= info) then
+   if (verbosity >= debug) then
       write(stderr,*) 'prepoststep_ens_pdaf() - mean, var, std',steps,mean,var,std
    end if
    end block
@@ -753,7 +753,7 @@ SUBROUTINE prodRinvA_pdaf(step, dim_obs_p, rank, obs_p, A_p, C_p)
    integer :: i,j
    REAL(REAL64) :: ivariance_obs
 
-   if (verbosity >= info) write(stderr,*) 'prodRinvA_pdaf() ',dim_obs_p,rank,rms_obs
+   if (verbosity >= debug) write(stderr,*) 'prodRinvA_pdaf() ',dim_obs_p,rank,rms_obs
 
    ivariance_obs = 1.0 / rms_obs ** 2
    DO j = 1, rank
