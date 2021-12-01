@@ -5,3 +5,6 @@
 	path = extern/gotm
 	url = ../../gotm-model/code.git
 	branch = v6.0
+[submodule "extern/pdaf"]
+	path = extern/pdaf
+	url = ../pdaf-temp.git
