@@ -15,3 +15,5 @@ target_link_libraries(eat_model_2d PRIVATE eat_config datetime eat_2d ${MPI_Fort
 
 add_executable(eat_obs_2d EXCLUDE_FROM_ALL eat_obs_2d.F90)
 target_link_libraries(eat_obs_2d PRIVATE eat_config datetime eat_2d ${MPI_Fortran_LIBRARIES})
+
+install(TARGETS eat_model_2d eat_obs_2d RUNTIME DESTINATION bin)
