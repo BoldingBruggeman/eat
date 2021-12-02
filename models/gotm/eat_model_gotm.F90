@@ -1,4 +1,5 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
+!KB#define _WORKSHOP_
 
 program eat_model_gotm
 
@@ -10,8 +11,12 @@ program eat_model_gotm
    use gotm, only: initialize_gotm, integrate_gotm, finalize_gotm
    use time, only: start,stop,timestep
    use time, only: MinN,MaxN
+#ifdef _WORKSHOP_
+   use meanflow, only: T
+#endif
    use datetime_module, only: datetime, timedelta, clock, strptime
    use field_manager
+   use output_manager
    use register_all_variables, only: fm
    IMPLICIT NONE
 
@@ -53,9 +58,7 @@ program eat_model_gotm
 
    member=rank_model_comm
 
-   if (.not. all_verbose .and. member /= 0) then
-      verbosity=silent
-   end if
+   if (.not. all_verbose .and. member /= 0) verbosity=silent
 
    call pre_model_initialize()
 
@@ -104,8 +107,42 @@ contains
 
 !-----------------------------------------------------------------------
 
+subroutine da_layout(fn)
+   use memory_output
+   use output_manager_core
+
+   IMPLICIT NONE
+   character(len=*), intent(in) :: fn
+
+   class (type_memory_file), pointer :: file
+   type (type_output_item),  pointer :: item
+   integer :: ios
+   integer, parameter :: unit = 250
+   integer :: jul,secs
+   logical :: success
+   real(real64) :: fsecs=0.
+
+   allocate(file)
+   call output_manager_add_file(fm,file)
+
+   allocate(item)
+   item%name = 'state'
+   item%output_level = output_level_debug
+   call file%append_item(item)
+
+   call read_time_string(start,jul,secs,success)
+   call output_manager_start(jul,secs,int(mod(1._real64*secs,1._real64)*1000000),0)
+
+   open(unit, file=trim(fn), action='write', status='replace', iostat=ios)
+   call file%write_metadata(unit)
+   close(unit=unit)
+end subroutine da_layout
+
+!-----------------------------------------------------------------------
+
 subroutine signal_setup()
    logical :: first=.true.
+   character(len=64) :: fn='da_variables.dat'
 
    if (ensemble_only) then
       signal=signal_initialize+signal_integrate+signal_finalize
@@ -132,7 +169,7 @@ subroutine signal_setup()
          signal=signal+signal_finalize
          if (have_filter) signal=signal-signal_send_state
       end if
-      member=stat(MPI_TAG)
+!KB      member=stat(MPI_TAG)
    end if
 end subroutine signal_setup
 
@@ -166,6 +203,7 @@ end subroutine pre_model_initialize
 !-----------------------------------------------------------------------
 
 subroutine post_model_initialize()
+   character(len=64) :: fn='da_variables.dat'
    sim_start = strptime(trim(start), time_format)
    sim_stop  = strptime(trim(stop), time_format)
    if (verbosity >= debug) then
@@ -176,6 +214,21 @@ subroutine post_model_initialize()
    if (.not. ensemble_only) then
       start_time=sim_start
    end if
+#ifdef _WORKSHOP_
+T = 0.01*member+T
+#endif
+!KB   call da_layout(fn)
+#if 0
+write(0,*) 'member= ',member
+   if (have_obs .and. member == 0) then
+write(0,*) 'model: ready to write layout'
+      call da_layout(fn)
+write(0,*) 'model: layout is written'
+write(0,*) 'model: ready to send layout'
+      call MPI_SEND(fn,64,MPI_CHARACTER,0,member,EAT_COMM_obs_model,ierr)
+write(0,*) 'model: layout is sent'
+   end if
+#endif
 end subroutine post_model_initialize
 
 !-----------------------------------------------------------------------
