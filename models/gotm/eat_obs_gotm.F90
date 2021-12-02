@@ -39,7 +39,8 @@ subroutine init_obs()
    ! Local variables
    integer :: unit,ios
    character(len=32) :: buf
-   integer :: i,n
+   character(len=64) :: fn
+   integer :: i,n,stat
    character(len=*), parameter :: nmlfile='eat_gotm.nml'
    logical :: fileexists
    integer :: nmlunit,outunit
@@ -57,14 +58,14 @@ subroutine init_obs()
    call init_eat_config(color_obs+verbosity)
 
    if (EAT_COMM_obs_model == MPI_COMM_NULL) then
-      if (verbosity >= info) write(stderr,*) "obs(no model executable present)"
+      if (verbosity >= info) write(stderr,*) "obs(no model program present)"
       have_model=.false.
    else
       nmodel=size_obs_model_comm-size_obs_comm
    end if
 
    if (EAT_COMM_obs_filter == MPI_COMM_NULL) then
-      if (verbosity <= info) write(stderr,*) "obs(no filter executable present)"
+      if (verbosity <= info) write(stderr,*) "obs(no filter program present)"
       have_filter=.false.
    end if
 
@@ -83,6 +84,22 @@ subroutine init_obs()
       if (ios < 0) exit
       if(len(buf) > 0) obs_times(i) = trim(buf)
    end do
+#if 0
+   ! read state vector layout - receive filename from first model instance
+   if (have_model) then
+!KBwrite(0,*) 'obs: ready to receive layout filename'
+!KB      call MPI_RECV(fn,64,MPI_CHARACTER,1,MPI_ANY_TAG,EAT_COMM_obs_model,stat,ierr)
+!KBwrite(0,*) 'obs: layout filename received'
+!KBwrite(0,*) trim(fn)
+      if (ierr /= MPI_SUCCESS) then
+         if (verbosity >= error) then
+            write(stderr,*) 'obs: failing to receive state layout filename'
+         end if
+      else
+         write(stderr,*) 'obs: KAJ ',trim(fn)
+      end if
+   end if
+#endif
 end subroutine init_obs
 
 !-----------------------------------------------------------------------
@@ -93,7 +110,7 @@ subroutine do_obs()
 
    ! Local variables
    integer :: m ! ensemble counter
-   integer :: n,nobs
+   integer :: n,nobs=0
    integer, allocatable :: iobs(:)
    real(real64), allocatable :: obs(:)
    integer :: requests(2)
