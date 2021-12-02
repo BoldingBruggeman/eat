@@ -1,5 +1,5 @@
 &nml_filter_pdaf
-!   verbosity=512
+   verbosity=512 ! silent=64, fatal=128, error=256, warn=512, info=1024, debug=2048
 /
 
 &nml_config_pdaf
