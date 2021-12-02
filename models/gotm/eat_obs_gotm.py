@@ -122,9 +122,10 @@ class ObservationHandler:
          assert iobs.size != 0
          print(obs_time)
          if self.nmodel:
-            print(' obs(-> model) {}'.format(obs_time))
+            strtime = obs_time.strftime('%Y-%m-%d %H:%M:%S')
+            print(' obs(-> model) {}'.format(strtime))
             for dest in range(1, self.nmodel + 1):
-               self.MPI_COMM_obs_model.Send([obs_time.encode('ascii'), MPI.CHARACTER], dest=dest, tag=tag_timestr)
+               self.MPI_COMM_obs_model.Send([strtime.encode('ascii'), MPI.CHARACTER], dest=dest, tag=tag_timestr)
          if self.have_filter:
             nobs = iobs.size
             print(' obs(-> filter) {}'.format(nobs))
