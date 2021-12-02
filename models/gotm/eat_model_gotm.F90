@@ -42,7 +42,9 @@ program eat_model_gotm
    logical :: fileexists
    integer :: nmlunit,outunit
    logical :: all_verbose=.true.
-   namelist /nml_eat_model/ verbosity,all_verbose
+   logical :: shared_gotm_yaml=.true.
+   logical :: shared_restart_file=.true.
+   namelist /nml_eat_model/ verbosity,all_verbose,shared_gotm_yaml,shared_restart_file
 
    type (type_field_set) :: field_set
 !-----------------------------------------------------------------------
@@ -188,15 +190,21 @@ subroutine pre_model_initialize()
    end if
 
    output: block
-      use gotm, only: yaml_file,output_id
+      use gotm, only: yaml_file,restart_file,output_id
       character(len=128) :: fname,strbuf
       write(output_id, "(A,I0.4)") '_', member+1
       write(strbuf, "(A,I0.4)") 'gotm_', member+1
-      yaml_file = TRIM(strbuf) // '.yaml'
+      if ( .not. shared_gotm_yaml) then
+         yaml_file = TRIM(strbuf) // '.yaml'
+      end if
       fname = TRIM(strbuf) // '.stderr'
       open(stderr,file=fname)
       fname = TRIM(strbuf) // '.stdout'
       open(output_unit,file=fname)
+      if ( .not. shared_restart_file) then
+         write(strbuf, "(A,I0.4)") 'restart_', member+1
+         restart_file = TRIM(strbuf) // '.nc'
+      end if
    end block output
 end subroutine pre_model_initialize
 

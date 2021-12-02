@@ -1,6 +1,8 @@
 &nml_eat_model
    verbosity=512 ! silent=64, fatal=128, error=256, warn=512, info=1024, debug=2048
    all_verbose=.false.
+!   shared_gotm_yaml=.false. ! default is true
+!   shared_restart_file=.false. ! default is true
 /
 
 &nml_eat_obs
