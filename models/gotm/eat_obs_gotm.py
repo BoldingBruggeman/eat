@@ -13,8 +13,8 @@ color_filter=4
 # Tags - MUST match tags defined in eat_config.F90
 tag_timestr=1
 tag_nobs=1
-tag_iobs=1
-tag_obs=1
+tag_iobs=2
+tag_obs=3
 tag_analysis=1
 tag_forecast=2
 
@@ -117,23 +117,30 @@ class ObservationHandler:
          yield time, numpy.array([idx], dtype='i4'), numpy.array([value], dtype=float)
 
    def start(self):
+      reqs = []
       for obs_time, iobs, obs in self.observations():
          assert iobs.size == obs.size
          assert iobs.size != 0
-         print(obs_time)
+
+         # Make sure all previous requests have been received
+         MPI.Request.Waitall(reqs)
+
+         reqs = []
          if self.nmodel:
+            # Send new time to ensemble members
             strtime = obs_time.strftime('%Y-%m-%d %H:%M:%S')
             print(' obs(-> model) {}'.format(strtime))
             for dest in range(1, self.nmodel + 1):
-               self.MPI_COMM_obs_model.Send([strtime.encode('ascii'), MPI.CHARACTER], dest=dest, tag=tag_timestr)
+               reqs.append(self.MPI_COMM_obs_model.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=dest, tag=tag_timestr))
+
          if self.have_filter:
+            # Send new observations to filter
             nobs = iobs.size
             print(' obs(-> filter) {}'.format(nobs))
-            self.MPI_COMM_obs_filter.Send(numpy.array(nobs, dtype='i4'), dest=1, tag=tag_nobs)
+            reqs.append(self.MPI_COMM_obs_filter.Issend(numpy.array(nobs, dtype='i4'), dest=1, tag=tag_nobs))
             if nobs > 0:
-               r1 = self.MPI_COMM_obs_filter.Isend(iobs, dest=1, tag=1)
-               r2 = self.MPI_COMM_obs_filter.Isend(obs, dest=1, tag=1)
-               MPI.Request.Waitall([r1, r2])
+               reqs.append(self.MPI_COMM_obs_filter.Issend(iobs, dest=1, tag=tag_iobs))
+               reqs.append(self.MPI_COMM_obs_filter.Issend(obs, dest=1, tag=tag_obs))
 
       if self.have_filter:
          nobs = -1

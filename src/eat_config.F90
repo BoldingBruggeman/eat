@@ -26,8 +26,8 @@ module eat_config
    ! MPI tags
    integer, parameter, public :: tag_timestr=1
    integer, parameter, public :: tag_nobs=1
-   integer, parameter, public :: tag_iobs=1
-   integer, parameter, public :: tag_obs=1
+   integer, parameter, public :: tag_iobs=2
+   integer, parameter, public :: tag_obs=3
    integer, parameter, public :: tag_analysis=1
    integer, parameter, public :: tag_forecast=2
 
