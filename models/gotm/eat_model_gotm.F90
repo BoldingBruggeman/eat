@@ -9,7 +9,7 @@ program eat_model_gotm
    use mpi
    use eat_config
    use gotm, only: initialize_gotm, integrate_gotm, finalize_gotm
-   use time, only: start,stop,timestep
+   use time, only: start,stop,timestep,julianday,fsecondsofday
    use time, only: MinN,MaxN
 #ifdef _WORKSHOP_
    use meanflow, only: T
@@ -24,8 +24,9 @@ program eat_model_gotm
    integer :: member
    integer :: stat(MPI_STATUS_SIZE)
    integer :: request
-   integer :: state_size=1657 !!!!KB
-   real(real64), allocatable :: state(:)
+
+   type (type_memory_file) :: memory_file
+
    character(len=19) :: timestr
    logical :: ensemble_only=.false.
    integer :: signal
@@ -64,22 +65,20 @@ program eat_model_gotm
 
    call pre_model_initialize()
 
+   call initialize_gotm()
+   call post_model_initialize()
+   call MPI_Barrier(EAT_COMM_obs_model,ierr)
+
    do
       call signal_setup()
       if (verbosity >= debug) write(stderr,*) 'model(signal) ',signal
 
       if (iand(signal,signal_initialize) == signal_initialize) then
-         call initialize_gotm()
-         call post_model_initialize()
-         if (iand(signal,signal_send_state) == signal_send_state) then
-            call state_vector_size(state_size)
-            allocate(state(state_size))
-         end if
       else
          if (have_filter .and. iand(signal,signal_recv_state) == signal_recv_state) then
-            call MPI_IRECV(state,state_size,MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
+            call MPI_IRECV(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
             call MPI_WAIT(request,stat,ierr)
-            call state_to_fields()
+            call memory_file%restore()
          end if
       end if
 
@@ -90,8 +89,8 @@ program eat_model_gotm
       end if
 
       if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
-         call fields_to_state()
-         call MPI_ISEND(state,state_size,MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,request,ierr)
+         call memory_file%save(julianday,int(fsecondsofday),int(mod(fsecondsofday,_ONE_)*1000000))
+         call MPI_ISEND(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,request,ierr)
          call MPI_WAIT(request,stat,ierr)
       end if
 
@@ -109,39 +108,6 @@ contains
 
 !-----------------------------------------------------------------------
 
-subroutine da_layout(fn)
-   use memory_output
-   use output_manager_core
-
-   IMPLICIT NONE
-   character(len=*), intent(in) :: fn
-
-   class (type_memory_file), pointer :: file
-   type (type_output_item),  pointer :: item
-   integer :: ios
-   integer, parameter :: unit = 250
-   integer :: jul,secs
-   logical :: success
-   real(real64) :: fsecs=0.
-
-   allocate(file)
-   call output_manager_add_file(fm,file)
-
-   allocate(item)
-   item%name = 'state'
-   item%output_level = output_level_debug
-   call file%append_item(item)
-
-   call read_time_string(start,jul,secs,success)
-   call output_manager_start(jul,secs,int(mod(1._real64*secs,1._real64)*1000000),0)
-
-   open(unit, file=trim(fn), action='write', status='replace', iostat=ios)
-   call file%write_metadata(unit)
-   close(unit=unit)
-end subroutine da_layout
-
-!-----------------------------------------------------------------------
-
 subroutine signal_setup()
    logical :: first=.true.
    character(len=64) :: fn='da_variables.dat'
@@ -154,7 +120,7 @@ subroutine signal_setup()
          signal=signal_initialize+signal_integrate
          MinN=1
          if (have_filter .and. rank_model_comm == 0) then
-            call MPI_SSEND(state_size,1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
+            call MPI_SSEND(size(memory_file%data),1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
          end if
          if (have_filter) signal=signal+signal_send_state
       else
@@ -211,7 +177,11 @@ end subroutine pre_model_initialize
 !-----------------------------------------------------------------------
 
 subroutine post_model_initialize()
+   type (type_output_item),  pointer :: item
+   integer :: ios
+   integer, parameter :: unit = 250
    character(len=64) :: fn='da_variables.dat'
+
    sim_start = strptime(trim(start), time_format)
    sim_stop  = strptime(trim(stop), time_format)
    if (verbosity >= debug) then
@@ -230,7 +200,18 @@ T = 0.01*member+T
 write(0,*) 'member= ',member
    if (have_obs .and. member == 0) then
 write(0,*) 'model: ready to write layout'
-      call da_layout(fn)
+   call output_manager_add_file(fm, memory_file)
+
+   allocate(item)
+   item%name = 'state'
+   item%output_level = output_level_debug
+   call memory_file%append_item(item)
+
+   call output_manager_start(julianday,int(fsecondsofday),int(mod(fsecondsofday,_ONE_)*1000000),0)
+
+   open(unit, file=trim(fn), action='write', status='replace', iostat=ios)
+   call memory_file%write_metadata(unit)
+   close(unit=unit)
 write(0,*) 'model: layout is written'
 write(0,*) 'model: ready to send layout'
       call MPI_SEND(fn,64,MPI_CHARACTER,0,member,EAT_COMM_obs_model,ierr)
@@ -261,137 +242,6 @@ subroutine post_model_integrate()
       MinN=MaxN+1
    end if
 end subroutine post_model_integrate
-
-!-----------------------------------------------------------------------
-!BOP
-!
-! !IROUTINE:
-!
-! !INTERFACE:
-   subroutine state_vector_size(state_size)
-!
-! !DESCRIPTION:
-!
-! !USES:
-   IMPLICIT NONE
-!
-! !OUTPUT PARAMETERS:
-   integer, intent(out)                :: state_size
-!
-! !REVISION HISTORY:
-!  Original author(s): Karsten Bolding & Jorn Bruggeman
-!
-! !LOCAL VARIABLES:
-   class (type_field_set_member),pointer    :: member
-!EOP
-!-------------------------------------------------------------------------
-!BOC
-   field_set = fm%get_state()
-   member => field_set%first
-   state_size = 0
-   do while (associated(member))
-      if (verbosity >= info)  write(stderr,*) '   state vector:  ',trim(member%field%name)
-      if (associated(member%field%data%p0d)) then
-         state_size = state_size+1
-      elseif (associated(member%field%data%p1d)) then
-         ! Depth-dependent variable with data pointed to by member%field%data%p1d
-         state_size = state_size+size(member%field%data%p1d)
-      else
-         stop 'no data assigned to state field'
-      end if
-      member => member%next
-   end do
-   if (verbosity >= info)  write(stderr,*) '   state vector size:  ',state_size
-   end subroutine state_vector_size
-!EOC
-
-!-----------------------------------------------------------------------
-!BOP
-!
-! !IROUTINE: Save the model results in file
-!
-! !INTERFACE:
-   subroutine state_to_fields()
-!
-! !DESCRIPTION:
-!
-! !USES:
-   IMPLICIT NONE
-!
-! !REVISION HISTORY:
-!  Original author(s): Karsten Bolding & Jorn Bruggeman
-!
-! !LOCAL VARIABLES:
-   integer                                  :: n,len
-   class (type_field_set_member),pointer    :: member
-!EOP
-!-------------------------------------------------------------------------
-!BOC
-   member => field_set%first
-   n = 1
-   len = 0
-   do while (associated(member))
-      ! This field is part of the model state. Its name is member%field%name.
-      if (associated(member%field%data%p0d)) then
-         ! Depth-independent variable with data pointed to by child%field%data%p0d
-         member%field%data%p0d = state(n)
-         n = n + 1
-      elseif (associated(member%field%data%p1d)) then
-         ! Depth-dependent variable with data pointed to by member%field%data%p1d
-         len = size(member%field%data%p1d)
-         member%field%data%p1d = state(n:n+len-1)
-         n = n + len
-      else
-         stop 'no data assigned to state field'
-      end if
-      member => member%next
-   end do
-   end subroutine state_to_fields
-!EOC
-
-!-----------------------------------------------------------------------
-!BOP
-!
-! !IROUTINE: Data from fields to state vector
-!
-! !INTERFACE:
-   subroutine fields_to_state()
-!
-! !DESCRIPTION:
-!
-! !USES:
-   IMPLICIT NONE
-!
-! !REVISION HISTORY:
-!  Original author(s): Karsten Bolding & Jorn Bruggeman
-!
-! !LOCAL VARIABLES:
-   integer                                  :: n,len
-   class (type_field_set_member),pointer    :: member
-!EOP
-!-------------------------------------------------------------------------
-!BOC
-   member => field_set%first
-   n = 1
-   len = 0
-   do while (associated(member))
-      ! This field is part of the model state. Its name is member%field%name.
-      if (associated(member%field%data%p0d)) then
-         ! Depth-independent variable with data pointed to by member%field%data%data%p0d
-         state(n) = member%field%data%p0d
-         n = n+1
-      elseif (associated(member%field%data%p1d)) then
-         ! Depth-dependent variable with data pointed to by member%field%data%p1d
-         len = size(member%field%data%p1d)
-         state(n:n+len-1) = member%field%data%p1d
-         n = n+len
-      else
-         stop 'no data assigned to state field'
-      end if
-      member => member%next
-   end do
-   end subroutine fields_to_state
-!EOC
 
 !-----------------------------------------------------------------------
 

@@ -85,6 +85,8 @@ class ObservationHandler:
 
       # Everything is initialized
 
+      self.MPI_COMM_obs_model.Barrier()
+
       print('Parsing memory map %s' % state_layout_path)
       self.memory_map = {}
       with io.open(state_layout_path, 'r') as f:
