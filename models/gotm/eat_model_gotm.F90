@@ -1,5 +1,4 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
-!KB#define _WORKSHOP_
 
 program eat_model_gotm
 
@@ -11,12 +10,11 @@ program eat_model_gotm
    use gotm, only: initialize_gotm, integrate_gotm, finalize_gotm
    use time, only: start,stop,timestep,julianday,fsecondsofday
    use time, only: MinN,MaxN
-#ifdef _WORKSHOP_
-   use meanflow, only: T
-#endif
    use datetime_module, only: datetime, timedelta, clock, strptime
    use field_manager
+   use output_manager_core
    use output_manager
+   use memory_output
    use register_all_variables, only: fm
    IMPLICIT NONE
 
@@ -67,31 +65,51 @@ program eat_model_gotm
 
    call initialize_gotm()
    call post_model_initialize()
-   call MPI_Barrier(EAT_COMM_obs_model,ierr)
+write(0,*) 'QQQ0 ',have_obs; call flush(0)
+   if (have_obs) call MPI_Barrier(EAT_COMM_obs_model,ierr)
 
    do
       call signal_setup()
+write(0,*) 'QQQ1 ',signal; call flush(0)
+!signal = signal-signal_recv_state
       if (verbosity >= debug) write(stderr,*) 'model(signal) ',signal
 
+write(0,*) 'MODEL1 ',have_filter,iand(signal,signal_recv_state) == signal_recv_state; call flush(0)
       if (iand(signal,signal_initialize) == signal_initialize) then
+!KBstop 'KURT'
       else
+write(0,*) 'MODEL11',signal
          if (have_filter .and. iand(signal,signal_recv_state) == signal_recv_state) then
+write(0,*) 'MODEL12',signal,signal_recv_state
+write(0,*) 'KAJ ',size(memory_file%data); call flush(0)
             call MPI_IRECV(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
+write(0,*) 'KAJ after call ',size(memory_file%data); call flush(0)
             call MPI_WAIT(request,stat,ierr)
-            call memory_file%restore()
+write(0,*) 'QQQ0',size(memory_file%data); call flush(0)
+!KB            call memory_file%restore()
+write(0,*) 'QQQ1',size(memory_file%data); call flush(0)
+write(0,*) 'MODEL13'
          end if
       end if
 
+write(0,*) 'MODEL2'
       if (iand(signal,signal_integrate) == signal_integrate) then
+write(0,*) 'MODEL21'
          call pre_model_integrate()
          call integrate_gotm()
          call post_model_integrate()
+write(0,*) 'MODEL22'
       end if
 
+write(0,*) 'MODEL3'
       if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
-         call memory_file%save(julianday,int(fsecondsofday),int(mod(fsecondsofday,_ONE_)*1000000))
+write(0,*) 'MODEL31'
+         call memory_file%save(julianday,int(fsecondsofday),int(mod(fsecondsofday,1._real64)*1000000))
+
          call MPI_ISEND(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,request,ierr)
+write(0,*) 'MODEL32'
          call MPI_WAIT(request,stat,ierr)
+write(0,*) 'MODEL33'
       end if
 
       if (iand(signal,signal_finalize) == signal_finalize) then
@@ -109,7 +127,7 @@ contains
 !-----------------------------------------------------------------------
 
 subroutine signal_setup()
-   logical :: first=.true.
+   logical, save :: first=.true.
    character(len=64) :: fn='da_variables.dat'
 
    if (ensemble_only) then
@@ -117,9 +135,15 @@ subroutine signal_setup()
    else
       if (first) then
          first=.false.
+#if 1
          signal=signal_initialize+signal_integrate
+#else
+         signal=signal_integrate
+!KB         if (have_obs) signal=signal+signal_send_state
+#endif
          MinN=1
          if (have_filter .and. rank_model_comm == 0) then
+write(0,*) 'AAAAA ',size(memory_file%data)
             call MPI_SSEND(size(memory_file%data),1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
          end if
          if (have_filter) signal=signal+signal_send_state
@@ -137,7 +161,6 @@ subroutine signal_setup()
          signal=signal+signal_finalize
          if (have_filter) signal=signal-signal_send_state
       end if
-!KB      member=stat(MPI_TAG)
    end if
 end subroutine signal_setup
 
@@ -192,32 +215,17 @@ subroutine post_model_initialize()
    if (.not. ensemble_only) then
       start_time=sim_start
    end if
-#ifdef _WORKSHOP_
-T = 0.01*member+T
-#endif
-!KB   call da_layout(fn)
-#if 0
-write(0,*) 'member= ',member
    if (have_obs .and. member == 0) then
-write(0,*) 'model: ready to write layout'
-   call output_manager_add_file(fm, memory_file)
-
-   allocate(item)
-   item%name = 'state'
-   item%output_level = output_level_debug
-   call memory_file%append_item(item)
-
-   call output_manager_start(julianday,int(fsecondsofday),int(mod(fsecondsofday,_ONE_)*1000000),0)
-
-   open(unit, file=trim(fn), action='write', status='replace', iostat=ios)
-   call memory_file%write_metadata(unit)
-   close(unit=unit)
-write(0,*) 'model: layout is written'
-write(0,*) 'model: ready to send layout'
-      call MPI_SEND(fn,64,MPI_CHARACTER,0,member,EAT_COMM_obs_model,ierr)
-write(0,*) 'model: layout is sent'
+      call output_manager_add_file(fm, memory_file)
+      allocate(item)
+      item%name = 'state'
+      item%output_level = output_level_debug
+      call memory_file%append_item(item)
+      call output_manager_start(julianday,int(fsecondsofday),int(mod(fsecondsofday,1._real64)*1000000),0)
+      open(unit, file=trim(fn), action='write', status='replace', iostat=ios)
+      call memory_file%write_metadata(unit)
+      close(unit=unit)
    end if
-#endif
 end subroutine post_model_initialize
 
 !-----------------------------------------------------------------------

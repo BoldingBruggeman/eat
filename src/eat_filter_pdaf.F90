@@ -85,6 +85,7 @@ subroutine eat_init_pdaf()
       have_model=.false.
    else
       call MPI_RECV(state_size,1,MPI_INTEGER,1,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+write(0,*) 'AAAAA ',state_size
       if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- state_size) ',state_size
       ensemble_size=size_model_filter_comm-size_filter_comm
       allocate(model_reqs(ensemble_size))
@@ -123,13 +124,17 @@ subroutine eat_do_pdaf()
          if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- nobs) ',nobs
       end if
 
+write(0,*) 'PDAF1 '; call flush(0)
       if (have_model .and. nobs > 0) then
+write(0,*) 'PDAF11 '; call flush(0)
          do m=1,ensemble_size
             call MPI_IRECV(model_states(:,m),state_size,MPI_DOUBLE,m,tag_forecast,EAT_COMM_model_filter,model_reqs(m),ierr)
          end do
       end if
 
+write(0,*) 'PDAF2 '; call flush(0)
       if (have_obs .and. nobs > 0) then
+write(0,*) 'PDAF21 '; call flush(0)
          if (.not. allocated(iobs)) allocate(iobs(nobs))
          if (nobs > size(iobs)) then
             deallocate(iobs)
@@ -145,9 +150,12 @@ subroutine eat_do_pdaf()
          call MPI_IRECV(obs(1:nobs),nobs,MPI_DOUBLE,0,tag_obs,EAT_COMM_obs_filter,obs_requests(2),ierr)
       end if
 
+write(0,*) 'PDAF3 '; call flush(0)
       if (have_model .and. nobs > 0) then
+write(0,*) 'PDAF31 '; call flush(0)
          if (verbosity >= info) write(stderr,'(x,A)') 'filter(<-- state)'
          call MPI_WAITALL(ensemble_size,model_reqs,model_stats(:,:),ierr)
+write(0,*) 'PDAF32 '; call flush(0)
          if (verbosity >= debug) then
             do m=1,ensemble_size
                write(stderr,'(x,A,I4,*(F10.5))') 'filter(<-- state)',m,sum(model_states(:,m))/state_size
@@ -155,12 +163,16 @@ subroutine eat_do_pdaf()
          end if
       end if
 
+write(0,*) 'PDAF4 '; call flush(0)
       if (have_obs .and. nobs > 0) then
+write(0,*) 'PDAF41 '; call flush(0)
          call MPI_WAITALL(2,obs_requests,obs_stats,ierr)
          if (verbosity >= debug) write(stderr,'(A,F10.6)') ' filter(<-- obs) ',sum(obs)/nobs
       end if
 
+write(0,*) 'PDAF5 '; call flush(0)
       if (have_obs .and. have_model .and. nobs > 0) then
+write(0,*) 'PDAF51 '; call flush(0)
 #ifdef _USE_PDAF_
          ! Begin PDAF specific part
          ! from .../tutorial/classical/offline_2D_serial/main_offline.F90
@@ -170,9 +182,11 @@ subroutine eat_do_pdaf()
          ! End PDAF specific part
 #endif
          do m=1,ensemble_size
+write(0,*) 'KURT ',m,state_size
             call MPI_ISEND(model_states(:,m),state_size,MPI_DOUBLE,m,tag_analysis,EAT_COMM_model_filter,model_reqs(m),ierr)
          end do
          call MPI_WAITALL(ensemble_size,model_reqs,model_stats,ierr)
+write(0,*) 'PDAF52 '; call flush(0)
          if (verbosity >= info) write(stderr,'(x,A)') 'filter(--> state)'
       end if
 
