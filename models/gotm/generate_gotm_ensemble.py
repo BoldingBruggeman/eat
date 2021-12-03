@@ -30,4 +30,4 @@ if __name__ == '__main__':
     parser.add_argument('--sigma', type=float, help='standard deviation of ln scale factor for log-normally distributed perturbations')
     args = parser.parse_args()
 
-    perturb_restart(args.restart, args.N)
+    perturb_restart(args.restart, args.N, sigma=args.sigma)
