@@ -16,6 +16,9 @@ def perturb_restart(path, n, variable='*', postfix='_%04i', sigma=0.2):
         with netCDF4.Dataset(outpath, 'r+') as nc:
             for name in fnmatch.filter(nc.variables.keys(), variable):
                 ncvar = nc.variables[name]
+                if name in nc.dimensions and ncvar.ndim == 1:
+                    # coordinate variable
+                    continue
                 values = ncvar[...]
                 scale_factor = numpy.random.lognormal(sigma=sigma, size=values.shape)
                 ncvar[...] = scale_factor * values
@@ -24,6 +27,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('restart', help='path to restart file')
     parser.add_argument('N', type=int, help='ensemble size')
+    parser.add_argument('--sigma', type=float, help='standard deviation of ln scale factor for log-normally distributed perturbations')
     args = parser.parse_args()
 
     perturb_restart(args.restart, args.N)
