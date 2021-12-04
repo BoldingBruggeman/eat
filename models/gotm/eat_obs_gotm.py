@@ -53,7 +53,10 @@ class File:
             yield curtime, float(data[0])
 
 class ObservationHandler:
-   def __init__(self, state_layout_path='da_variables.dat'):
+   def __init__(self, state_layout_path='da_variables.dat', start=None, stop=None):
+      self.start_time = start
+      self.stop_time = stop
+
       # Communicator for observation handler only - verify there is only 1
       MPI_COMM_obs = MPI.COMM_WORLD.Split(color=color_obs)
       assert MPI_COMM_obs.Get_size() == 1, 'There can only be one instance of the observation handler active.'
@@ -106,7 +109,7 @@ class ObservationHandler:
       assert variable in self.memory_map
       istart, istop = self.memory_map[variable]
       if idx is None:
-         assert istart == istop
+         assert istart == istop, 'Variable %s can only be assimilated at a single depth. Specify a depth index like this: %s[<INDEX>], using for instance <INDEX>=0 for bottom or <INDEX>=-1 for surface.' % (variable, variable)
          idx = istart
       elif idx < 0:
          idx = istop + idx + 1
@@ -118,7 +121,8 @@ class ObservationHandler:
       assert self.datasets
       variable, idx, obsfile = self.datasets[0]
       for time, value in obsfile.read():
-         yield time, numpy.array([idx], dtype='i4'), numpy.array([value], dtype=float)
+         if (self.start_time is None or time >= self.start_time) and (self.stop_time is None or time <= self.stop_time):
+            yield time, numpy.array([idx], dtype='i4'), numpy.array([value], dtype=float)
 
    def start(self):
       reqs = []
@@ -155,11 +159,17 @@ class ObservationHandler:
             self.MPI_COMM_obs_model.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=dest, tag=tag_timestr)
 
 if __name__ == '__main__':
-   handler = ObservationHandler()
    parser = argparse.ArgumentParser()
    parser.add_argument('-o', '--obs', nargs=2, action='append', default=[])
+   parser.add_argument('--start')
+   parser.add_argument('--stop')
    args = parser.parse_args()
    assert args.obs, 'At least one dataset with observations must be provided with -o/--obs'
+   if args.start is not None:
+      args.start = datetime.datetime.strptime(args.start, '%Y-%m-%d %H:%M:%S')
+   if args.stop is not None:
+      args.stop = datetime.datetime.strptime(args.stop, '%Y-%m-%d %H:%M:%S')
+   handler = ObservationHandler(start=args.start, stop=args.stop)
    for variable, path in args.obs:
       handler.add_observations(variable, path)
    handler.start()
