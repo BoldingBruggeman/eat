@@ -45,12 +45,12 @@ class File:
             z = float(data[0])
             if not numpy.isfinite(z):
                raise Exception('Depth on line %i is not a valid number: %s.' % (iline + 1, data[0]))
-            yield curtime, z, float(data[2])
+            yield curtime, z, float(data[1])
          else:
             # Depth-independent variable (on each line: time, value)
             #if len(data) != 1:
             #   raise Exception('Line %i does not contain one value (observation) after the date + time, but %i values.' % (iline + 1, len(data)))
-            yield curtime, float(data[1])
+            yield curtime, float(data[0])
 
 class ObservationHandler:
    def __init__(self, state_layout_path='da_variables.dat'):
