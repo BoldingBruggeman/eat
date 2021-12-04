@@ -23,7 +23,7 @@ program eat_model_gotm
    integer :: stat(MPI_STATUS_SIZE)
    integer :: request
 
-   type (type_memory_file) :: memory_file
+   class (type_memory_file), pointer :: memory_file
 
    character(len=19) :: timestr
    logical :: ensemble_only=.false.
@@ -65,57 +65,55 @@ program eat_model_gotm
 
    call initialize_gotm()
    call post_model_initialize()
-write(0,*) 'QQQ0 ',have_obs; call flush(0)
    if (have_obs) call MPI_Barrier(EAT_COMM_obs_model,ierr)
 
    do
       call signal_setup()
-write(0,*) 'QQQ1 ',signal; call flush(0)
 !signal = signal-signal_recv_state
       if (verbosity >= debug) write(stderr,*) 'model(signal) ',signal
 
-write(0,*) 'MODEL1 ',have_filter,iand(signal,signal_recv_state) == signal_recv_state; call flush(0)
       if (iand(signal,signal_initialize) == signal_initialize) then
-!KBstop 'KURT'
       else
-write(0,*) 'MODEL11',signal
          if (have_filter .and. iand(signal,signal_recv_state) == signal_recv_state) then
-write(0,*) 'MODEL12',signal,signal_recv_state
-write(0,*) 'KAJ ',size(memory_file%data); call flush(0)
             call MPI_IRECV(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
-write(0,*) 'KAJ after call ',size(memory_file%data); call flush(0)
+            if(ierr /= MPI_SUCCESS) THEN
+               write(stderr,*) 'Fatal error (MODEL): Unable to receive: ',member; call flush(stderr)
+               call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            end if
             call MPI_WAIT(request,stat,ierr)
-write(0,*) 'QQQ0',size(memory_file%data); call flush(0)
-!KB            call memory_file%restore()
-write(0,*) 'QQQ1',size(memory_file%data); call flush(0)
-write(0,*) 'MODEL13'
+            if(ierr /= MPI_SUCCESS) THEN
+               write(stderr,*) 'Fatal error (MODEL): Unable to wait: ',member; call flush(stderr)
+               call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            end if
+            call memory_file%restore()
          end if
       end if
 
-write(0,*) 'MODEL2'
       if (iand(signal,signal_integrate) == signal_integrate) then
-write(0,*) 'MODEL21'
          call pre_model_integrate()
          call integrate_gotm()
          call post_model_integrate()
-write(0,*) 'MODEL22'
       end if
 
-write(0,*) 'MODEL3'
       if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
-write(0,*) 'MODEL31'
          call memory_file%save(julianday,int(fsecondsofday),int(mod(fsecondsofday,1._real64)*1000000))
-
          call MPI_ISEND(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,request,ierr)
-write(0,*) 'MODEL32'
+         if(ierr /= MPI_SUCCESS) THEN
+            write(stderr,*) 'Fatal error (MODEL): Unable to send: ',member; call flush(stderr)
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
          call MPI_WAIT(request,stat,ierr)
-write(0,*) 'MODEL33'
+         if(ierr /= MPI_SUCCESS) THEN
+            write(stderr,*) 'Fatal error (MODEL): Unable to send: ',member; call flush(stderr)
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
       end if
 
       if (iand(signal,signal_finalize) == signal_finalize) then
          call finalize_gotm()
          exit
       end if
+      call flush(stderr)
    end do
    if (verbosity >= info) write(stderr,*) 'model(exit)'
    call MPI_Finalize(ierr)
@@ -135,15 +133,9 @@ subroutine signal_setup()
    else
       if (first) then
          first=.false.
-#if 1
          signal=signal_initialize+signal_integrate
-#else
-         signal=signal_integrate
-!KB         if (have_obs) signal=signal+signal_send_state
-#endif
          MinN=1
          if (have_filter .and. rank_model_comm == 0) then
-write(0,*) 'AAAAA ',size(memory_file%data)
             call MPI_SSEND(size(memory_file%data),1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
          end if
          if (have_filter) signal=signal+signal_send_state
@@ -215,16 +207,19 @@ subroutine post_model_initialize()
    if (.not. ensemble_only) then
       start_time=sim_start
    end if
-   if (have_obs .and. member == 0) then
+   if (have_obs) then
+      allocate(memory_file)
       call output_manager_add_file(fm, memory_file)
       allocate(item)
       item%name = 'state'
       item%output_level = output_level_debug
       call memory_file%append_item(item)
       call output_manager_start(julianday,int(fsecondsofday),int(mod(fsecondsofday,1._real64)*1000000),0)
-      open(unit, file=trim(fn), action='write', status='replace', iostat=ios)
-      call memory_file%write_metadata(unit)
-      close(unit=unit)
+      if (member == 0) then
+         open(unit, file=trim(fn), action='write', status='replace', iostat=ios)
+         call memory_file%write_metadata(unit)
+         close(unit=unit)
+      end if
    end if
 end subroutine post_model_initialize
 
