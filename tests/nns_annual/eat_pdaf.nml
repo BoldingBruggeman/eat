@@ -1,7 +1,11 @@
+! if this file exists it is read by the eat_filter_pdaf program
+
 &nml_filter_pdaf
-   verbosity=512 ! silent=64, fatal=128, error=256, warn=512, info=1024, debug=2048
+   !default verbosity is info
+   !verbosity=2048 ! silent=64, fatal=128, error=256, warn=512, info=1024, debug=2048
 /
 
+! need input from Lars to finish this
 &nml_config_pdaf
    screen=3,
     filtertype=1,

@@ -40,7 +40,7 @@ program eat_model_gotm
    character(len=*), parameter :: nmlfile='eat_gotm.nml'
    logical :: fileexists
    integer :: nmlunit,outunit
-   logical :: all_verbose=.true.
+   logical :: all_verbose=.false.
    logical :: shared_gotm_yaml=.true.
    logical :: shared_restart_file=.true.
    namelist /nml_eat_model/ verbosity,all_verbose,shared_gotm_yaml,shared_restart_file
