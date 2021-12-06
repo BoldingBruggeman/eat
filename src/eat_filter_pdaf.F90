@@ -84,6 +84,7 @@ subroutine eat_init_pdaf()
       if (verbosity >= info) write(stderr,*) "filter(no model executable present)"
       have_model=.false.
    else
+      dim_ens=size_model_filter_comm-1
       call MPI_RECV(state_size,1,MPI_INTEGER,1,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
       if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- state_size) ',state_size
       ensemble_size=size_model_filter_comm-size_filter_comm
@@ -260,8 +261,8 @@ integer :: dim_state_p
                     !   (5) LETKF
                     !   (6) ESTKF
                     !   (7) LESTKF
-   integer :: &
-   dim_ens = 9      ! Size of ensemble for all ensemble filters
+!KB   integer :: &
+!KB   dim_ens = 7      ! Size of ensemble for all ensemble filters
                     ! Number of EOFs to be used for SEEK
    integer :: &
    subtype = 1       ! (5) Offline mode !KB 5
