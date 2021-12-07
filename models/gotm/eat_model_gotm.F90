@@ -38,15 +38,17 @@ program eat_model_gotm
    integer :: stderr=error_unit,stdout=output_unit
    integer :: verbosity=info
    character(len=*), parameter :: nmlfile='eat_gotm.nml'
+   character(len=128) :: extra_state(64)
    logical :: fileexists
    integer :: nmlunit,outunit
    logical :: all_verbose=.false.
    logical :: shared_gotm_yaml=.true.
    logical :: shared_restart_file=.true.
-   namelist /nml_eat_model/ verbosity,all_verbose,shared_gotm_yaml,shared_restart_file
+   namelist /nml_eat_model/ verbosity,all_verbose,shared_gotm_yaml,shared_restart_file,extra_state
 
    type (type_field_set) :: field_set
 !-----------------------------------------------------------------------
+   extra_state = ''
    inquire(FILE=nmlfile,EXIST=fileexists)
    if (fileexists) then
       open(newunit=nmlunit,file=nmlfile)
@@ -193,7 +195,7 @@ end subroutine pre_model_initialize
 
 subroutine post_model_initialize()
    type (type_output_item),  pointer :: item
-   integer :: ios
+   integer :: ios, i
    integer, parameter :: unit = 250
    character(len=64) :: fn='da_variables.dat'
 
@@ -208,13 +210,29 @@ subroutine post_model_initialize()
       start_time=sim_start
    end if
    if (have_obs) then
+      ! Create output object that will manage memory blob with (extended) model state
       allocate(memory_file)
       call output_manager_add_file(fm, memory_file)
+
+      ! Add model state
       allocate(item)
       item%name = 'state'
       item%output_level = output_level_debug
       call memory_file%append_item(item)
+
+      ! Optionally extend state with user-selected variables
+      do i = 1, size(extra_state)
+         if (extra_state(i) /= '') then
+            allocate(item)
+            item%name = extra_state(i)
+            call memory_file%append_item(item)
+         end if
+      end do
+
+      ! Start output manager - this initializes all output "files" and thereby ensures the memory blob in memory_file is allocated
       call output_manager_start(julianday,int(fsecondsofday),int(mod(fsecondsofday,1._real64)*1000000),0)
+
+      ! Write file describing the structure of the memory blob (rank 0 only)
       if (member == 0) then
          open(unit, file=trim(fn), action='write', status='replace', iostat=ios)
          call memory_file%write_metadata(unit)
