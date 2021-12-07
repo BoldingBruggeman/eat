@@ -173,18 +173,18 @@ subroutine pre_model_initialize()
    output: block
       use gotm, only: yaml_file,restart_file,output_id
       character(len=128) :: fname,strbuf
-      write(output_id, "(A,I0.4)") '_', member+1
       write(strbuf, "(A,I0.4)") 'gotm_', member+1
-      if ( .not. shared_gotm_yaml) then
-         yaml_file = TRIM(strbuf) // '.yaml'
-      end if
       fname = TRIM(strbuf) // '.stderr'
       open(stderr,file=fname)
       fname = TRIM(strbuf) // '.stdout'
       open(output_unit,file=fname)
+      if ( .not. shared_gotm_yaml) then
+         yaml_file = TRIM(strbuf) // '.yaml'
+      end if
+      write(output_id, "(A,I0.4)") '_', member+1
       if ( .not. shared_restart_file) then
-         write(strbuf, "(A,I0.4)") 'restart_', member+1
-         restart_file = TRIM(strbuf) // '.nc'
+         write(restart_file, "(A,I0.4)") 'restart_', member+1
+!KB         restart_file = TRIM(strbuf) // '.nc'
       end if
    end block output
 end subroutine pre_model_initialize
