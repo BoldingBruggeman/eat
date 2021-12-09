@@ -111,7 +111,7 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
 
         # Allow plugins to act before analysis begins
         for plugin in plugins:
-            plugin.before_analysis(None, f.model_states)
+            plugin.before_analysis(None, f.model_states, iobs, obs)
 
         # If we have observations, then perform assimilation. This updates f.model_states
         if nobs > 0:

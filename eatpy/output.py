@@ -32,7 +32,7 @@ class NetCDF(shared.Plugin):
             ncvar.long_name = metadata['long_name']
             self.variables.append((ncvar, istart, istart + length, time_dependent))
 
-    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray):
+    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray):
         for ncvar, istart, istop, time_dependent in self.variables:
             if time_dependent:
                 ncvar[self.itime, 0, ...] = state[:, istart:istop]
