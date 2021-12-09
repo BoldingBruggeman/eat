@@ -45,16 +45,18 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
         parser.add_argument('-p', '--plugin', help='Name of Python plug-in class. This must inherit from eatpy.shared.Plugin.', action='append', default=[])
         args = parser.parse_args()
 
+        # Load user-specified plugins
+        sys.path.insert(0, '.')
         for plugin in args.plugin:
-            sys.path.insert(0, '.')
             smod, scls = plugin.rsplit('.', 1)
             mod = importlib.import_module(smod)
             cls = getattr(mod, scls)
-            sys.path.pop(0)
             if not issubclass(cls, shared.Plugin):
                 raise Exception('%s is not a subclass of shared.Plugin' % (plugin,))
             plugins.append(cls())
+        sys.path.pop(0)
 
+        # Add a plugin for NetCDF output if --output was specified
         if args.output:
             plugins.append(output.NetCDF(args.output))
 
@@ -88,7 +90,7 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
             # Receive number of observations from observation handler
             comm_obs.Recv(nobs, source=0, tag=shared.TAG_NOBS)
 
-            # negative number of observ
+            # A negative number of observations indicates shutdown
             if nobs < 0:
                 break
 
@@ -120,6 +122,7 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
             reqs.append(comm_model.Isend(f.model_states[imodel, :], dest=imodel + 1, tag=shared.TAG_ANALYSIS))
         MPI.Request.Waitall(reqs)
 
+    # Allow plugins and filter to clean-up
     for plugin in plugins:
         plugin.finalize()
     f.finalize()
