@@ -57,3 +57,14 @@ class Plugin:
 
     def finalize(self):        
         pass
+
+class TestPlugin(Plugin):
+    def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
+        print('TestPlugin.initialize')
+
+    def update(self, time: datetime.datetime, forecast: numpy.ndarray, analysis: numpy.ndarray):
+        print('TestPlugin.update')
+
+    def finalize(self):        
+        print('TestPlugin.finalize')
+

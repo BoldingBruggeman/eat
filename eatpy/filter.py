@@ -1,6 +1,8 @@
 
 from typing import Iterable
 import argparse
+import sys
+import importlib
 
 import numpy
 from mpi4py import MPI
@@ -39,8 +41,19 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     # Parse command line arguments if requested. This may append plugins, e.g., for output.
     if parse_args:
         parser = argparse.ArgumentParser()
-        parser.add_argument('--output')
+        parser.add_argument('-o', '--output', help='NetCDF file to write forrcats/analysis state to')
+        parser.add_argument('-p', '--plugin', help='Name of Python plug-in class. This must inherit from eatpy.shared.Plugin.', action='append', default=[])
         args = parser.parse_args()
+
+        for plugin in args.plugin:
+            sys.path.insert(0, '.')
+            smod, scls = plugin.rsplit('.', 1)
+            mod = importlib.import_module(smod)
+            cls = getattr(mod, scls)
+            sys.path.pop(0)
+            if not issubclass(cls, shared.Plugin):
+                raise Exception('%s is not a subclass of shared.Plugin' % (plugin,))
+            plugins.append(cls())
 
         if args.output:
             plugins.append(output.NetCDF(args.output))
@@ -68,12 +81,16 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     for plugin in plugins:
         plugin.initialize(variables, nmodel)
 
+    nobs = numpy.array(-1, dtype='i4')
     while True:
         reqs = []
         if have_obs:
             # Receive number of observations from observation handler
-            nobs = numpy.array(-1, dtype='i4')
             comm_obs.Recv(nobs, source=0, tag=shared.TAG_NOBS)
+
+            # negative number of observ
+            if nobs < 0:
+                break
 
             # Set up arrays for observation indices and values.
             # If > 0, receive those from observation handler.
@@ -102,9 +119,6 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
         for imodel in range(nmodel):
             reqs.append(comm_model.Isend(f.model_states[imodel, :], dest=imodel + 1, tag=shared.TAG_ANALYSIS))
         MPI.Request.Waitall(reqs)
-        
-        if nobs < 0:
-            break
 
     for plugin in plugins:
         plugin.finalize()
