@@ -48,12 +48,15 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
         # Load user-specified plugins
         sys.path.insert(0, '.')
         for plugin in args.plugin:
-            smod, scls = plugin.rsplit('.', 1)
+            assert '.' in plugin, 'Plugins must be be preficed by a module name, followed by a dot.'
+            smod, scls = plugin.split('(', 1)[0].rsplit('.', 1)
             mod = importlib.import_module(smod)
-            cls = getattr(mod, scls)
-            if not issubclass(cls, shared.Plugin):
-                raise Exception('%s is not a subclass of shared.Plugin' % (plugin,))
-            plugins.append(cls())
+            p = eval(plugin[len(smod) + 1:], mod.__dict__)
+            if issubclass(p, shared.Plugin):
+                p = p()
+            elif not isinstance(p, shared.Plugin):
+                raise Exception('%s is not an instance of shared.Plugin' % (plugin,))
+            plugins.append(p)
         sys.path.pop(0)
 
         # Add a plugin for NetCDF output if --output was specified
