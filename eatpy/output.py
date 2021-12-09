@@ -7,9 +7,10 @@ import netCDF4
 from . import shared
 
 class NetCDF(shared.Plugin):
+    """Plugin that saves the forecast and analysis states to NetCDF."""
     def __init__(self, path: str, sync_interval: int=1):
         self.nc = netCDF4.Dataset(path, 'w')
-        self.variables: List[Tuple[netCDF4.Variable, int, int]] = []
+        self.variables: List[Tuple[netCDF4.Variable, int, int, bool]] = []
         self.itime = 0
         self.sync_interval = sync_interval
 
@@ -29,15 +30,15 @@ class NetCDF(shared.Plugin):
             ncvar = self.nc.createVariable(name, float, dimnames)
             ncvar.units = metadata['units']
             ncvar.long_name = metadata['long_name']
-            self.variables.append((ncvar, istart, istart + length - 1, time_dependent))
+            self.variables.append((ncvar, istart - 1, istart + length - 1, time_dependent))
 
     def update(self, time: datetime.datetime, forecast: numpy.ndarray, analysis: numpy.ndarray):
         for ncvar, istart, istop, time_dependent in self.variables:
             if time_dependent:
-                ncvar[self.itime, 0, ...] = forecast[:, istart - 1:istop]
-                ncvar[self.itime, 1, ...] = analysis[:, istart - 1:istop]
+                ncvar[self.itime, 0, ...] = forecast[:, istart:istop]
+                ncvar[self.itime, 1, ...] = analysis[:, istart:istop]
             elif self.itime == 0:
-                ncvar[...] = forecast[0, istart - 1:istop]
+                ncvar[...] = forecast[0, istart:istop]
         self.itime += 1
         if self.itime % self.sync_interval == 0:
             self.nc.sync()
