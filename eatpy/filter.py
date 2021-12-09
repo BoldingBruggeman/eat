@@ -10,6 +10,7 @@ from . import output
 from . import _eat_filter_pdaf
 
 class Filter:
+    """Base class for filters. Derived classes must implement assimilate."""
     def __init__(self, model_states):
         self.model_states = model_states
 
@@ -20,15 +21,16 @@ class Filter:
         pass
 
 class PDAF(Filter):
-   def __init__(self, comm: MPI.Comm, state_size: int, ensemble_size: int):
-       model_states = _eat_filter_pdaf.initialize(comm, state_size, ensemble_size)
-       super().__init__(model_states)
+    """Filter class that wraps PDAF."""
+    def __init__(self, comm: MPI.Comm, state_size: int, ensemble_size: int):
+        model_states = _eat_filter_pdaf.initialize(comm, state_size, ensemble_size)
+        super().__init__(model_states)
 
-   def assimilate(self, iobs: numpy.ndarray, obs: numpy.ndarray):
-       _eat_filter_pdaf.assimilate(iobs, obs)
+    def assimilate(self, iobs: numpy.ndarray, obs: numpy.ndarray):
+        _eat_filter_pdaf.assimilate(iobs, obs)
 
-   def finalize(self):
-       _eat_filter_pdaf.finalize()
+    def finalize(self):
+        _eat_filter_pdaf.finalize()
         
 def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     # Enable appending to plugins
@@ -69,7 +71,7 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     while True:
         reqs = []
         if have_obs:
-            # Receive number of observations from model
+            # Receive number of observations from observation handler
             nobs = numpy.array(-1, dtype='i4')
             comm_obs.Recv(nobs, source=0, tag=shared.TAG_NOBS)
 
@@ -86,7 +88,7 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
             reqs.append(comm_model.Irecv(f.model_states[imodel, :], source=imodel + 1, tag=shared.TAG_FORECAST))
         MPI.Request.Waitall(reqs)
 
-        # If we have observations, then perform assimillation. This updates f.model_states
+        # If we have observations, then perform assimilation. This updates f.model_states
         forecast[...] = f.model_states
         if nobs > 0:
             f.assimilate(iobs, obs)
