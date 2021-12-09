@@ -42,7 +42,7 @@ def parse_memory_map(path: str):
                 n, l = dim.split('=')
                 l = int(l)
                 dim2length[n] = None if l == -1 else l
-            yield name, {'long_name': long_name, 'units': units, 'dimensions': dim2length, 'start': int(start), 'length': int(length)}
+            yield name, {'long_name': long_name, 'units': units, 'dimensions': dim2length, 'start': int(start) - 1, 'length': int(length)}
 
 class Plugin:
     """Base class for plugins.
@@ -52,7 +52,10 @@ class Plugin:
     def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
         pass
 
-    def update(self, time: datetime.datetime, forecast: numpy.ndarray, analysis: numpy.ndarray):
+    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray):
+        pass
+
+    def after_analysis(self, time: datetime.datetime, state: numpy.ndarray):
         pass
 
     def finalize(self):        
@@ -62,8 +65,11 @@ class TestPlugin(Plugin):
     def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
         print('TestPlugin.initialize')
 
-    def update(self, time: datetime.datetime, forecast: numpy.ndarray, analysis: numpy.ndarray):
-        print('TestPlugin.update')
+    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray):
+        print('TestPlugin.before_analysis')
+
+    def after_analysis(self, time: datetime.datetime, state: numpy.ndarray):
+        print('TestPlugin.after_analysis')
 
     def finalize(self):        
         print('TestPlugin.finalize')

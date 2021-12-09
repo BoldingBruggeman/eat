@@ -61,7 +61,7 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
 
         # Add a plugin for NetCDF output if --output was specified
         if args.output:
-            plugins.append(output.NetCDF(args.output))
+            plugins.insert(0, output.NetCDF(args.output))
 
     # Set up parallel communication
     comm, _, comm_obs, comm_model = shared.setup_mpi(shared.COLOR_FILTER)
@@ -79,7 +79,6 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
 
     # Create filter
     f = PDAF(comm, state_size, nmodel)
-    forecast = numpy.empty_like(f.model_states)
 
     # Initialize plugins
     variables = dict(shared.parse_memory_map('da_variables.dat'))
@@ -110,14 +109,17 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
             reqs.append(comm_model.Irecv(f.model_states[imodel, :], source=imodel + 1, tag=shared.TAG_FORECAST))
         MPI.Request.Waitall(reqs)
 
+        # Allow plugins to act before analysis begins
+        for plugin in plugins:
+            plugin.before_analysis(None, f.model_states)
+
         # If we have observations, then perform assimilation. This updates f.model_states
-        forecast[...] = f.model_states
         if nobs > 0:
             f.assimilate(iobs, obs)
 
-        # Inform plugins
-        for plugin in plugins:
-            plugin.update(None, forecast, f.model_states)
+        # Allow plugins to act before analysis state is sent back to models
+        for plugin in reversed(plugins):
+            plugin.after_analysis(None, f.model_states)
 
         # Send state to models
         reqs = []

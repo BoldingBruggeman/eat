@@ -30,15 +30,19 @@ class NetCDF(shared.Plugin):
             ncvar = self.nc.createVariable(name, float, dimnames)
             ncvar.units = metadata['units']
             ncvar.long_name = metadata['long_name']
-            self.variables.append((ncvar, istart - 1, istart + length - 1, time_dependent))
+            self.variables.append((ncvar, istart, istart + length, time_dependent))
 
-    def update(self, time: datetime.datetime, forecast: numpy.ndarray, analysis: numpy.ndarray):
+    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray):
         for ncvar, istart, istop, time_dependent in self.variables:
             if time_dependent:
-                ncvar[self.itime, 0, ...] = forecast[:, istart:istop]
-                ncvar[self.itime, 1, ...] = analysis[:, istart:istop]
+                ncvar[self.itime, 0, ...] = state[:, istart:istop]
             elif self.itime == 0:
-                ncvar[...] = forecast[0, istart:istop]
+                ncvar[...] = state[0, istart:istop]
+
+    def after_analysis(self, time: datetime.datetime, state: numpy.ndarray):
+        for ncvar, istart, istop, time_dependent in self.variables:
+            if time_dependent:
+                ncvar[self.itime, 1, ...] = state[:, istart:istop]
         self.itime += 1
         if self.itime % self.sync_interval == 0:
             self.nc.sync()
