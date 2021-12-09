@@ -42,7 +42,7 @@ def parse_memory_map(path: str):
                 n, l = dim.split('=')
                 l = int(l)
                 dim2length[n] = None if l == -1 else l
-        yield name, {'long_name': long_name, 'units': units, 'dimensions': dim2length, 'start': int(start), 'length': int(length)}
+            yield name, {'long_name': long_name, 'units': units, 'dimensions': dim2length, 'start': int(start), 'length': int(length)}
 
 class Plugin:
     """Base class for plugins.
