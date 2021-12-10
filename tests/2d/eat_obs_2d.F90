@@ -177,6 +177,7 @@ subroutine do_observations()
 
    ! Here we must NOT use MPI_SSEND()
    if (have_filter) then
+      call MPI_SEND(halt,19,MPI_CHARACTER,filter,tag_timestr,EAT_COMM_obs_filter,ierr)
       nobs=-1
       if (verbosity >= info) write(stderr,'(A,I6)') ' obs(--> filter(exit))'
       call MPI_SEND(nobs,1,MPI_INTEGER,filter,1,EAT_COMM_obs_filter,ierr)
@@ -184,7 +185,7 @@ subroutine do_observations()
    if (have_model) then
       if (verbosity >= info) write(stderr,*) 'obs(--> model(exit))'
       do m=1,nmodel
-         call MPI_SEND(halt,19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr)
+         call MPI_SEND(halt,19,MPI_CHARACTER,m,tag_timestr,EAT_COMM_obs_model,ierr)
       end do
    end if
    if (verbosity >= info) write(stderr,*) 'obs(exit)'
