@@ -3,6 +3,7 @@ from typing import Iterable
 import argparse
 import sys
 import importlib
+import datetime
 
 import numpy
 from mpi4py import MPI
@@ -112,8 +113,9 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
         MPI.Request.Waitall(reqs)
 
         # Allow plugins to act before analysis begins
+        time = datetime.datetime.strptime(timestr.tobytes().decode('ascii'), '%Y-%m-%d %H:%M:%S')
         for plugin in plugins:
-            plugin.before_analysis(None, f.model_states, iobs, obs)
+            plugin.before_analysis(time, f.model_states, iobs, obs)
 
         # If we have observations, then perform assimilation. This updates f.model_states
         if nobs > 0:
@@ -121,7 +123,7 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
 
         # Allow plugins to act before analysis state is sent back to models
         for plugin in reversed(plugins):
-            plugin.after_analysis(None, f.model_states)
+            plugin.after_analysis(f.model_states)
 
         # Send state to models
         reqs = []

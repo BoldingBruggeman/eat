@@ -22,6 +22,6 @@ class LogTransform(shared.Plugin):
                 obs[affected_obs] = numpy.log10(obs[affected_obs])
             state[:, start:stop] = numpy.log10(state[:, start:stop])
 
-    def after_analysis(self, time: datetime.datetime, state: numpy.ndarray):
+    def after_analysis(self, state: numpy.ndarray):
         for start, stop in self.slices:
             state[:, start:stop] = 10. ** state[:, start:stop]
