@@ -15,7 +15,7 @@ program eat_filter_pdaf
    use PDAF_interfaces_module
    IMPLICIT NONE
 
-   integer :: nobs
+   integer :: nobs=0
    integer, allocatable :: iobs(:)
    real(real64), allocatable :: obs(:)
 
@@ -23,8 +23,8 @@ program eat_filter_pdaf
    logical :: have_obs=.true.
    logical :: have_model=.true.
    integer :: state_size,ensemble_size
-   integer, allocatable :: model_reqs(:)
-   integer, allocatable :: model_stats(:,:)
+   integer, allocatable :: reqs(:)
+   integer, allocatable :: stats(:,:)
 #ifdef _USE_PDAF_
    real(real64), pointer, contiguous :: model_states(:,:) => null()
 #else
@@ -88,8 +88,8 @@ subroutine eat_init_pdaf()
       call MPI_RECV(state_size,1,MPI_INTEGER,1,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
       if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- state_size) ',state_size
       ensemble_size=size_model_filter_comm-size_filter_comm
-      allocate(model_reqs(ensemble_size))
-      allocate(model_stats(MPI_STATUS_SIZE,ensemble_size))
+      allocate(reqs(2+ensemble_size))
+      allocate(stats(MPI_STATUS_SIZE,2+ensemble_size))
    end if
 
 #ifdef _USE_PDAF_
@@ -124,17 +124,6 @@ subroutine eat_do_pdaf()
          if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- nobs) ',nobs
       end if
 
-      if (have_model .and. nobs > 0) then
-!KB      if (have_model) then
-         do m=1,ensemble_size
-            call MPI_IRECV(model_states(:,m),state_size,MPI_DOUBLE,m,tag_forecast,EAT_COMM_model_filter,model_reqs(m),ierr)
-            if(ierr /= MPI_SUCCESS) THEN
-               write(stderr,*) 'Fatal error (PDAF): Unable to receive: ',m; call flush(stderr)
-               call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-            end if
-         end do
-      end if
-
       if (have_obs .and. nobs > 0) then
          if (.not. allocated(iobs)) allocate(iobs(nobs))
          if (nobs > size(iobs)) then
@@ -146,26 +135,24 @@ subroutine eat_do_pdaf()
             deallocate(obs)
             allocate(obs(nobs))
          end if
+         call MPI_IRECV(iobs(1:nobs),nobs,MPI_INTEGER,0,tag_iobs,EAT_COMM_obs_filter,reqs(1),ierr)
+         call MPI_IRECV(obs(1:nobs),nobs,MPI_DOUBLE,0,tag_obs,EAT_COMM_obs_filter,reqs(2),ierr)
          if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- iobs, obs)'
-         call MPI_IRECV(iobs(1:nobs),nobs,MPI_INTEGER,0,tag_iobs,EAT_COMM_obs_filter,obs_requests(1),ierr)
-         call MPI_IRECV(obs(1:nobs),nobs,MPI_DOUBLE,0,tag_obs,EAT_COMM_obs_filter,obs_requests(2),ierr)
       end if
 
-!KB      if (have_model .and. nobs > 0) then
-      if (have_model) then
-         if (verbosity >= info) write(stderr,'(x,A)') 'filter(<-- state)'
-         call MPI_WAITALL(ensemble_size,model_reqs,model_stats(:,:),ierr)
-         if (verbosity >= debug) then
-            do m=1,ensemble_size
-               write(stderr,'(x,A,I4,*(F10.5))') 'filter(<-- state)',m,sum(model_states(:,m))/state_size
-            end do
-         end if
+      if (have_model .and. nobs > 0) then
+!KB      if (have_model) then
+         do m=1,ensemble_size
+            call MPI_IRECV(model_states(:,m),state_size,MPI_DOUBLE,m,tag_forecast,EAT_COMM_model_filter,reqs(2+m),ierr)
+            if(ierr /= MPI_SUCCESS) THEN
+               write(stderr,*) 'Fatal error (PDAF): Unable to receive: ',m
+               call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            end if
+         end do
       end if
 
-      if (have_obs .and. nobs > 0) then
-         call MPI_WAITALL(2,obs_requests,obs_stats,ierr)
-         if (verbosity >= debug) write(stderr,'(A,F10.6)') ' filter(<-- obs) ',sum(obs)/nobs
-      end if
+     if (verbosity >= info) write(stderr,'(x,A)') 'filter(<-- state)'
+     call MPI_WAITALL(ensemble_size,reqs,stats(:,:),ierr)
 
       if (have_obs .and. have_model .and. nobs > 0) then
 #ifdef _USE_PDAF_
@@ -178,13 +165,14 @@ subroutine eat_do_pdaf()
 #endif
 
          do m=1,ensemble_size
-            call MPI_ISEND(model_states(:,m),state_size,MPI_DOUBLE,m,tag_analysis,EAT_COMM_model_filter,model_reqs(m),ierr)
+            call MPI_ISEND(model_states(:,m),state_size,MPI_DOUBLE,m,tag_analysis,EAT_COMM_model_filter,reqs(2+m),ierr)
             if(ierr /= MPI_SUCCESS) THEN
-               write(stderr,*) 'Fatal error (PDAF): Unable to send: ',m; call flush(stderr)
+               write(stderr,*) 'Fatal error (PDAF): Unable to send: ',m
                call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
             end if
          end do
-         call MPI_WAITALL(ensemble_size,model_reqs,model_stats,ierr)
+         m=2+ensemble_size
+         call MPI_WAITALL(ensemble_size,reqs(3:m),stats(:,3:m),ierr)
          if(ierr /= MPI_SUCCESS) THEN
             write(stderr,*) 'Fatal error (PDAF): Unable to wait'; call flush(stderr)
             call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
@@ -563,7 +551,7 @@ SUBROUTINE obs_op_pdaf(step, dim_p, dim_obs_p, state_p, m_state_p)
    DO i = 1, dim_obs_p
       m_state_p(i) = state_p(iobs(i))
    END DO
-!KBwrite(0,*) 'AAAA',m_state_p
+!KBwrite(0,*) 'FILTERA',m_state_p
 END SUBROUTINE obs_op_pdaf
 
 ! Routine to provide vector of measurements
