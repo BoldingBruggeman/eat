@@ -1,0 +1,23 @@
+name: eat
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - pip
+  - fortran-compiler
+  - netcdf-fortran
+  - jupyterlab
+  - cmake
+  - numpy
+  - matplotlib=3.4.*
+  - scipy
+  - ipympl
+  - netcdf4
+  - pyyaml
+  - nco
+  - blas
+  - lapack
+  - mpi4py
+  - pyqt
+  - pip:
+      - pyncview

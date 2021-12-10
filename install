@@ -1,0 +1,14 @@
+# This script is intended to be source'd, not executed
+
+set -e
+
+REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Build eat
+WORK_DIR=`mktemp -d`
+cd ${WORK_DIR}
+cmake ${REPO_DIR}
+make -j4 install
+cp -v ${REPO_DIR}/models/gotm/*.py ~/.local/bin/
+cd -
+rm -rf ${WORK_DIR}
