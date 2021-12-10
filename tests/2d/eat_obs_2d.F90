@@ -111,8 +111,8 @@ subroutine do_observations()
    character(len=32) :: timestr,halt="0000-00-00 00:00:00"
 !-----------------------------------------------------------------------
    do n=1,size(obs_times)
+
       if (have_model) then
-         if (verbosity >= info) write(stderr,*) 'obs(--> time)  ',trim(obs_times(n))
          do m=1,nmodel
             call MPI_SSEND(obs_times(n),19,MPI_CHARACTER,m,m,EAT_COMM_obs_model,ierr)
             if (ierr /= MPI_SUCCESS) then
@@ -121,13 +121,14 @@ subroutine do_observations()
                end if
             end if
          end do
+         if (verbosity >= info) write(stderr,*) 'obs(--> time)  ',trim(obs_times(n))
       end if
 
       if (have_filter) then
          call random_number(x)
          nobs=nobsmin+FLOOR((nobsmax+1-nobsmin)*x)
+         call MPI_SSEND(nobs,1,MPI_INTEGER,filter,tag_nobs,EAT_COMM_obs_filter,ierr)
          if (verbosity >= info) write(stderr,'(A,I6)') ' obs(--> nobs)    ',nobs
-         call MPI_SSEND(nobs,1,MPI_INTEGER,filter,1,EAT_COMM_obs_filter,ierr)
          if (ierr /= MPI_SUCCESS) then
             if (verbosity >= error) then
                write(stderr,*) 'obs: failing to send to filter process'
@@ -156,12 +157,12 @@ subroutine do_observations()
          call write_field(trim(fn),obsfield)
          end block
 
-         if (verbosity >= info)  write(stderr,'(A,F10.6)') ' obs(--> obs)    ',sum(obs)/nobs
 !KB      end if
 !KB      if (have_filter .and. nobs > 0) then
-         call MPI_ISEND(iobs(1:nobs),nobs,MPI_INTEGER,filter,1,EAT_COMM_obs_filter,requests(1),ierr)
-         call MPI_ISEND(obs(1:nobs),nobs,MPI_DOUBLE,filter,1,EAT_COMM_obs_filter,requests(2),ierr)
+         call MPI_ISEND(iobs(1:nobs),nobs,MPI_INTEGER,filter,tag_iobs,EAT_COMM_obs_filter,requests(1),ierr)
+         call MPI_ISEND(obs(1:nobs),nobs,MPI_DOUBLE,filter,tag_obs,EAT_COMM_obs_filter,requests(2),ierr)
          call MPI_WAITALL(2,requests,stats,ierr)
+         if (verbosity >= info)  write(stderr,'(A,F10.6)') ' obs(--> iobs,obs)    ',sum(obs)/nobs
          if (ierr /= MPI_SUCCESS) then
             if (verbosity >= error) write(stderr,*) 'obs: failing to wait for requests'
          end if
