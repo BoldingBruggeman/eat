@@ -82,4 +82,5 @@ else()
 endif()
 
 add_subdirectory("src")
+add_subdirectory("eatpy")
 add_subdirectory("tests")

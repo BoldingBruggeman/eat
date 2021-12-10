@@ -89,7 +89,9 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     while True:
         reqs = []
         if have_obs:
-            # Receive number of observations from observation handler
+            # Receive current time and number of observations from observation handler
+            timestr = numpy.empty((19,), dtype='|S1')
+            comm_obs.Recv(timestr, source=0, tag=shared.TAG_TIMESTR)
             comm_obs.Recv(nobs, source=0, tag=shared.TAG_NOBS)
 
             # A negative number of observations indicates shutdown

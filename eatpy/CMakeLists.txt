@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.0)
 
 # Create main project.
-project(eat_filter_pdaf VERSION 0.1.0 LANGUAGES Fortran C)
+project(ceat_filter_pdaf VERSION 0.1.0 LANGUAGES Fortran C)
 
 # Specify position-independent code since we will build a shared library.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -15,16 +15,8 @@ set(Python_FIND_STRATEGY LOCATION)
 set(Python3_FIND_STRATEGY LOCATION)
 find_package(Python3 COMPONENTS Interpreter Development NumPy)
 
-find_package(MPI REQUIRED)
-if(MPI_Fortran_INCLUDE_PATH)
-    include_directories("${MPI_Fortran_INCLUDE_PATH}")
-endif()
-
-find_path(PDAF_BASE src/PDAF-D_init.F90 HINTS ${CMAKE_CURRENT_LIST_DIR}/../extern/pdaf DOC "Path to PDAF source directory.")
-add_subdirectory(${PDAF_BASE} "extern/pdaf" EXCLUDE_FROM_ALL)
-
-add_library(ceat_filter_pdaf eat_filter_pdaf.F90 ../src/eat_config.F90)
-target_link_libraries(ceat_filter_pdaf PRIVATE pdaf-d)
+add_library(ceat_filter_pdaf ceat_filter_pdaf.F90)
+target_link_libraries(ceat_filter_pdaf PRIVATE eat_config)
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/_eat_filter_pdaf.c
   COMMAND ${Python3_EXECUTABLE} -m cython _eat_filter_pdaf.pyx

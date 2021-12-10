@@ -3,32 +3,25 @@
 #undef _USE_PDAF_
 #define _USE_PDAF_
 
-module eat_filter_pdaf
+module pdaf_wrapper
 
    !! A wrapper around the 'off_line PDAF' implmentation to keep it alive during
    !! ensemble simulations
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
-   ! use mpi
-   use eat_config
+   !use mpi
+   use eat_config, only: info, debug
    use pdaf_mod_filter
    use PDAF_interfaces_module
    IMPLICIT NONE
 
+   private
+
+   public init_pdaf, assimilation_pdaf, finish_pdaf, iobs, obs
+
    integer, pointer, contiguous :: iobs(:)
    real(real64), pointer, contiguous :: obs(:)
 
-!    integer :: ierr
-!    logical :: have_obs=.true.
-!    logical :: have_model=.true.
-!   integer :: state_size
-!    integer, allocatable :: model_reqs(:)
-!    integer, allocatable :: model_stats(:,:)
-! #ifdef _USE_PDAF_
-!    real(real64), pointer, contiguous :: model_states(:,:) => null()
-! #else
-!    real(real64), allocatable :: model_states(:,:)
-! #endif
    integer :: stderr=error_unit,stdout=output_unit
    integer :: verbosity=info
 
@@ -43,164 +36,13 @@ REAL(real64) :: timenow
 integer :: doexit,steps
    real(real64) :: rms_obs = 0.05    ! Observation error standard deviation
 
-! !-----------------------------------------------------------------------
-
-!    call eat_init_pdaf()
-!    call eat_do_pdaf()
-!    call eat_finish_pdaf()
-
 !-----------------------------------------------------------------------
 
 contains
 
 ! !-----------------------------------------------------------------------
 
-! subroutine eat_init_pdaf()
-
-!    !! Initialize EAT/PDAF component
-
-!    ! Local variables
-!    integer :: stat(MPI_STATUS_SIZE)
-!    integer :: ierr
-!    namelist /nml_filter_pdaf/ verbosity
-! !-----------------------------------------------------------------------
-!    INQUIRE(FILE=nmlfile, EXIST=fileexists)
-!    if (fileexists) then
-!       open(newunit=nmlunit,file=nmlfile,status='old',action='read')
-!       read(nmlunit,nml=nml_filter_pdaf)
-!       close(nmlunit)
-!       if (verbosity >= warn) write(stderr,*) 'filter(read namelist)'
-!    end if
-
-!    call init_eat_config(color_filter+verbosity)
-
-!    if (EAT_COMM_obs_filter == MPI_COMM_NULL) then
-!       if (verbosity >= info) write(stderr,*) "filter(no observation executable present)"
-!       have_obs=.false.
-!    end if
-
-!    if (EAT_COMM_model_filter == MPI_COMM_NULL) then
-!       if (verbosity >= info) write(stderr,*) "filter(no model executable present)"
-!       have_model=.false.
-!    else
-!       dim_ens=size_model_filter_comm-1
-!       call MPI_RECV(state_size,1,MPI_INTEGER,1,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
-!       if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- state_size) ',state_size
-!       ensemble_size=size_model_filter_comm-size_filter_comm
-!       allocate(model_reqs(ensemble_size))
-!       allocate(model_stats(MPI_STATUS_SIZE,ensemble_size))
-!    end if
-
-! #ifdef _USE_PDAF_
-!    CALL init_pdaf(ierr)
-!    call PDAF_set_ens_pointer(model_states,ierr)
-!    if (ierr /= 0) then
-!       call MPI_ABORT(MPI_COMM_WORLD,-1,ierr)
-!    else
-!       write(error_unit,*) 'filter(PDAF is initialized): ',shape(model_states)
-!    end if
-! #else
-!    allocate(model_states(state_size,ensemble_size))
-! #endif
-! end subroutine eat_init_pdaf
-
-! !-----------------------------------------------------------------------
-
-! subroutine eat_do_pdaf()
-
-!    !! Get observations and states and do the PDAF/assimilation step
-
-!    ! Local variables
-!    real(real64), allocatable :: states(:,:)
-!    integer :: stat(MPI_STATUS_SIZE)
-!    integer :: obs_stats(MPI_STATUS_SIZE,2)
-!    integer :: obs_requests(2)
-!    integer :: m
-! !-----------------------------------------------------------------------
-!    do
-!       if (have_obs) then
-!          call MPI_RECV(nobs,1,MPI_INTEGER,0,tag_nobs,EAT_COMM_obs_filter,stat,ierr)
-!          if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- nobs) ',nobs
-!       end if
-
-!       if (have_model .and. nobs > 0) then
-! !KB      if (have_model) then
-!          do m=1,ensemble_size
-!             call MPI_IRECV(model_states(:,m),state_size,MPI_DOUBLE,m,tag_forecast,EAT_COMM_model_filter,model_reqs(m),ierr)
-!             if(ierr /= MPI_SUCCESS) THEN
-!                write(stderr,*) 'Fatal error (PDAF): Unable to receive: ',m; call flush(stderr)
-!                call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-!             end if
-!          end do
-!       end if
-
-!       if (have_obs .and. nobs > 0) then
-!          if (.not. allocated(iobs)) allocate(iobs(nobs))
-!          if (nobs > size(iobs)) then
-!             deallocate(iobs)
-!             allocate(iobs(nobs))
-!          end if
-!          if (.not. allocated(obs)) allocate(obs(nobs))
-!          if (nobs > size(obs)) then
-!             deallocate(obs)
-!             allocate(obs(nobs))
-!          end if
-!          if (verbosity >= info) write(stderr,'(A,I6)') ' filter(<-- iobs, obs)'
-!          call MPI_IRECV(iobs(1:nobs),nobs,MPI_INTEGER,0,tag_iobs,EAT_COMM_obs_filter,obs_requests(1),ierr)
-!          call MPI_IRECV(obs(1:nobs),nobs,MPI_DOUBLE,0,tag_obs,EAT_COMM_obs_filter,obs_requests(2),ierr)
-!       end if
-
-! !KB      if (have_model .and. nobs > 0) then
-!       if (have_model) then
-!          if (verbosity >= info) write(stderr,'(x,A)') 'filter(<-- state)'
-!          call MPI_WAITALL(ensemble_size,model_reqs,model_stats(:,:),ierr)
-!          if (verbosity >= debug) then
-!             do m=1,ensemble_size
-!                write(stderr,'(x,A,I4,*(F10.5))') 'filter(<-- state)',m,sum(model_states(:,m))/state_size
-!             end do
-!          end if
-!       end if
-
-!       if (have_obs .and. nobs > 0) then
-!          call MPI_WAITALL(2,obs_requests,obs_stats,ierr)
-!          if (verbosity >= debug) write(stderr,'(A,F10.6)') ' filter(<-- obs) ',sum(obs)/nobs
-!       end if
-
-!       if (have_obs .and. have_model .and. nobs > 0) then
-! #ifdef _USE_PDAF_
-!          ! Begin PDAF specific part
-!          ! from .../tutorial/classical/offline_2D_serial/main_offline.F90
-!          if (verbosity >= info) write(stderr,'(x,A)') 'filter(--> PDAF)'
-!          CALL assimilation_pdaf()
-!          if (verbosity >= info) write(stderr,'(x,A)') 'filter(<-- PDAF)'
-!          ! End PDAF specific part
-! #endif
-
-!          do m=1,ensemble_size
-!             call MPI_ISEND(model_states(:,m),state_size,MPI_DOUBLE,m,tag_analysis,EAT_COMM_model_filter,model_reqs(m),ierr)
-!             if(ierr /= MPI_SUCCESS) THEN
-!                write(stderr,*) 'Fatal error (PDAF): Unable to send: ',m; call flush(stderr)
-!                call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-!             end if
-!          end do
-!          call MPI_WAITALL(ensemble_size,model_reqs,model_stats,ierr)
-!          if(ierr /= MPI_SUCCESS) THEN
-!             write(stderr,*) 'Fatal error (PDAF): Unable to wait'; call flush(stderr)
-!             call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-!          end if
-!          if (verbosity >= info) write(stderr,'(x,A)') 'filter(--> state)'
-!       end if
-
-!       if (nobs < 0) then
-!          if (verbosity >= info) write(stderr,*) 'filter(exit)'
-!          exit
-!       end if
-!    end do
-! end subroutine eat_do_pdaf
-
-! !-----------------------------------------------------------------------
-
-subroutine eat_finish_pdaf() bind(c)
+subroutine finish_pdaf() bind(c)
 
    !! Cleanup and finalize the EAT/PDAF component
 
@@ -208,32 +50,13 @@ subroutine eat_finish_pdaf() bind(c)
 #ifdef _USE_PDAF__
    CALL finalize_pdaf(0) ! Basically CALL PDAF_deallocate()
 #endif
-   !call MPI_Finalize(ierr)
-end subroutine eat_finish_pdaf
-
-subroutine set_observations(nobs_, iobs_, obs_) bind(c)
-   integer, value, intent(in) :: nobs_
-   integer,      target, intent(inout) :: iobs_(nobs_)
-   real(REAL64), target, intent(inout) :: obs_(nobs_)
-   iobs => iobs_
-   obs => obs_
-end subroutine
-
-subroutine get_model_states(p, stat) bind(c)
-   use iso_c_binding
-   type(c_ptr), intent(out) :: p
-   integer,     intent(out) :: stat
-   integer :: ierr
-   real(real64), pointer, contiguous :: model_states(:,:)
-   call PDAF_set_ens_pointer(model_states, stat)
-   p = c_loc(model_states)
-end subroutine
+end subroutine finish_pdaf
 
 !-----------------------------------------------------------------------
 
 ! Below are the routines implemented to link to the PDAF library - pdaf-d.
 
-SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, stat) bind(c)
+SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, stat)
 
 #if 0
   USE mod_parallel, &     ! Parallelization variables
@@ -247,6 +70,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, stat) bind(c)
 #endif
 
    integer, intent(in), value :: EAT_COMM_filter, state_size, ensemble_size
+   real(real64), pointer, contiguous :: model_states(:,:)
    integer, intent(out) :: stat
 
 !KB
@@ -399,6 +223,8 @@ integer :: dim_state_p
         distribute_state_pdaf, prepoststep_ens_pdaf, status_pdaf)
 
    stat=status_pdaf
+
+   call PDAF_set_ens_pointer(model_states, stat)
 END SUBROUTINE init_pdaf
 
 !-----------------------------------------------------------------------
@@ -867,4 +693,4 @@ SUBROUTINE init_dim_obs_f_pdaf()
 END SUBROUTINE init_dim_obs_f_pdaf
 #endif
 
-end module eat_filter_pdaf
+end module pdaf_wrapper

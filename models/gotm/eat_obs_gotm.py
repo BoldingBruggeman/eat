@@ -140,6 +140,7 @@ class ObservationHandler:
             print(' obs(-> model) {}'.format(strtime))
             for dest in range(1, self.nmodel + 1):
                reqs.append(self.MPI_COMM_obs_model.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=dest, tag=tag_timestr))
+            reqs.append(self.MPI_COMM_obs_filter.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=1, tag=tag_timestr))
 
          if self.have_filter:
             # Send new observations to filter
