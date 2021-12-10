@@ -61,79 +61,33 @@ program eat_model_2d
 
    call pre_model_initialize()
 
+   signal=signal_initialize
    do
-      call signal_setup()
-      if (verbosity >= debug) write(stderr,*) 'model(signal) ',signal
-
+      if (verbosity >= debug) write(stderr,*) 'model(signal) 1 ',signal
       if (iand(signal,signal_initialize) == signal_initialize) then
          call initialize_2d()
          call post_model_initialize()
-!KB         if (iand(signal,signal_send_state) == signal_send_state) then
-!KB            allocate(state(state_size))
-!KB         end if
-      else
-         !KB could maybe be done in pre_model_integrate()
-         if (have_filter) then
-            call MPI_IRECV(state,state_size,MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
-            call MPI_WAIT(request,stat,ierr)
-            field=reshape(state,(/nx,ny/))
-         end if
       end if
 
+      if (verbosity >= debug) write(stderr,*) 'model(signal) 2 ',signal
       if (iand(signal,signal_integrate) == signal_integrate) then
          call pre_model_integrate()
          call integrate_2d()
          call post_model_integrate()
       end if
 
-      if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
-         state=reshape(field,(/state_size/))
-         call MPI_ISEND(state,state_size,MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,request,ierr)
-         call MPI_WAIT(request,stat,ierr)
-      end if
-
+      if (verbosity >= debug) write(stderr,*) 'model(signal) 3 ',signal
       if (iand(signal,signal_finalize) == signal_finalize) then
          call finalize_2d()
          exit
       end if
    end do
+   if (verbosity >= info) write(stderr,*) 'model(exit)'
    call MPI_Finalize(ierr)
 
 !-----------------------------------------------------------------------
 
 contains
-
-!-----------------------------------------------------------------------
-
-subroutine signal_setup() ! setup signal
-   logical :: first=.true.
-
-   if (ensemble_only) then
-      signal=signal_initialize+signal_integrate+signal_finalize
-   else
-      if (first) then
-         first=.false.
-         signal=signal_initialize+signal_integrate
-         if (have_filter .and. rank_model_comm == 0) then
-            call MPI_SSEND(state_size,1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
-         end if
-         if (have_filter) signal=signal+signal_send_state
-      else
-         signal=signal_integrate
-         if (have_filter) signal=signal+signal_send_state+signal_recv_state
-      end if
-      call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_obs_model,stat,ierr)
-      if (verbosity >= info) write(stderr,*) 'model(<-- time)  ',trim(timestr)
-      if (ierr /= MPI_SUCCESS) then
-         call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
-      end if
-      if(trim(timestr) == "0000-00-00 00:00:00") then
-         signal=signal+signal_finalize
-         if (have_filter) signal=signal-signal_send_state
-      end if
-      member=stat(MPI_TAG)
-   end if
-end subroutine signal_setup
 
 !-----------------------------------------------------------------------
 
@@ -172,11 +126,15 @@ end subroutine initialize_2d
 !-----------------------------------------------------------------------
 
 subroutine post_model_initialize()
-   if (verbosity >= info) then
-      write(stderr,'(x,4A)') 'model(sim_start->sim_stop) ',sim_start%isoformat(),' --> ',sim_stop%isoformat()
+   if (have_filter .and. rank_model_comm == 0) then
+      call MPI_SSEND(state_size,1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
    end if
    if (.not. ensemble_only) then
       start_time=sim_start
+      signal=signal_integrate
+      if (have_filter) then
+         if (.not. allocated(state)) allocate(state(state_size))
+      end if
    end if
 !KB   if (have_filter) then
 !KB      write(fn,'(A,*(I0.2,A))') 'ens_',member,'_step',N,'_ini.dat'
@@ -187,11 +145,31 @@ end subroutine post_model_initialize
 
 subroutine pre_model_integrate()
    if (.not. ensemble_only) then
+
+      call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_obs_model,stat,ierr)
+      if (ierr /= MPI_SUCCESS) then
+         call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
+      end if
+      if (verbosity >= info) write(stderr,*) 'model(<-- time)  ',trim(timestr)
+
+      if (have_filter .and. iand(signal,signal_recv_state) == signal_recv_state) then
+         if (verbosity >= debug) write(stderr,*) 'model: before receiving state'
+         call MPI_IRECV(state,state_size,MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
+         if (verbosity >= debug) write(stderr,*) 'model: waiting receiving state'
+         call MPI_WAIT(request,stat,ierr)
+         if (verbosity >= debug) write(stderr,*) 'model: after receiving state'
+         field=reshape(state,(/nx,ny/))
+         signal=signal-signal_recv_state
+      end if
+
       if(trim(timestr) == "0000-00-00 00:00:00") then
          stop_time=sim_stop
+         signal=signal+signal_finalize
       else
          stop_time=strptime(trim(timestr),time_format)
+         if (have_filter) signal=signal+signal_send_state
       end if
+
       timestamp = start_time%strftime("%Y%m%d%H%M%S")
       if (have_filter) then
          write(fn,'(A,I0.2,A,A,A)') 'ens_',member,'_ana_',timestamp,'.dat'
@@ -224,6 +202,24 @@ end subroutine integrate_2d
 !-----------------------------------------------------------------------
 
 subroutine post_model_integrate()
+
+   if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
+      state=reshape(field,(/state_size/))
+      call MPI_ISEND(state,state_size,MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,request,ierr)
+      if(ierr /= MPI_SUCCESS) THEN
+         write(stderr,*) 'Fatal error (MODEL): Unable to send: ',member
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+      call MPI_WAIT(request,stat,ierr)
+      if(ierr /= MPI_SUCCESS) THEN
+         write(stderr,*) 'Fatal error (MODEL): Unable to send: ',member
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+      signal=signal-signal_send_state
+   end if
+   if (have_filter) then
+      signal=signal+signal_recv_state
+   end if
    timestamp = stop_time%strftime("%Y%m%d%H%M%S")
    start_time=stop_time
    write(fn,'(A,I0.2,A,A,A)') 'ens_',member,'_for_',timestamp,'.dat'
