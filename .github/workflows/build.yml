@@ -25,5 +25,5 @@ jobs:
         run: |
           source ${CONDA}/etc/profile.d/conda.sh
           conda activate eat
-          cd extern/eat/tests/2d/
+          cd tests/2d/
           mpiexec -np 1 eat_obs_2d : -np 1 eat_filter_pdaf : -np 9 eat_model_2d
