@@ -1,0 +1,29 @@
+name: Build
+on: push
+jobs:
+   main:
+      runs-on: ubuntu-latest
+      steps:
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - name: Clone
+        uses: actions/checkout@v2
+        with:
+           submodules: recursive
+      - name: Install conda environment
+        run: |
+          conda env create -f environment.yml
+          conda init bash
+      - name: Compile
+        run: |
+          source ${CONDA}/etc/profile.d/conda.sh
+          conda activate eat
+          source ./install
+      - name: Run 2d test case
+        run: |
+          source ${CONDA}/etc/profile.d/conda.sh
+          conda activate eat
+          cd extern/eat/tests/2d/
+          mpiexec -np 1 eat_obs_2d : -np 1 eat_filter_pdaf : -np 9 eat_model_2d
