@@ -143,6 +143,7 @@ class ObservationHandler:
 
          if self.have_filter:
             # Send new observations to filter
+            reqs.append(self.MPI_COMM_obs_filter.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=1, tag=tag_timestr))
             nobs = iobs.size
             print(' obs(-> filter) {}'.format(nobs))
             reqs.append(self.MPI_COMM_obs_filter.Issend(numpy.array(nobs, dtype='i4'), dest=1, tag=tag_nobs))
@@ -151,8 +152,8 @@ class ObservationHandler:
                reqs.append(self.MPI_COMM_obs_filter.Issend(obs, dest=1, tag=tag_obs))
 
       if self.have_filter:
-         nobs = -1
-         self.MPI_COMM_obs_filter.Send(numpy.array(nobs, dtype='i4'), dest=1, tag=tag_nobs)
+         self.MPI_COMM_obs_filter.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=1, tag=tag_timestr)
+         self.MPI_COMM_obs_filter.Send(numpy.array(-1, dtype='i4'), dest=1, tag=tag_nobs)
       
       if self.nmodel:
          for dest in range(1, self.nmodel + 1):

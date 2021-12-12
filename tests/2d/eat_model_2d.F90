@@ -146,7 +146,7 @@ end subroutine post_model_initialize
 subroutine pre_model_integrate()
    if (.not. ensemble_only) then
 
-      call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_obs_model,stat,ierr)
+      call MPI_RECV(timestr,19,MPI_CHARACTER,0,tag_timestr,EAT_COMM_obs_model,stat,ierr)
       if (ierr /= MPI_SUCCESS) then
          call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
       end if

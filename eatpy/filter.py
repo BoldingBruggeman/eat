@@ -1,8 +1,10 @@
 
+import collections
 from typing import Iterable
 import argparse
 import sys
 import importlib
+import datetime
 
 import numpy
 from mpi4py import MPI
@@ -77,19 +79,22 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     if nmodel:
         comm_model.Recv(state_size, source=1, tag=MPI.ANY_TAG)
 
-    # Create filter
+    # Create filter. This will allocate an array to hold the state of all members: f.model_states
     f = PDAF(comm, state_size, nmodel)
 
     # Initialize plugins
-    variables = dict(shared.parse_memory_map('da_variables.dat'))
-    for plugin in plugins:
-        plugin.initialize(variables, nmodel)
+    if plugins:
+        variables = collections.OrderedDict(shared.parse_memory_map('da_variables.dat'))
+        for plugin in plugins:
+            plugin.initialize(variables, nmodel)
 
     nobs = numpy.array(-1, dtype='i4')
+    timestr = numpy.empty((19,), dtype=numpy.byte)
     while True:
         reqs = []
         if have_obs:
-            # Receive number of observations from observation handler
+            # Receive current time and number of observations from observation handler
+            comm_obs.Recv(timestr, source=0, tag=shared.TAG_TIMESTR)
             comm_obs.Recv(nobs, source=0, tag=shared.TAG_NOBS)
 
             # A negative number of observations indicates shutdown
@@ -110,8 +115,10 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
         MPI.Request.Waitall(reqs)
 
         # Allow plugins to act before analysis begins
-        for plugin in plugins:
-            plugin.before_analysis(None, f.model_states, iobs, obs)
+        if plugins:
+            time = datetime.datetime.strptime(timestr.tobytes().decode('ascii'), '%Y-%m-%d %H:%M:%S')
+            for plugin in plugins:
+                plugin.before_analysis(time, f.model_states, iobs, obs)
 
         # If we have observations, then perform assimilation. This updates f.model_states
         if nobs > 0:
@@ -119,9 +126,9 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
 
         # Allow plugins to act before analysis state is sent back to models
         for plugin in reversed(plugins):
-            plugin.after_analysis(None, f.model_states)
+            plugin.after_analysis(f.model_states)
 
-        # Send state to models
+        # Return state to models
         reqs = []
         for imodel in range(nmodel):
             reqs.append(comm_model.Isend(f.model_states[imodel, :], dest=imodel + 1, tag=shared.TAG_ANALYSIS))

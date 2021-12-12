@@ -55,10 +55,10 @@ class Plugin:
     def before_analysis(self, time: datetime.datetime, state: numpy.ndarray):
         pass
 
-    def after_analysis(self, time: datetime.datetime, state: numpy.ndarray):
+    def after_analysis(self, state: numpy.ndarray):
         pass
 
-    def finalize(self):        
+    def finalize(self):
         pass
 
 class TestPlugin(Plugin):
@@ -68,7 +68,7 @@ class TestPlugin(Plugin):
     def before_analysis(self, time: datetime.datetime, state: numpy.ndarray):
         print('TestPlugin.before_analysis')
 
-    def after_analysis(self, time: datetime.datetime, state: numpy.ndarray):
+    def after_analysis(self, state: numpy.ndarray):
         print('TestPlugin.after_analysis')
 
     def finalize(self):        
