@@ -9,6 +9,5 @@ WORK_DIR=`mktemp -d`
 cd ${WORK_DIR}
 cmake ${REPO_DIR}
 make -j4 install
-cp -v ${REPO_DIR}/models/gotm/*.py ~/.local/bin/
 cd -
 rm -rf ${WORK_DIR}
