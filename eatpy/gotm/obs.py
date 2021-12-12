@@ -1,31 +1,20 @@
 #!/usr/bin/env python
 
-from mpi4py import MPI
-import numpy
-import io
-import re
 import datetime
 import argparse
+import re
 
-# For MPI_split - MUST match colors defined in eat_config.F90
-color_obs=1
-color_model=2
-color_filter=4
+import numpy
+from mpi4py import MPI
 
-# Tags - MUST match tags defined in eat_config.F90
-tag_timestr=1
-tag_nobs=1
-tag_iobs=2
-tag_obs=3
-tag_analysis=1
-tag_forecast=2
+from .. import shared
 
 # Regular expression for ISO 8601 datetimes
 datetimere = re.compile(r'(\d\d\d\d).(\d\d).(\d\d) (\d\d).(\d\d).(\d\d)\s*')
 
 class File:
    def __init__(self, path, is_1d=False):
-      self.f = io.open(path, 'r')
+      self.f = open(path, 'r')
       self.is_1d = is_1d
 
    def read(self):
@@ -57,47 +46,23 @@ class ObservationHandler:
       self.start_time = start
       self.stop_time = stop
 
-      # Communicator for observation handler only - verify there is only 1
-      MPI_COMM_obs = MPI.COMM_WORLD.Split(color=color_obs)
-      assert MPI_COMM_obs.Get_size() == 1, 'There can only be one instance of the observation handler active.'
+      comm, self.MPI_COMM_obs_model, self.MPI_COMM_obs_filter, _ = shared.setup_mpi(shared.COLOR_OBS)
+      assert comm.size == 1, 'There can only be one instance of the observation handler active.'
+      assert self.MPI_COMM_obs_model.rank == 0
+      assert self.MPI_COMM_obs_filter.rank == 0
+      self.have_filter = self.MPI_COMM_obs_filter.size > 1
 
-      # Inter-model and inter-filter communicators - we do not participate in those, but still have to call split
-      MPI_COMM_model = MPI.COMM_WORLD.Split(color=MPI.UNDEFINED)
-      MPI_COMM_filter = MPI.COMM_WORLD.Split(color=MPI.UNDEFINED)
-
-      # Communicator between observation handler (1) and models (multiple)
-      # The observation handler will get a new rank of 0 as we provide the lowest key
-      self.MPI_COMM_obs_model = MPI.COMM_WORLD.Split(color=color_obs + color_model, key=-1)
-      assert self.MPI_COMM_obs_model.Get_rank() == 0
-      size_obs_model = self.MPI_COMM_obs_model.Get_size()
-      self.nmodel = size_obs_model - 1
+      size_obs_model = self.MPI_COMM_obs_model.size
+      self.nmodel = size_obs_model - comm.size
       print(' obs() connected with {} models'.format(self.nmodel))
 
-      # Communicator between observation handler (1) and filter (1)
-      # The observation handler will get a new rank of 0 as we provide the lowest key
-      self.MPI_COMM_obs_filter = MPI.COMM_WORLD.Split(color=color_obs + color_filter, key=-1)
-      assert self.MPI_COMM_obs_filter.Get_rank() == 0
-      self.have_filter = self.MPI_COMM_obs_filter.Get_size() > 1
-
-      # Communicator between filter and models - we do not participate in this one, but still have to call split
-      MPI_COMM_model_filter = MPI.COMM_WORLD.Split(color=MPI.UNDEFINED)
-
-      # Communicators are created
-
-      MPI.COMM_WORLD.Barrier()
-
-      # Everything is initialized
-
+      # Wait for model to generate the file thta describes the memory layout
       self.MPI_COMM_obs_model.Barrier()
 
       print('Parsing memory map %s' % state_layout_path)
       self.memory_map = {}
-      with io.open(state_layout_path, 'r') as f:
-         for l in f:
-            name, long_name, units, category, dims, start, length = l.split('\t')
-            istart, istop = int(start), int(start) + int(length) - 1
-            print('  %s @ %i:%i - %s (%s)' % (name, istart, istop, long_name, units))
-            self.memory_map[name] = (istart, istop)
+      for name, metadata in shared.parse_memory_map(state_layout_path):
+         self.memory_map[name] = (metadata['start'] + 1, metadata['start'] + metadata['length'])
 
       self.datasets = []
 
@@ -139,27 +104,27 @@ class ObservationHandler:
             strtime = obs_time.strftime('%Y-%m-%d %H:%M:%S')
             print(' obs(-> model) {}'.format(strtime))
             for dest in range(1, self.nmodel + 1):
-               reqs.append(self.MPI_COMM_obs_model.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=dest, tag=tag_timestr))
+               reqs.append(self.MPI_COMM_obs_model.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=dest, tag=shared.TAG_TIMESTR))
 
          if self.have_filter:
             # Send new observations to filter
-            reqs.append(self.MPI_COMM_obs_filter.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=1, tag=tag_timestr))
+            reqs.append(self.MPI_COMM_obs_filter.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=1, tag=shared.TAG_TIMESTR))
             nobs = iobs.size
             print(' obs(-> filter) {}'.format(nobs))
-            reqs.append(self.MPI_COMM_obs_filter.Issend(numpy.array(nobs, dtype='i4'), dest=1, tag=tag_nobs))
+            reqs.append(self.MPI_COMM_obs_filter.Issend(numpy.array(nobs, dtype='i4'), dest=1, tag=shared.TAG_NOBS))
             if nobs > 0:
-               reqs.append(self.MPI_COMM_obs_filter.Issend(iobs, dest=1, tag=tag_iobs))
-               reqs.append(self.MPI_COMM_obs_filter.Issend(obs, dest=1, tag=tag_obs))
+               reqs.append(self.MPI_COMM_obs_filter.Issend(iobs, dest=1, tag=shared.TAG_IOBS))
+               reqs.append(self.MPI_COMM_obs_filter.Issend(obs, dest=1, tag=shared.TAG_OBS))
 
       if self.have_filter:
-         self.MPI_COMM_obs_filter.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=1, tag=tag_timestr)
-         self.MPI_COMM_obs_filter.Send(numpy.array(-1, dtype='i4'), dest=1, tag=tag_nobs)
+         self.MPI_COMM_obs_filter.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=1, tag=shared.TAG_TIMESTR)
+         self.MPI_COMM_obs_filter.Send(numpy.array(-1, dtype='i4'), dest=1, tag=shared.TAG_NOBS)
       
       if self.nmodel:
          for dest in range(1, self.nmodel + 1):
-            self.MPI_COMM_obs_model.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=dest, tag=tag_timestr)
+            self.MPI_COMM_obs_model.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=dest, tag=shared.TAG_TIMESTR)
 
-if __name__ == '__main__':
+def main():
    parser = argparse.ArgumentParser()
    parser.add_argument('-o', '--obs', nargs=2, action='append', default=[])
    parser.add_argument('--start')
@@ -174,3 +139,6 @@ if __name__ == '__main__':
    for variable, path in args.obs:
       handler.add_observations(variable, path)
    handler.start()
+
+if __name__ == '__main__':
+   main()

@@ -22,7 +22,7 @@ def perturb_restart(path, n, variable='*', postfix='_%04i', sigma=0.1, exclude=(
                 scale_factor = numpy.random.lognormal(sigma=sigma, size=values.shape)
                 ncvar[...] = scale_factor * values
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('restart', help='path to restart file')
     parser.add_argument('N', type=int, help='ensemble size')
@@ -31,3 +31,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     perturb_restart(args.restart, args.N, sigma=args.sigma, exclude=args.exclude)
+
+if __name__ == '__main__':
+    main()
