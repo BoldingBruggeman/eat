@@ -4,9 +4,6 @@ cmake_minimum_required(VERSION 3.0)
 # Create main project.
 project(ceat_filter_pdaf VERSION 0.1.0 LANGUAGES Fortran C)
 
-# Specify position-independent code since we will build a shared library.
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
 # Use solution folders in IDEs
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
