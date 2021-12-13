@@ -27,3 +27,4 @@ jobs:
           conda activate eat
           cd tests/2d/
           mpiexec -np 1 eat_obs_2d : -np 1 eat_filter_pdaf : -np 9 eat_model_2d
+          mpiexec -np 1 eat_obs_2d : -np 1 eatpy-filter : -np 9 eat_model_2d
