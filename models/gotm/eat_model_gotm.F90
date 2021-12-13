@@ -65,52 +65,23 @@ program eat_model_gotm
 
    call pre_model_initialize()
 
-   call initialize_gotm()
-   call post_model_initialize()
-   if (have_obs) call MPI_Barrier(EAT_COMM_obs_model,ierr)
-
+   signal=signal_initialize
    do
-      call signal_setup()
-!signal = signal-signal_recv_state
-      if (verbosity >= debug) write(stderr,*) 'model(signal) ',signal
-
+      if (verbosity >= debug) write(stderr,*) 'model(signal) 1 ',signal
       if (iand(signal,signal_initialize) == signal_initialize) then
-      else
-         if (have_filter .and. iand(signal,signal_recv_state) == signal_recv_state) then
-            call MPI_IRECV(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
-            if(ierr /= MPI_SUCCESS) THEN
-               write(stderr,*) 'Fatal error (MODEL): Unable to receive: ',member; call flush(stderr)
-               call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-            end if
-            call MPI_WAIT(request,stat,ierr)
-            if(ierr /= MPI_SUCCESS) THEN
-               write(stderr,*) 'Fatal error (MODEL): Unable to wait: ',member; call flush(stderr)
-               call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-            end if
-            call memory_file%restore()
-         end if
+         call initialize_gotm()
+         call post_model_initialize()
+         if (have_obs) call MPI_Barrier(EAT_COMM_obs_model,ierr)
       end if
 
+      if (verbosity >= debug) write(stderr,*) 'model(signal) 2 ',signal
       if (iand(signal,signal_integrate) == signal_integrate) then
          call pre_model_integrate()
          call integrate_gotm()
          call post_model_integrate()
       end if
 
-      if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
-         call memory_file%save(julianday,int(fsecondsofday),int(mod(fsecondsofday,1._real64)*1000000))
-         call MPI_ISEND(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,request,ierr)
-         if(ierr /= MPI_SUCCESS) THEN
-            write(stderr,*) 'Fatal error (MODEL): Unable to send: ',member; call flush(stderr)
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-         end if
-         call MPI_WAIT(request,stat,ierr)
-         if(ierr /= MPI_SUCCESS) THEN
-            write(stderr,*) 'Fatal error (MODEL): Unable to send: ',member; call flush(stderr)
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-         end if
-      end if
-
+      if (verbosity >= debug) write(stderr,*) 'model(signal) 3 ',signal
       if (iand(signal,signal_finalize) == signal_finalize) then
          call finalize_gotm()
          exit
@@ -123,40 +94,6 @@ program eat_model_gotm
 !-----------------------------------------------------------------------
 
 contains
-
-!-----------------------------------------------------------------------
-
-subroutine signal_setup()
-   logical, save :: first=.true.
-   character(len=64) :: fn='da_variables.dat'
-
-   if (ensemble_only) then
-      signal=signal_initialize+signal_integrate+signal_finalize
-   else
-      if (first) then
-         first=.false.
-         signal=signal_initialize+signal_integrate
-         MinN=1
-         if (have_filter .and. rank_model_comm == 0) then
-            call MPI_SSEND(size(memory_file%data),1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
-         end if
-         if (have_filter) signal=signal+signal_send_state
-      else
-         signal=signal_integrate
-         if (have_filter) signal=signal+signal_send_state+signal_recv_state
-         MinN=MaxN+1
-      end if
-      call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_obs_model,stat,ierr)
-      if (verbosity >= debug) write(stderr,*) 'model(<-- time)  ',trim(timestr)
-      if (ierr /= MPI_SUCCESS) then
-         call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
-      end if
-      if(trim(timestr) == "0000-00-00 00:00:00") then
-         signal=signal+signal_finalize
-         if (have_filter) signal=signal-signal_send_state
-      end if
-   end if
-end subroutine signal_setup
 
 !-----------------------------------------------------------------------
 
@@ -186,7 +123,6 @@ subroutine pre_model_initialize()
       write(output_id, "(A,I0.4)") '_', member+1
       if ( .not. shared_restart_file) then
          write(restart_file, "(A,I0.4)") 'restart_', member+1
-!KB         restart_file = TRIM(strbuf) // '.nc'
       end if
    end block output
 end subroutine pre_model_initialize
@@ -238,6 +174,12 @@ subroutine post_model_initialize()
          call memory_file%write_metadata(unit)
          close(unit=unit)
       end if
+
+      if (have_filter .and. rank_model_comm == 0) then
+         call MPI_SSEND(size(memory_file%data),1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
+      end if
+
+      signal=signal_integrate
    end if
 end subroutine post_model_initialize
 
@@ -245,23 +187,64 @@ end subroutine post_model_initialize
 
 subroutine pre_model_integrate()
    TYPE(timedelta) :: td
-   if (.not. ensemble_only) then
-      if(trim(timestr) == "0000-00-00 00:00:00") then
-         stop_time=sim_stop
-      else
-         stop_time=strptime(trim(timestr),time_format)
-      end if
-      td = stop_time-sim_start
-      MaxN=int(td%total_seconds()/timestep)
+
+   if (ensemble_only) return
+
+   call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_obs_model,stat,ierr)
+   if (ierr /= MPI_SUCCESS) then
+      call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
    end if
+   if (verbosity >= debug) write(stderr,*) 'model(<-- time)  ',trim(timestr)
+
+   if (have_filter .and. iand(signal,signal_recv_state) == signal_recv_state) then
+      call MPI_IRECV(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
+      if(ierr /= MPI_SUCCESS) THEN
+         write(stderr,*) 'Fatal error (MODEL): Unable to receive: ',member; call flush(stderr)
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+      call MPI_WAIT(request,stat,ierr)
+      if(ierr /= MPI_SUCCESS) THEN
+         write(stderr,*) 'Fatal error (MODEL): Unable to wait: ',member; call flush(stderr)
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+      call memory_file%restore()
+      signal=signal-signal_recv_state
+   end if
+
+   if(trim(timestr) == "0000-00-00 00:00:00") then
+      stop_time=sim_stop
+      signal=signal+signal_finalize
+   else
+      stop_time=strptime(trim(timestr),time_format)
+      if (have_filter) signal=signal+signal_send_state
+   end if
+   td = stop_time-sim_start
+   MaxN=int(td%total_seconds()/timestep)
 end subroutine pre_model_integrate
 
 !-----------------------------------------------------------------------
 
 subroutine post_model_integrate()
-   if (.not. ensemble_only) then
-      MinN=MaxN+1
+   if (ensemble_only) return
+
+   if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
+      call memory_file%save(julianday,int(fsecondsofday),int(mod(fsecondsofday,1._real64)*1000000))
+      call MPI_ISEND(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,request,ierr)
+      if(ierr /= MPI_SUCCESS) THEN
+         write(stderr,*) 'Fatal error (MODEL): Unable to send: ',member; call flush(stderr)
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+      call MPI_WAIT(request,stat,ierr)
+      if(ierr /= MPI_SUCCESS) THEN
+         write(stderr,*) 'Fatal error (MODEL): Unable to send: ',member; call flush(stderr)
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+      signal=signal-signal_send_state
    end if
+   if (have_filter) then
+      signal=signal+signal_recv_state
+   end if
+   MinN=MaxN+1
 end subroutine post_model_integrate
 
 !-----------------------------------------------------------------------
