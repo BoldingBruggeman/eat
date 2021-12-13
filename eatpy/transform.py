@@ -5,7 +5,7 @@ import numpy
 
 from . import shared
 
-class LogTransform(shared.Plugin):
+class Log(shared.Plugin):
     def __init__(self, *variables):
         self.variables = frozenset(variables)
         self.slices: List[Tuple[int, int]] = []
