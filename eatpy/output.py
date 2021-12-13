@@ -34,7 +34,7 @@ class NetCDF(shared.Plugin):
             ncvar.long_name = metadata['long_name']
             self.variables.append((ncvar, istart, istart + length, time_dependent))
 
-    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray):
+    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray, filter: shared.Filter):
         if self.nctime is None:
             self.reftime = time
             self.nctime = self.nc.createVariable('time', float, ('time',))

@@ -44,6 +44,18 @@ def parse_memory_map(path: str):
                 dim2length[n] = None if l == -1 else l
             yield name, {'long_name': long_name, 'units': units, 'dimensions': dim2length, 'start': int(start) - 1, 'length': int(length)}
 
+
+class Filter:
+    """Base class for filters. Derived classes must implement assimilate."""
+    def __init__(self, model_states):
+        self.model_states = model_states
+
+    def assimilate(self, iobs: numpy.ndarray, obs: numpy.ndarray):
+        raise NotImplementedError
+
+    def finalize(self):
+        pass
+
 class Plugin:
     """Base class for plugins.
     initialize: receives a description of the memory layout of the state, including variable metadata.
@@ -52,7 +64,7 @@ class Plugin:
     def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
         pass
 
-    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray):
+    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray, filter: Filter):
         pass
 
     def after_analysis(self, state: numpy.ndarray):
@@ -65,7 +77,7 @@ class TestPlugin(Plugin):
     def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
         print('TestPlugin.initialize')
 
-    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray):
+    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray, filter: Filter):
         print('TestPlugin.before_analysis')
 
     def after_analysis(self, state: numpy.ndarray):

@@ -13,18 +13,7 @@ from . import shared
 from . import output
 from . import _eat_filter_pdaf
 
-class Filter:
-    """Base class for filters. Derived classes must implement assimilate."""
-    def __init__(self, model_states):
-        self.model_states = model_states
-
-    def assimilate(self, iobs: numpy.ndarray, obs: numpy.ndarray):
-        raise NotImplementedError
-
-    def finalize(self):
-        pass
-
-class PDAF(Filter):
+class PDAF(shared.Filter):
     """Filter class that wraps PDAF."""
     def __init__(self, comm: MPI.Comm, state_size: int, ensemble_size: int):
         model_states = _eat_filter_pdaf.initialize(comm, state_size, ensemble_size)
@@ -118,7 +107,7 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
         if plugins:
             time = datetime.datetime.strptime(timestr.tobytes().decode('ascii'), '%Y-%m-%d %H:%M:%S')
             for plugin in plugins:
-                plugin.before_analysis(time, f.model_states, iobs, obs)
+                plugin.before_analysis(time, f.model_states, iobs, obs, f)
 
         # If we have observations, then perform assimilation. This updates f.model_states
         if nobs > 0:
