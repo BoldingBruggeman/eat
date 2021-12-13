@@ -52,7 +52,7 @@ class Plugin:
     def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
         pass
 
-    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray):
+    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray):
         pass
 
     def after_analysis(self, state: numpy.ndarray):
@@ -65,7 +65,7 @@ class TestPlugin(Plugin):
     def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
         print('TestPlugin.initialize')
 
-    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray):
+    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray):
         print('TestPlugin.before_analysis')
 
     def after_analysis(self, state: numpy.ndarray):
