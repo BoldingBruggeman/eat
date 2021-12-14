@@ -5,6 +5,7 @@ import argparse
 import sys
 import importlib
 import datetime
+import logging
 
 import numpy
 from mpi4py import MPI
@@ -13,18 +14,7 @@ from . import shared
 from . import output
 from . import _eat_filter_pdaf
 
-class Filter:
-    """Base class for filters. Derived classes must implement assimilate."""
-    def __init__(self, model_states):
-        self.model_states = model_states
-
-    def assimilate(self, iobs: numpy.ndarray, obs: numpy.ndarray):
-        raise NotImplementedError
-
-    def finalize(self):
-        pass
-
-class PDAF(Filter):
+class PDAF(shared.Filter):
     """Filter class that wraps PDAF."""
     def __init__(self, comm: MPI.Comm, state_size: int, ensemble_size: int):
         model_states = _eat_filter_pdaf.initialize(comm, state_size, ensemble_size)
@@ -39,6 +29,10 @@ class PDAF(Filter):
 def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     # Enable appending to plugins
     plugins = list(plugins)
+
+    # Ensure logging goes to console
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger('filter')
 
     # Parse command line arguments if requested. This may append plugins, e.g., for output.
     if parse_args:
@@ -70,9 +64,9 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     have_obs = comm_obs.size - comm.size > 0
     nmodel = comm_model.size - comm.size
     if not have_obs:
-        print('Running without observation handler')
+        logger.info('Running without observation handler')
     if not nmodel:
-        print('Running without models')
+        logger.info('Running without models')
 
     # Receive size of state vector from lowest-ranking model
     state_size = numpy.array(0, dtype='i4')
@@ -118,7 +112,7 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
         if plugins:
             time = datetime.datetime.strptime(timestr.tobytes().decode('ascii'), '%Y-%m-%d %H:%M:%S')
             for plugin in plugins:
-                plugin.before_analysis(time, f.model_states, iobs, obs)
+                plugin.before_analysis(time, f.model_states, iobs, obs, f)
 
         # If we have observations, then perform assimilation. This updates f.model_states
         if nobs > 0:
