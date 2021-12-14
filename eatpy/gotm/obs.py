@@ -50,18 +50,18 @@ class ObservationHandler:
       self.start_time = start
       self.stop_time = stop
 
-      comm, self.MPI_COMM_obs_model, self.MPI_COMM_obs_filter, _ = shared.setup_mpi(shared.COLOR_OBS)
+      comm, self.comm_model, self.comm_filter, _ = shared.setup_mpi(shared.COLOR_OBS)
       assert comm.size == 1, 'There can only be one instance of the observation handler active.'
-      assert self.MPI_COMM_obs_model.rank == 0
-      assert self.MPI_COMM_obs_filter.rank == 0
-      self.have_filter = self.MPI_COMM_obs_filter.size > 1
+      assert self.comm_model.rank == 0
+      assert self.comm_filter.rank == 0
+      self.have_filter = self.comm_filter.size > 1
 
-      size_obs_model = self.MPI_COMM_obs_model.size
+      size_obs_model = self.comm_model.size
       self.nmodel = size_obs_model - comm.size
       self.logger.info(' obs() connected with {} models'.format(self.nmodel))
 
-      # Wait for model to generate the file thta describes the memory layout
-      self.MPI_COMM_obs_model.Barrier()
+      # Wait for model to generate the file that describes the memory layout
+      self.comm_model.Barrier()
 
       self.logger.info('Parsing memory map %s' % state_layout_path)
       self.memory_map = {}
@@ -108,25 +108,25 @@ class ObservationHandler:
             strtime = obs_time.strftime('%Y-%m-%d %H:%M:%S')
             self.logger.info('(-> model) {}'.format(strtime))
             for dest in range(1, self.nmodel + 1):
-               reqs.append(self.MPI_COMM_obs_model.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=dest, tag=shared.TAG_TIMESTR))
+               reqs.append(self.comm_model.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=dest, tag=shared.TAG_TIMESTR))
 
          if self.have_filter:
             # Send new observations to filter
-            reqs.append(self.MPI_COMM_obs_filter.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=1, tag=shared.TAG_TIMESTR))
+            reqs.append(self.comm_filter.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=1, tag=shared.TAG_TIMESTR))
             nobs = iobs.size
             self.logger.info('(-> filter) {}'.format(nobs))
-            reqs.append(self.MPI_COMM_obs_filter.Issend(numpy.array(nobs, dtype='i4'), dest=1, tag=shared.TAG_NOBS))
+            reqs.append(self.comm_filter.Issend(numpy.array(nobs, dtype='i4'), dest=1, tag=shared.TAG_NOBS))
             if nobs > 0:
-               reqs.append(self.MPI_COMM_obs_filter.Issend(iobs, dest=1, tag=shared.TAG_IOBS))
-               reqs.append(self.MPI_COMM_obs_filter.Issend(obs, dest=1, tag=shared.TAG_OBS))
+               reqs.append(self.comm_filter.Issend(iobs, dest=1, tag=shared.TAG_IOBS))
+               reqs.append(self.comm_filter.Issend(obs, dest=1, tag=shared.TAG_OBS))
 
       if self.have_filter:
-         self.MPI_COMM_obs_filter.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=1, tag=shared.TAG_TIMESTR)
-         self.MPI_COMM_obs_filter.Send(numpy.array(-1, dtype='i4'), dest=1, tag=shared.TAG_NOBS)
+         self.comm_filter.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=1, tag=shared.TAG_TIMESTR)
+         self.comm_filter.Send(numpy.array(-1, dtype='i4'), dest=1, tag=shared.TAG_NOBS)
       
       if self.nmodel:
          for dest in range(1, self.nmodel + 1):
-            self.MPI_COMM_obs_model.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=dest, tag=shared.TAG_TIMESTR)
+            self.comm_model.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=dest, tag=shared.TAG_TIMESTR)
 
 def main():
    logging.basicConfig(level=logging.INFO)

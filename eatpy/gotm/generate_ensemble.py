@@ -4,11 +4,12 @@ import os.path
 import fnmatch
 import shutil
 import argparse
+from typing import Iterable
 
 import numpy.random
 import netCDF4
 
-def perturb_restart(path, n, variable='*', postfix='_%04i', sigma=0.1, exclude=()):
+def perturb_restart(path, n: int, variable: str='*', postfix: str='_%04i', sigma: float=0.1, exclude: Iterable[str]=()):
     name, ext = os.path.splitext(path)
     outpaths = [name + postfix % (i + 1) + ext for i in range(n)]
     for outpath in outpaths:

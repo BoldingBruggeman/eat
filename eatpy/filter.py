@@ -1,6 +1,5 @@
-
 import collections
-from typing import Iterable
+from typing import Iterable, List
 import argparse
 import sys
 import importlib
@@ -85,7 +84,7 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     nobs = numpy.array(-1, dtype='i4')
     timestr = numpy.empty((19,), dtype=numpy.byte)
     while True:
-        reqs = []
+        reqs: List[MPI.Request] = []
         if have_obs:
             # Receive current time and number of observations from observation handler
             comm_obs.Recv(timestr, source=0, tag=shared.TAG_TIMESTR)
