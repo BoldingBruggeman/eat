@@ -3,6 +3,8 @@
 import datetime
 import argparse
 import re
+import logging
+from typing import Optional
 
 import numpy
 from mpi4py import MPI
@@ -13,7 +15,7 @@ from .. import shared
 datetimere = re.compile(r'(\d\d\d\d).(\d\d).(\d\d) (\d\d).(\d\d).(\d\d)\s*')
 
 class File:
-   def __init__(self, path, is_1d=False):
+   def __init__(self, path: str, is_1d: bool=False):
       self.f = open(path, 'r')
       self.is_1d = is_1d
 
@@ -42,7 +44,9 @@ class File:
             yield curtime, float(data[0])
 
 class ObservationHandler:
-   def __init__(self, state_layout_path='da_variables.dat', start=None, stop=None):
+   def __init__(self, state_layout_path: str='da_variables.dat', start: Optional[datetime.datetime]=None, stop: Optional[datetime.datetime]=None, logger: Optional[logging.Logger]=None):
+      self.logger = logger or logging.getLogger('obs')
+
       self.start_time = start
       self.stop_time = stop
 
@@ -54,19 +58,19 @@ class ObservationHandler:
 
       size_obs_model = self.MPI_COMM_obs_model.size
       self.nmodel = size_obs_model - comm.size
-      print(' obs() connected with {} models'.format(self.nmodel))
+      self.logger.info(' obs() connected with {} models'.format(self.nmodel))
 
       # Wait for model to generate the file thta describes the memory layout
       self.MPI_COMM_obs_model.Barrier()
 
-      print('Parsing memory map %s' % state_layout_path)
+      self.logger.info('Parsing memory map %s' % state_layout_path)
       self.memory_map = {}
       for name, metadata in shared.parse_memory_map(state_layout_path):
          self.memory_map[name] = (metadata['start'] + 1, metadata['start'] + metadata['length'])
 
       self.datasets = []
 
-   def add_observations(self, variable, path):
+   def add_observations(self, variable: str, path: str):
       idx = None
       if '[' in variable and variable[-1] == ']':
          variable, idx = variable[:-1].split('[')
@@ -102,7 +106,7 @@ class ObservationHandler:
          if self.nmodel:
             # Send new time to ensemble members
             strtime = obs_time.strftime('%Y-%m-%d %H:%M:%S')
-            print(' obs(-> model) {}'.format(strtime))
+            self.logger.info('(-> model) {}'.format(strtime))
             for dest in range(1, self.nmodel + 1):
                reqs.append(self.MPI_COMM_obs_model.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=dest, tag=shared.TAG_TIMESTR))
 
@@ -110,7 +114,7 @@ class ObservationHandler:
             # Send new observations to filter
             reqs.append(self.MPI_COMM_obs_filter.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=1, tag=shared.TAG_TIMESTR))
             nobs = iobs.size
-            print(' obs(-> filter) {}'.format(nobs))
+            self.logger.info('(-> filter) {}'.format(nobs))
             reqs.append(self.MPI_COMM_obs_filter.Issend(numpy.array(nobs, dtype='i4'), dest=1, tag=shared.TAG_NOBS))
             if nobs > 0:
                reqs.append(self.MPI_COMM_obs_filter.Issend(iobs, dest=1, tag=shared.TAG_IOBS))
@@ -125,6 +129,8 @@ class ObservationHandler:
             self.MPI_COMM_obs_model.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=dest, tag=shared.TAG_TIMESTR)
 
 def main():
+   logging.basicConfig(level=logging.INFO)
+
    parser = argparse.ArgumentParser()
    parser.add_argument('-o', '--obs', nargs=2, action='append', default=[])
    parser.add_argument('--start')

@@ -5,6 +5,7 @@ import argparse
 import sys
 import importlib
 import datetime
+import logging
 
 import numpy
 from mpi4py import MPI
@@ -28,6 +29,10 @@ class PDAF(shared.Filter):
 def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     # Enable appending to plugins
     plugins = list(plugins)
+
+    # Ensure logging goes to console
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger('filter')
 
     # Parse command line arguments if requested. This may append plugins, e.g., for output.
     if parse_args:
@@ -59,9 +64,9 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     have_obs = comm_obs.size - comm.size > 0
     nmodel = comm_model.size - comm.size
     if not have_obs:
-        print('Running without observation handler')
+        logger.info('Running without observation handler')
     if not nmodel:
-        print('Running without models')
+        logger.info('Running without models')
 
     # Receive size of state vector from lowest-ranking model
     state_size = numpy.array(0, dtype='i4')

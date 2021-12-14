@@ -1,6 +1,7 @@
 from typing import Mapping, Any, Tuple
 import datetime
 import collections
+import logging
 
 import numpy
 from mpi4py import MPI
@@ -61,6 +62,9 @@ class Plugin:
     initialize: receives a description of the memory layout of the state, including variable metadata.
     update: receives the current model forecast and analysis states.
     """
+    def __init__(self, name=None):
+        self.logger = logging.getLogger(name or 'filter.plugin.%s' % self.__class__.__name__)
+
     def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
         pass
 
