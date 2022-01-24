@@ -36,6 +36,11 @@ REAL(real64) :: timenow
 integer :: doexit,steps
    real(real64) :: rms_obs = 0.05    ! Observation error standard deviation
 
+! 3Dvar
+   real(real64), allocatable :: Vmat_p(:,:)
+   real(real64), allocatable :: Vmat_ens_p(:,:)
+   integer :: mcols_cvec_ens=1
+
 !-----------------------------------------------------------------------
 
 contains
@@ -105,7 +110,7 @@ integer :: dim_state_p
 !KB   dim_ens = 7      ! Size of ensemble for all ensemble filters
                     ! Number of EOFs to be used for SEEK
    integer :: &
-   subtype = 1       ! (5) Offline mode !KB 5
+   subtype = 0       ! valid for all filtertypes
    integer :: &
    type_trans = 0    ! Type of ensemble transformation
                      !   SEIK/LSEIK and ESTKF/LESTKF:
@@ -184,7 +189,9 @@ integer :: dim_state_p
    task_id=1
    n_modeltasks=1
 
-   whichinit: IF (filtertype == 2) THEN
+!KB   whichinit: IF (filtertype == 2) THEN
+   select case (filtertype)
+      case (2)
       ! *** EnKF with Monte Carlo init ***
       filter_param_i(1) = dim_state_p ! State dimension
       filter_param_i(2) = dim_ens     ! Size of ensemble
@@ -199,7 +206,7 @@ integer :: dim_state_p
            COMM_model, COMM_filter, COMM_couple, &
            task_id, n_modeltasks, filterpe, init_ens_pdaf, &
            screen, status_pdaf)
-   ELSE
+      case (1,3,4,5,6,7)
       ! *** All other filters                       ***
       ! *** SEIK, LSEIK, ETKF, LETKF, ESTKF, LESTKF ***
       filter_param_i(1) = dim_state_p ! State dimension
@@ -217,7 +224,37 @@ integer :: dim_state_p
            COMM_model, COMM_filter, COMM_couple, &
            task_id, n_modeltasks, filterpe, init_ens_pdaf, &
            screen, status_pdaf)
-   END IF whichinit
+      case (200)
+         filter_param_i(1) = dim_state_p    ! State dimension
+         filter_param_i(2) = dim_ens        ! Size of ensemble
+         filter_param_i(3) = type_opt       ! Choose type of optimizer
+         filter_param_i(4) = dim_cvec       ! Dimension of control vector (parameterized part)
+         filter_param_i(5) = dim_cvec_ens   ! Dimension of control vector (ensemble part)
+         filter_param_r(1) = forget         ! Forgetting factor
+         filter_param_r(2) = beta_3dvar     ! Hybrid weight for hybrid 3D-Var
+         select case (subtype)
+            case (0) ! parameterized 3D-Var
+               CALL PDAF_init(filtertype, subtype, 0, &
+                    filter_param_i, 5,&
+                    filter_param_r, 1, &
+                    COMM_model, COMM_filter, COMM_couple, &
+                    task_id, n_modeltasks, filterpe, init_ens_pdaf, &
+!KB                    task_id, n_modeltasks, filterpe, init_3dvar_pdaf, &
+!KB
+                    screen, status_pdaf)
+            case (1) ! Ensemble or hybrid 3D-Var
+               CALL PDAF_init(filtertype, subtype, 0, &
+                    filter_param_i, 5,&
+                    filter_param_r, 2, &
+                    COMM_model, COMM_filter, COMM_couple, &
+                    task_id, n_modeltasks, filterpe, init_ens_pdaf, &
+                    screen, status_pdaf)
+         end select
+      case default
+         stop 'init_pdaf(): Non-valid filtertype'
+    end select
+
+!KB   END IF whichinit
 
    CALL PDAF_get_state(steps, timenow, doexit, next_observation_pdaf, &
         distribute_state_pdaf, prepoststep_ens_pdaf, status_pdaf)
@@ -301,41 +338,58 @@ SUBROUTINE assimilation_pdaf() bind(c)
 
    call PDAF_force_analysis() ! Suggested by Lars
 
-   IF (filtertype == 1) THEN
+   select case (filtertype)
+!KB   IF (filtertype == 1) THEN
+      case (1)
       CALL PDAF_put_state_seik(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
            init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status)
-   ELSE IF (filtertype == 2) THEN
+!KB   ELSE IF (filtertype == 2) THEN
+      case (2)
       CALL PDAF_put_state_enkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
            init_obs_pdaf, prepoststep_ens_pdaf, add_obs_error_pdaf, init_obscovar_pdaf, &
            status)
-   ELSE IF (filtertype == 3) THEN
+!KB   ELSE IF (filtertype == 3) THEN
+      case (3)
       CALL PDAF_put_state_lseik( &
            collect_state_pdaf, init_dim_obs_f_pdaf, obs_op_f_pdaf, &
            init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
            prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
            init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
            g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status)
-   ELSE IF (filtertype == 4) THEN
+!KB   ELSE IF (filtertype == 4) THEN
+      case (4)
       CALL PDAF_put_state_etkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
            init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status)
-   ELSE IF (filtertype == 5) THEN
+!KB   ELSE IF (filtertype == 5) THEN
+      case (5)
       CALL PDAF_put_state_letkf( &
            collect_state_pdaf, init_dim_obs_f_pdaf, obs_op_f_pdaf, &
            init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
            prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
            init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
            g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status)
-   ELSE IF (filtertype == 6) THEN
+!KB   ELSE IF (filtertype == 6) THEN
+      case (6)
       CALL PDAF_put_state_estkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
            init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status)
-   ELSE IF (filtertype == 7) THEN
+!KB   ELSE IF (filtertype == 7) THEN
+      case (7)
       CALL PDAF_put_state_lestkf( &
            collect_state_pdaf, init_dim_obs_f_pdaf, obs_op_f_pdaf, &
            init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
            prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
            init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
            g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status)
-   END IF
+!KB   ELSE IF (filtertype == 200) THEN
+      case (200)
+      CALL PDAF_put_state_lestkf( &
+           collect_state_pdaf, init_dim_obs_f_pdaf, obs_op_f_pdaf, &
+           init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
+           prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
+           init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
+           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status)
+!KB   END IF
+   end select
    if (verbosity >= debug) write(stderr,*) 'PDAF PUT STATUS= ',status
 
    CALL PDAF_get_state(steps, timenow, doexit, next_observation_pdaf, &
@@ -623,6 +677,163 @@ SUBROUTINE prodRinvA_pdaf(step, dim_obs_p, rank, obs_p, A_p, C_p)
 !   if (verbosity >= info) write(stderr,*) 'prodRinvA_pdaf() A_P',A_p
 
 END SUBROUTINE prodRinvA_pdaf
+
+! 3Dvar specific routines
+
+! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_pdaf.F90
+SUBROUTINE cvt_pdaf(iter, dim_p, dim_cvec, v_p, Vv_p)
+
+#if 0
+  USE mod_assimilation, &     ! Assimilation variables
+       ONLY: Vmat_p
+#endif
+
+  IMPLICIT NONE
+
+! *** Arguments ***
+  INTEGER, INTENT(in) :: iter          !< Iteration of optimization
+  INTEGER, INTENT(in) :: dim_p         !< PE-local observation dimension
+  INTEGER, INTENT(in) :: dim_cvec      !< Dimension of control vector
+  REAL, INTENT(in)    :: v_p(dim_cvec) !< PE-local control vector
+  REAL, INTENT(inout) :: Vv_p(dim_p)   !< PE-local result vector
+
+
+! ***************************************************
+! *** Apply covariance operator to control vector ***
+! *** by computing Vmat v_p                       ***
+! ***************************************************
+
+  ! Transform control variable to state increment
+  CALL dgemv('n', dim_p, dim_cvec, 1.0, Vmat_p, &
+       dim_p, v_p, 1, 0.0, Vv_p, 1)
+END SUBROUTINE cvt_pdaf
+
+! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_adj_pdaf.F90
+SUBROUTINE cvt_adj_pdaf(iter, dim_p, dim_cvec, Vv_p, v_p)
+
+#if 0
+  USE mod_assimilation, &     ! Assimilation variables
+       ONLY: Vmat_p
+#endif
+
+  IMPLICIT NONE
+
+! *** Arguments ***
+  INTEGER, INTENT(in) :: iter          !< Iteration of optimization
+  INTEGER, INTENT(in) :: dim_p         !< PE-local observation dimension
+  INTEGER, INTENT(in) :: dim_cvec      !< Dimension of control vector
+  REAL, INTENT(in)    :: Vv_p(dim_p)   !< PE-local input vector
+  REAL, INTENT(inout) :: v_p(dim_cvec) !< PE-local result vector
+
+
+! ***************************************************
+! *** Apply covariance operator to a state vector ***
+! *** by computing Vmat^T Vv_p                    ***
+! ***************************************************
+
+  ! Transform control variable to state increment
+  CALL dgemv('t', dim_p, dim_cvec, 1.0, Vmat_p, &
+       dim_p, Vv_p, 1, 0.0, v_p, 1)
+END SUBROUTINE cvt_adj_pdaf
+
+! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_ens_pdaf.F90
+SUBROUTINE cvt_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, v_p, Vv_p)
+
+#if 0
+  USE mod_assimilation, &     ! Assimilation variables
+       ONLY: mcols_cvec_ens, Vmat_ens_p
+#endif
+
+  IMPLICIT NONE
+
+! *** Arguments ***
+  INTEGER, INTENT(in) :: iter               !< Iteration of optimization
+  INTEGER, INTENT(in) :: dim_p              !< PE-local dimension of state
+  INTEGER, INTENT(in) :: dim_ens            !< Ensemble size
+  INTEGER, INTENT(in) :: dim_cvec_ens       !< Dimension of control vector
+  REAL, INTENT(in) :: ens_p(dim_p, dim_ens) !< PE-local ensemble
+  REAL, INTENT(in) :: v_p(dim_cvec_ens)     !< PE-local control vector
+  REAL, INTENT(inout) :: Vv_p(dim_p)        !< PE-local state increment
+
+! *** local variables ***
+  INTEGER :: i, member, row          ! Counters
+  REAL :: fact                       ! Scaling factor
+  REAL :: invdimens                  ! Inverse ensemble size
+
+
+! *************************************************
+! *** Convert control vector to state increment ***
+! *** by computing   Vmat v_p                   ***
+! *** Here, Vmat is represented by the ensemble ***
+! *************************************************
+
+  ! At beginning of iterations
+  firstiter: IF (iter==1) THEN
+
+     ! *** Generate control vector transform matrix ***
+
+     fact = 1.0/SQRT(REAL(dim_cvec_ens-1))
+
+     IF (ALLOCATED(Vmat_ens_p)) DEALLOCATE(Vmat_ens_p)
+     ALLOCATE(Vmat_ens_p(dim_p, dim_cvec_ens))
+
+     Vv_p = 0.0
+     invdimens = 1.0 / REAL(dim_ens)
+     DO member = 1, dim_ens
+        DO row = 1, dim_p
+           Vv_p(row) = Vv_p(row) + invdimens * ens_p(row, member)
+        END DO
+     END DO
+
+     DO member = 1, dim_ens
+        Vmat_ens_p(:,member) = fact*(ens_p(:,member) - Vv_p(:))
+     END DO
+
+     ! Fill additional columns (if Vmat_ens_p holds multiple sets of localized ensembles)
+     ! This simulates what would be done with localization (without actually localizing here)
+     DO i = 2, mcols_cvec_ens
+        DO member = (i-1)*dim_ens+1, i*dim_ens
+           Vmat_ens_p(:,member) = Vmat_ens_p(:,member-(i-1)*dim_ens)
+        END DO
+     END DO
+
+  END IF firstiter
+
+  ! Transform control variable to state increment
+  CALL dgemv('n', dim_p, dim_cvec_ens, 1.0, Vmat_ens_p, &
+       dim_p, v_p, 1, 0.0, Vv_p, 1)
+END SUBROUTINE cvt_ens_pdaf
+
+! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_adj_ens_pdaf.F90
+SUBROUTINE cvt_adj_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, Vv_p, v_p)
+
+#if 0
+  USE mod_assimilation, &     ! Assimilation variables
+       ONLY: Vmat_ens_p
+#endif
+
+  IMPLICIT NONE
+
+! *** Arguments ***
+  INTEGER, INTENT(in) :: iter               !< Iteration of optimization
+  INTEGER, INTENT(in) :: dim_p              !< PE-local dimension of state
+  INTEGER, INTENT(in) :: dim_ens            !< Ensemble size
+  INTEGER, INTENT(in) :: dim_cvec_ens       !< Number of columns in HV_p
+  REAL, INTENT(in) :: ens_p(dim_p, dim_ens) !< PE-local ensemble
+  REAL, INTENT(in)    :: Vv_p(dim_p)        !< PE-local input vector
+  REAL, INTENT(inout) :: v_p(dim_cvec_ens)  !< PE-local result vector
+
+
+! ***************************************************
+! *** Apply covariance operator to a state vector ***
+! *** by computing Vmat^T Vv_p                    ***
+! *** Here, Vmat is represented by the ensemble   ***
+! ***************************************************
+
+  ! Transform control variable to state increment
+  CALL dgemv('t', dim_p, dim_cvec_ens, 1.0, Vmat_ens_p, &
+       dim_p, Vv_p, 1, 0.0, v_p, 1)
+END SUBROUTINE cvt_adj_ens_pdaf
 
 SUBROUTINE abort(msg)
    character(len=*), intent(in) :: msg
