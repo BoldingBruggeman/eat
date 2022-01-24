@@ -253,6 +253,7 @@ integer :: dim_state_p
       case default
          stop 'init_pdaf(): Non-valid filtertype'
     end select
+    if (status_pdaf /= 0) stop 'init_pdaf(): status_pdaf /= 0'
 
 !KB   END IF whichinit
 
@@ -321,7 +322,7 @@ SUBROUTINE assimilation_pdaf() bind(c)
 !EOP
 
 ! local variables
-   INTEGER :: status    ! Status flag for filter routines
+   INTEGER :: status_pdaf    ! Status flag for filter routines
 
 
 ! ************************
@@ -342,12 +343,12 @@ SUBROUTINE assimilation_pdaf() bind(c)
 !KB   IF (filtertype == 1) THEN
       case (1)
       CALL PDAF_put_state_seik(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
-           init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status)
+           init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status_pdaf)
 !KB   ELSE IF (filtertype == 2) THEN
       case (2)
       CALL PDAF_put_state_enkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
            init_obs_pdaf, prepoststep_ens_pdaf, add_obs_error_pdaf, init_obscovar_pdaf, &
-           status)
+           status_pdaf)
 !KB   ELSE IF (filtertype == 3) THEN
       case (3)
       CALL PDAF_put_state_lseik( &
@@ -355,11 +356,11 @@ SUBROUTINE assimilation_pdaf() bind(c)
            init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
            prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
            init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
-           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status)
+           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
 !KB   ELSE IF (filtertype == 4) THEN
       case (4)
       CALL PDAF_put_state_etkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
-           init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status)
+           init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status_pdaf)
 !KB   ELSE IF (filtertype == 5) THEN
       case (5)
       CALL PDAF_put_state_letkf( &
@@ -367,11 +368,11 @@ SUBROUTINE assimilation_pdaf() bind(c)
            init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
            prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
            init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
-           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status)
+           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
 !KB   ELSE IF (filtertype == 6) THEN
       case (6)
       CALL PDAF_put_state_estkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
-           init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status)
+           init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status_pdaf)
 !KB   ELSE IF (filtertype == 7) THEN
       case (7)
       CALL PDAF_put_state_lestkf( &
@@ -379,7 +380,7 @@ SUBROUTINE assimilation_pdaf() bind(c)
            init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
            prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
            init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
-           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status)
+           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
 !KB   ELSE IF (filtertype == 200) THEN
       case (200)
       CALL PDAF_put_state_lestkf( &
@@ -387,14 +388,15 @@ SUBROUTINE assimilation_pdaf() bind(c)
            init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
            prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
            init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
-           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status)
+           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
 !KB   END IF
    end select
-   if (verbosity >= debug) write(stderr,*) 'PDAF PUT STATUS= ',status
+   if (status_pdaf /= 0) stop 'assimilation_pdaf(): status_pdaf /= 0'
+   if (verbosity >= debug) write(stderr,*) 'PDAF PUT STATUS= ',status_pdaf
 
    CALL PDAF_get_state(steps, timenow, doexit, next_observation_pdaf, &
-        distribute_state_pdaf, prepoststep_ens_pdaf, status)
-   if (verbosity >= debug) write(stderr,*) 'PDAF GET STATUS= ',status
+        distribute_state_pdaf, prepoststep_ens_pdaf, status_pdaf)
+   if (verbosity >= debug) write(stderr,*) 'PDAF GET STATUS= ',status_pdaf
 END SUBROUTINE assimilation_pdaf
 
 !-----------------------------------------------------------------------
