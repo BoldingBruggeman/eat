@@ -225,7 +225,7 @@ integer :: dim_state_p
            COMM_model, COMM_filter, COMM_couple, &
            task_id, n_modeltasks, filterpe, init_ens_pdaf, &
            screen, status_pdaf)
-      case (200)
+      case (13)
          filter_param_i(1) = dim_state_p    ! State dimension
          filter_param_i(2) = dim_ens        ! Size of ensemble
          filter_param_i(3) = type_opt       ! Choose type of optimizer
@@ -239,9 +239,7 @@ integer :: dim_state_p
                     filter_param_i, 5,&
                     filter_param_r, 1, &
                     COMM_model, COMM_filter, COMM_couple, &
-                    task_id, n_modeltasks, filterpe, init_ens_pdaf, &
-!KB                    task_id, n_modeltasks, filterpe, init_3dvar_pdaf, &
-!KB
+                    task_id, n_modeltasks, filterpe, init_3dvar_pdaf, &
                     screen, status_pdaf)
             case (1) ! Ensemble or hybrid 3D-Var
                CALL PDAF_init(filtertype, subtype, 0, &
@@ -383,12 +381,12 @@ SUBROUTINE assimilation_pdaf() bind(c)
            init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
            g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
 !KB   ELSE IF (filtertype == 200) THEN
-      case (200)
+      case (13)
          ! From .../PDAF_V1.16_var_devel/models/lorenz96/assimilation_pdaf.F90
 ! tkdiff ./tutorial/3dvar/online_2D_serialmodel/prepoststep_3dvar_pdaf.F90 ./tutorial/3dvar/online_2D_serialmodel/prepoststep_ens_pdaf.F90
          select case (subtype)
             case (0)
-#if 0
+#if 1
                CALL PDAF_put_state_3dvar(collect_state_pdaf, &
                     init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
                     cvt_pdaf, cvt_adj_pdaf, obs_op_lin_pdaf, obs_op_adj_pdaf, &
@@ -407,7 +405,7 @@ SUBROUTINE assimilation_pdaf() bind(c)
                     prepoststep_pdaf, status_pdaf)
 #endif
             case (4)
-#if 1
+#if 0
                ! Ensemble 3D-Var with global ESTKF update of ensemble perturbations
                CALL PDAF_put_state_en3dvar_estkf(collect_state_pdaf, &
                     init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
@@ -899,6 +897,16 @@ END SUBROUTINE obs_op_lin_pdaf
 SUBROUTINE prepoststep_pdaf()
    call abort('prepoststep_pdaf')
 END SUBROUTINE prepoststep_pdaf
+
+!KB - this routine needs content
+SUBROUTINE init_3dvar_pdaf()
+   call abort('init_3dvar_pdaf')
+END SUBROUTINE init_3dvar_pdaf
+
+!KB - this routine needs content
+SUBROUTINE prepoststep_3dvar_pdaf()
+   call abort('prepoststep_3dvar_pdaf')
+END SUBROUTINE prepoststep_3dvar_pdaf
 
 SUBROUTINE abort(msg)
    character(len=*), intent(in) :: msg
