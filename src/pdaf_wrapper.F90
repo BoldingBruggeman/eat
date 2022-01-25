@@ -31,6 +31,7 @@ module pdaf_wrapper
 
 !    ! PDAF variables
    integer :: filtertype=6
+   integer :: subtype = 0 ! valid for all filtertypes
 ! !KB
 REAL(real64) :: timenow
 integer :: doexit,steps
@@ -109,8 +110,8 @@ integer :: dim_state_p
 !KB   integer :: &
 !KB   dim_ens = 7      ! Size of ensemble for all ensemble filters
                     ! Number of EOFs to be used for SEEK
-   integer :: &
-   subtype = 0       ! valid for all filtertypes
+!KB   integer :: &
+!KB   subtype = 0       ! valid for all filtertypes
    integer :: &
    type_trans = 0    ! Type of ensemble transformation
                      !   SEIK/LSEIK and ESTKF/LESTKF:
@@ -383,13 +384,60 @@ SUBROUTINE assimilation_pdaf() bind(c)
            g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
 !KB   ELSE IF (filtertype == 200) THEN
       case (200)
-      CALL PDAF_put_state_lestkf( &
-           collect_state_pdaf, init_dim_obs_f_pdaf, obs_op_f_pdaf, &
-           init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
-           prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
-           init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
-           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
-!KB   END IF
+         ! From .../PDAF_V1.16_var_devel/models/lorenz96/assimilation_pdaf.F90
+! tkdiff ./tutorial/3dvar/online_2D_serialmodel/prepoststep_3dvar_pdaf.F90 ./tutorial/3dvar/online_2D_serialmodel/prepoststep_ens_pdaf.F90
+         select case (subtype)
+            case (0)
+#if 0
+               CALL PDAF_put_state_3dvar(collect_state_pdaf, &
+                    init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
+                    cvt_pdaf, cvt_adj_pdaf, obs_op_lin_pdaf, obs_op_adj_pdaf, &
+                    prepoststep_3dvar_pdaf, status_pdaf)
+#endif
+            case (1)
+#if 0
+               ! Ensemble 3D-Var with local ESTKF update of ensemble perturbations
+               CALL PDAF_put_state_en3dvar_lestkf(collect_state_pdaf, &
+                    init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
+                    cvt_ens_pdaf, cvt_adj_ens_pdaf, obs_op_lin_pdaf, obs_op_adj_pdaf, &
+                    init_dim_obs_f_pdaf, obs_op_f_pdaf, init_obs_f_pdaf, init_obs_l_pdaf, &
+                    prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
+                    init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
+                    g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, &
+                    prepoststep_pdaf, status_pdaf)
+#endif
+            case (4)
+#if 0
+               ! Ensemble 3D-Var with global ESTKF update of ensemble perturbations
+               CALL PDAF_put_state_en3dvar_estkf(collect_state_pdaf, &
+                    init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
+                    cvt_ens_pdaf, cvt_adj_ens_pdaf, obs_op_lin_pdaf, obs_op_adj_pdaf, &
+                    init_obsvar_pdaf, &
+                    prepoststep_pdaf, status_pdaf)
+#endif
+            case (6)
+#if 0
+               ! Hybrid 3D-Var with local ESTKF update of ensmeble perturbations
+               CALL PDAF_put_state_hyb3dvar_lestkf(collect_state_pdaf, &
+                    init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
+                    cvt_ens_pdaf, cvt_adj_ens_pdaf, cvt_pdaf, cvt_adj_pdaf, &
+                    obs_op_lin_pdaf, obs_op_adj_pdaf, &
+                    init_dim_obs_f_pdaf, obs_op_f_pdaf, init_obs_f_pdaf, init_obs_l_pdaf, &
+                    prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
+                    init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
+                    g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, &
+                    prepoststep_pdaf, status_pdaf)
+#endif
+            case (7)
+#if 0
+               ! Hybrid 3D-Var with global ESTKF update of ensemble perturbations
+               CALL PDAF_put_state_hyb3dvar_estkf(collect_state_pdaf, &
+                    init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
+                    cvt_ens_pdaf, cvt_adj_ens_pdaf, cvt_pdaf, cvt_adj_pdaf, &
+                    obs_op_lin_pdaf, obs_op_adj_pdaf, init_obsvar_pdaf, &
+                    prepoststep_pdaf, status_pdaf)
+#endif
+         end select
    end select
    if (status_pdaf /= 0) stop 'assimilation_pdaf(): status_pdaf /= 0'
    if (verbosity >= debug) write(stderr,*) 'PDAF PUT STATUS= ',status_pdaf
@@ -836,6 +884,21 @@ SUBROUTINE cvt_adj_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, Vv_p, v_p
   CALL dgemv('t', dim_p, dim_cvec_ens, 1.0, Vmat_ens_p, &
        dim_p, Vv_p, 1, 0.0, v_p, 1)
 END SUBROUTINE cvt_adj_ens_pdaf
+
+!KB - this routine needs content
+SUBROUTINE obs_op_adj_pdaf()
+   call abort('obs_op_adj_pdaf')
+END SUBROUTINE obs_op_adj_pdaf
+
+!KB - this routine needs content
+SUBROUTINE obs_op_lin_pdaf()
+   call abort('obs_op_lin_pdaf')
+END SUBROUTINE obs_op_lin_pdaf
+
+!KB - this routine needs content
+SUBROUTINE prepoststep_pdaf()
+   call abort('prepoststep_pdaf')
+END SUBROUTINE prepoststep_pdaf
 
 SUBROUTINE abort(msg)
    character(len=*), intent(in) :: msg
