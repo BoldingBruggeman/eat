@@ -407,7 +407,7 @@ SUBROUTINE assimilation_pdaf() bind(c)
                     prepoststep_pdaf, status_pdaf)
 #endif
             case (4)
-#if 0
+#if 1
                ! Ensemble 3D-Var with global ESTKF update of ensemble perturbations
                CALL PDAF_put_state_en3dvar_estkf(collect_state_pdaf, &
                     init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
