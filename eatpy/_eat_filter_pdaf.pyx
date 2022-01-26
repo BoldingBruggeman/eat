@@ -40,16 +40,16 @@ cdef void ccvt_callback(int cb_type, int iter, int dim_p, int dim_ens, int dim_c
     if cvt_handler_ is not None:
         if cb_type == 1:
             v_p_.flags.writeable = False
-            cvt_handler_.cvt(v_p_, Vv_p_)
+            cvt_handler_.cvt(iter, v_p_, Vv_p_)
         elif cb_type == 2:
             Vv_p_.flags.writeable = False
-            cvt_handler_.cvt_adj(Vv_p_, v_p_)
+            cvt_handler_.cvt_adj(iter, Vv_p_, v_p_)
         elif cb_type == 3:
             assert ens_p_ is not None
             v_p_.flags.writeable = False
-            cvt_handler_.cvt_ens(ens_p_, v_p_, Vv_p_)
+            cvt_handler_.cvt_ens(iter, ens_p_, v_p_, Vv_p_)
         elif cb_type == 4:
             assert ens_p_ is not None
             Vv_p_.flags.writeable = False
-            cvt_handler_.cvt_adj_ens(ens_p_, Vv_p_, v_p_)
+            cvt_handler_.cvt_adj_ens(iter, ens_p_, Vv_p_, v_p_)
 

@@ -14,13 +14,13 @@ from . import output
 from . import _eat_filter_pdaf
 
 class CvtHandler(shared.Plugin):
-    def cvt(self, v_p: numpy.ndarray, Vv_p: numpy.ndarray):
+    def cvt(self, iter: int, v_p: numpy.ndarray, Vv_p: numpy.ndarray):
         self.logger.error('cvt called but not implemented; v_p = %s, Vv_p = %s' % (v_p.shape, Vv_p.shape))
-    def cvt_adj(self, Vv_p: numpy.ndarray, v_p: numpy.ndarray):
+    def cvt_adj(self, iter: int, Vv_p: numpy.ndarray, v_p: numpy.ndarray):
         self.logger.error('cvt_adj called but not implemented; v_p = %s, Vv_p = %s' % (v_p.shape, Vv_p.shape))
-    def cvt_ens(self, ens_p: numpy.ndarray, v_p: numpy.ndarray, Vv_p: numpy.ndarray):
+    def cvt_ens(self, iter: int, ens_p: numpy.ndarray, v_p: numpy.ndarray, Vv_p: numpy.ndarray):
         self.logger.error('cvt_ens called but not implemented; ens_p = %s, v_p = %s, Vv_p = %s' % (ens_p.shape, v_p.shape, Vv_p.shape))
-    def cvt_adj_ens(self, ens_p: numpy.ndarray, Vv_p: numpy.ndarray, v_p: numpy.ndarray):
+    def cvt_adj_ens(self, iter: int, ens_p: numpy.ndarray, Vv_p: numpy.ndarray, v_p: numpy.ndarray):
         self.logger.error('cvt_adj_ens called but not implemented; ens_p = %s, v_p = %s, Vv_p = %s' % (ens_p.shape, v_p.shape, Vv_p.shape))
 
 class PDAF(shared.Filter):
