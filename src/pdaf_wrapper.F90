@@ -190,7 +190,6 @@ integer :: dim_state_p
    task_id=1
    n_modeltasks=1
 
-!KB   whichinit: IF (filtertype == 2) THEN
    select case (filtertype)
       case (2)
       ! *** EnKF with Monte Carlo init ***
@@ -253,8 +252,6 @@ integer :: dim_state_p
          stop 'init_pdaf(): Non-valid filtertype'
     end select
     if (status_pdaf /= 0) stop 'init_pdaf(): status_pdaf /= 0'
-
-!KB   END IF whichinit
 
    CALL PDAF_get_state(steps, timenow, doexit, next_observation_pdaf, &
         distribute_state_pdaf, prepoststep_ens_pdaf, status_pdaf)
@@ -339,48 +336,40 @@ SUBROUTINE assimilation_pdaf() bind(c)
    call PDAF_force_analysis() ! Suggested by Lars
 
    select case (filtertype)
-!KB   IF (filtertype == 1) THEN
       case (1)
-      CALL PDAF_put_state_seik(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
-           init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status_pdaf)
-!KB   ELSE IF (filtertype == 2) THEN
+         CALL PDAF_put_state_seik(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
+              init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status_pdaf)
       case (2)
-      CALL PDAF_put_state_enkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
-           init_obs_pdaf, prepoststep_ens_pdaf, add_obs_error_pdaf, init_obscovar_pdaf, &
-           status_pdaf)
-!KB   ELSE IF (filtertype == 3) THEN
+         CALL PDAF_put_state_enkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
+              init_obs_pdaf, prepoststep_ens_pdaf, add_obs_error_pdaf, init_obscovar_pdaf, &
+              status_pdaf)
       case (3)
-      CALL PDAF_put_state_lseik( &
-           collect_state_pdaf, init_dim_obs_f_pdaf, obs_op_f_pdaf, &
-           init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
-           prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
-           init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
-           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
-!KB   ELSE IF (filtertype == 4) THEN
+         CALL PDAF_put_state_lseik( &
+              collect_state_pdaf, init_dim_obs_f_pdaf, obs_op_f_pdaf, &
+              init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
+              prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
+              init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
+              g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
       case (4)
-      CALL PDAF_put_state_etkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
-           init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status_pdaf)
-!KB   ELSE IF (filtertype == 5) THEN
+         CALL PDAF_put_state_etkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
+              init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status_pdaf)
       case (5)
-      CALL PDAF_put_state_letkf( &
-           collect_state_pdaf, init_dim_obs_f_pdaf, obs_op_f_pdaf, &
-           init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
-           prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
-           init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
-           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
-!KB   ELSE IF (filtertype == 6) THEN
+         CALL PDAF_put_state_letkf( &
+              collect_state_pdaf, init_dim_obs_f_pdaf, obs_op_f_pdaf, &
+              init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
+              prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
+              init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
+              g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
       case (6)
-      CALL PDAF_put_state_estkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
-           init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status_pdaf)
-!KB   ELSE IF (filtertype == 7) THEN
+         CALL PDAF_put_state_estkf(collect_state_pdaf, init_dim_obs_pdaf, obs_op_pdaf, &
+              init_obs_pdaf, prepoststep_ens_pdaf, prodRinvA_pdaf, init_obsvar_pdaf, status_pdaf)
       case (7)
-      CALL PDAF_put_state_lestkf( &
-           collect_state_pdaf, init_dim_obs_f_pdaf, obs_op_f_pdaf, &
-           init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
-           prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
-           init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
-           g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
-!KB   ELSE IF (filtertype == 200) THEN
+         CALL PDAF_put_state_lestkf( &
+              collect_state_pdaf, init_dim_obs_f_pdaf, obs_op_f_pdaf, &
+              init_obs_f_pdaf, init_obs_l_pdaf, prepoststep_ens_pdaf, &
+              prodRinvA_l_pdaf, init_n_domains_pdaf, init_dim_l_pdaf, &
+              init_dim_obs_l_pdaf, g2l_state_pdaf, l2g_state_pdaf, &
+              g2l_obs_pdaf, init_obsvar_pdaf, init_obsvar_l_pdaf, status_pdaf)
       case (13)
          ! From .../PDAF_V1.16_var_devel/models/lorenz96/assimilation_pdaf.F90
 ! tkdiff ./tutorial/3dvar/online_2D_serialmodel/prepoststep_3dvar_pdaf.F90 ./tutorial/3dvar/online_2D_serialmodel/prepoststep_ens_pdaf.F90
