@@ -46,7 +46,7 @@ integer :: doexit,steps
 
 contains
 
-! !-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
 
 subroutine finish_pdaf() bind(c)
 
@@ -469,6 +469,8 @@ SUBROUTINE init_ens_pdaf(filtertype,dim_p,dim_ens,state_p,Uinv,ens_p,flag)
 !KB   ens_p=model_states
 END SUBROUTINE init_ens_pdaf
 
+!-----------------------------------------------------------------------
+
 ! Routine to collect a state vector from model fields
 SUBROUTINE collect_state_pdaf(dim_p, state_p)
    INTEGER, INTENT(in) :: dim_p
@@ -476,6 +478,8 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
    ! can be empty as all states have already been collected
    if (verbosity >= debug) write(stderr,*) 'collect_state_pdaf()'
 END SUBROUTINE collect_state_pdaf
+
+!-----------------------------------------------------------------------
 
 ! Routine to distribute a state vector to model fields
 SUBROUTINE distribute_state_pdaf(dim_p, state_p)
@@ -485,6 +489,8 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
    if (verbosity >= debug) write(stderr,*) 'distribute_state_pdaf()'
 END SUBROUTINE distribute_state_pdaf
 
+!-----------------------------------------------------------------------
+
 ! Initialize dimension of observation vector
 SUBROUTINE init_dim_obs_pdaf(step, dim_obs_p)
    INTEGER, INTENT(in)  :: step       ! Current time step
@@ -492,6 +498,8 @@ SUBROUTINE init_dim_obs_pdaf(step, dim_obs_p)
    dim_obs_p = size(obs)
    if (verbosity >= debug) write(stderr,*) 'init_dim_obs_pdaf() ',step,dim_obs_p
 END SUBROUTINE init_dim_obs_pdaf
+
+!-----------------------------------------------------------------------
 
 ! Implementation of the Observation operator
 SUBROUTINE obs_op_pdaf(step, dim_p, dim_obs_p, state_p, m_state_p)
@@ -510,6 +518,8 @@ SUBROUTINE obs_op_pdaf(step, dim_p, dim_obs_p, state_p, m_state_p)
 !KBwrite(0,*) 'AAAA',m_state_p
 END SUBROUTINE obs_op_pdaf
 
+!-----------------------------------------------------------------------
+
 ! Routine to provide vector of measurements
 SUBROUTINE init_obs_pdaf(step, dim_obs_f, observation_f)
   INTEGER, INTENT(in) :: step        ! Current time step
@@ -520,6 +530,7 @@ SUBROUTINE init_obs_pdaf(step, dim_obs_f, observation_f)
 !KBwrite(0,*) 'BBBB',observation_f
 END SUBROUTINE init_obs_pdaf
 
+!-----------------------------------------------------------------------
 
 ! ! Subroutine used in SEIK and ETKF
 ! User supplied pre/poststep routine
@@ -667,6 +678,8 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
 
 END SUBROUTINE prepoststep_ens_pdaf
 
+!-----------------------------------------------------------------------
+
 ! Initialize mean observation error variance
 SUBROUTINE init_obsvar_pdaf(step, dim_obs_p, obs_p, meanvar)
    INTEGER, INTENT(in) :: step          ! Current time step
@@ -676,6 +689,8 @@ SUBROUTINE init_obsvar_pdaf(step, dim_obs_p, obs_p, meanvar)
    if (verbosity >= debug) write(stderr,*) 'init_obsvar_pdaf() ',rms_obs
    meanvar = rms_obs ** 2
 END SUBROUTINE init_obsvar_pdaf
+
+!-----------------------------------------------------------------------
 
 SUBROUTINE next_observation_pdaf(stepnow, nsteps, doexit, time)
    INTEGER, INTENT(in)  :: stepnow  ! Number of the current time step
@@ -688,17 +703,22 @@ SUBROUTINE next_observation_pdaf(stepnow, nsteps, doexit, time)
    doexit=1
 END SUBROUTINE next_observation_pdaf
 
+!-----------------------------------------------------------------------
+
 ! ! Subroutines used in EnKF
 ! Add obs. error covariance R to HPH in EnKF
 SUBROUTINE add_obs_error_pdaf()
    call abort('add_obs_error_pdaf')
 END SUBROUTINE add_obs_error_pdaf
 
+!-----------------------------------------------------------------------
+
 ! Initialize obs error covar R in EnKF
 SUBROUTINE init_obscovar_pdaf()
    call abort('init_obscovar_pdaf')
 END SUBROUTINE init_obscovar_pdaf
 
+!-----------------------------------------------------------------------
 
 ! ! Subroutine used in SEIK and ETKF
 ! Provide product R^-1 A for some matrix A
@@ -721,12 +741,11 @@ SUBROUTINE prodRinvA_pdaf(step, dim_obs_p, rank, obs_p, A_p, C_p)
          C_p(i, j) = ivariance_obs * A_p(i, j)
       END DO
    END DO
-
-!   if (verbosity >= info) write(stderr,*) 'prodRinvA_pdaf() A_P',A_p
-
 END SUBROUTINE prodRinvA_pdaf
 
+!-----------------------------------------------------------------------
 ! 3Dvar specific routines
+!-----------------------------------------------------------------------
 
 ! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_pdaf.F90
 SUBROUTINE cvt_pdaf(iter, dim_p, dim_cvec, v_p, Vv_p)
@@ -756,6 +775,8 @@ SUBROUTINE cvt_pdaf(iter, dim_p, dim_cvec, v_p, Vv_p)
        dim_p, v_p, 1, 0.0, Vv_p, 1)
 END SUBROUTINE cvt_pdaf
 
+!-----------------------------------------------------------------------
+
 ! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_adj_pdaf.F90
 SUBROUTINE cvt_adj_pdaf(iter, dim_p, dim_cvec, Vv_p, v_p)
 
@@ -783,6 +804,8 @@ SUBROUTINE cvt_adj_pdaf(iter, dim_p, dim_cvec, Vv_p, v_p)
   CALL dgemv('t', dim_p, dim_cvec, 1.0, Vmat_p, &
        dim_p, Vv_p, 1, 0.0, v_p, 1)
 END SUBROUTINE cvt_adj_pdaf
+
+!-----------------------------------------------------------------------
 
 ! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_ens_pdaf.F90
 SUBROUTINE cvt_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, v_p, Vv_p)
@@ -852,6 +875,8 @@ SUBROUTINE cvt_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, v_p, Vv_p)
        dim_p, v_p, 1, 0.0, Vv_p, 1)
 END SUBROUTINE cvt_ens_pdaf
 
+!-----------------------------------------------------------------------
+
 ! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_adj_ens_pdaf.F90
 SUBROUTINE cvt_adj_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, Vv_p, v_p)
 
@@ -883,6 +908,8 @@ SUBROUTINE cvt_adj_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, Vv_p, v_p
        dim_p, Vv_p, 1, 0.0, v_p, 1)
 END SUBROUTINE cvt_adj_ens_pdaf
 
+!-----------------------------------------------------------------------
+
 ! Implementation of the adjoint Observation operator
 SUBROUTINE obs_op_adj_pdaf(step, dim_p, dim_obs_p, m_state_p, state_p)
    INTEGER, INTENT(in) :: step               ! Currrent time step
@@ -899,6 +926,8 @@ SUBROUTINE obs_op_adj_pdaf(step, dim_p, dim_obs_p, m_state_p, state_p)
       state_p(iobs(i)) = m_state_p(i)
    END DO
 END SUBROUTINE obs_op_adj_pdaf
+
+!-----------------------------------------------------------------------
 
 !KB - this routine needs content
 SUBROUTINE obs_op_lin_pdaf()
