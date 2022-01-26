@@ -1,5 +1,5 @@
 import collections
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 import argparse
 import sys
 import importlib
@@ -13,10 +13,20 @@ from . import shared
 from . import output
 from . import _eat_filter_pdaf
 
+class CvtHandler(shared.Plugin):
+    def cvt(self, v_p: numpy.ndarray, Vv_p: numpy.ndarray):
+        self.logger.error('cvt called but not implemented; v_p = %s, Vv_p = %s' % (v_p.shape, Vv_p.shape))
+    def cvt_adj(self, Vv_p: numpy.ndarray, v_p: numpy.ndarray):
+        self.logger.error('cvt_adj called but not implemented; v_p = %s, Vv_p = %s' % (v_p.shape, Vv_p.shape))
+    def cvt_ens(self, ens_p: numpy.ndarray, v_p: numpy.ndarray, Vv_p: numpy.ndarray):
+        self.logger.error('cvt_ens called but not implemented; ens_p = %s, v_p = %s, Vv_p = %s' % (ens_p.shape, v_p.shape, Vv_p.shape))
+    def cvt_adj_ens(self, ens_p: numpy.ndarray, Vv_p: numpy.ndarray, v_p: numpy.ndarray):
+        self.logger.error('cvt_adj_ens called but not implemented; ens_p = %s, v_p = %s, Vv_p = %s' % (ens_p.shape, v_p.shape, Vv_p.shape))
+
 class PDAF(shared.Filter):
     """Filter class that wraps PDAF."""
-    def __init__(self, comm: MPI.Comm, state_size: int, ensemble_size: int):
-        model_states = _eat_filter_pdaf.initialize(comm, state_size, ensemble_size)
+    def __init__(self, comm: MPI.Comm, state_size: int, ensemble_size: int, cvt_handler: Optional[CvtHandler]=None):
+        model_states = _eat_filter_pdaf.initialize(comm, state_size, ensemble_size, cvt_handler or CvtHandler())
         super().__init__(model_states)
 
     def assimilate(self, iobs: numpy.ndarray, obs: numpy.ndarray):
@@ -73,7 +83,11 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
         comm_model.Recv(state_size, source=1, tag=MPI.ANY_TAG)
 
     # Create filter. This will allocate an array to hold the state of all members: f.model_states
-    f = PDAF(comm, state_size, nmodel)
+    cvt_handler = None
+    for plugin in plugins:
+        if isinstance(plugin, CvtHandler):
+            cvt_handler = plugin
+    f = PDAF(comm, state_size, nmodel, cvt_handler)
 
     # Initialize plugins
     if plugins:

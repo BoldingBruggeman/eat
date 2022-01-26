@@ -13,11 +13,12 @@ module pdaf_wrapper
    use eat_config, only: info, debug
    use pdaf_mod_filter
    use PDAF_interfaces_module
+   use iso_c_binding, only: c_ptr, c_null_ptr, c_loc, c_int, c_double
    IMPLICIT NONE
 
    private
 
-   public init_pdaf, assimilation_pdaf, finish_pdaf, iobs, obs
+   public init_pdaf, assimilation_pdaf, finish_pdaf, iobs, obs, pcvt_callback
 
    integer, pointer, contiguous :: iobs(:)
    real(real64), pointer, contiguous :: obs(:)
@@ -41,6 +42,21 @@ integer :: doexit,steps
    real(real64), allocatable :: Vmat_p(:,:)
    real(real64), allocatable :: Vmat_ens_p(:,:)
    integer :: mcols_cvec_ens=1
+
+   interface
+      subroutine cvt_callback_interface(cb_type, iter, dim_p, dim_cvec, dim_cvec_ens, ens_p, v_p, Vv_p) bind(c)
+         import C_PTR, C_INT
+         INTEGER(C_INT), VALUE, INTENT(IN)  :: cb_type
+         INTEGER(C_INT), VALUE, INTENT(IN)  :: iter          !< Iteration of optimization
+         INTEGER(C_INT), VALUE, INTENT(IN)  :: dim_p         !< PE-local observation dimension
+         INTEGER(C_INT), VALUE, INTENT(IN)  :: dim_cvec      !< Dimension of control vector
+         INTEGER(C_INT), VALUE, INTENT(IN)  :: dim_cvec_ens  !< Dimension of control vector
+         TYPE(C_PTR), VALUE, INTENT(IN) :: ens_p         !< PE-local ensemble
+         TYPE(C_PTR), VALUE, INTENT(IN) :: v_p           !< PE-local control vector
+         TYPE(C_PTR), VALUE, INTENT(IN) :: Vv_p          !< PE-local result vector
+      end subroutine
+   end interface
+   procedure (cvt_callback_interface), pointer, save :: pcvt_callback => null()
 
 !-----------------------------------------------------------------------
 
@@ -746,14 +762,16 @@ SUBROUTINE cvt_pdaf(iter, dim_p, dim_cvec, v_p, Vv_p)
 
   IMPLICIT NONE
 
-! *** Arguments ***
+  ! *** Arguments ***
   INTEGER, INTENT(in) :: iter          !< Iteration of optimization
   INTEGER, INTENT(in) :: dim_p         !< PE-local observation dimension
   INTEGER, INTENT(in) :: dim_cvec      !< Dimension of control vector
-  REAL, INTENT(in)    :: v_p(dim_cvec) !< PE-local control vector
-  REAL, INTENT(inout) :: Vv_p(dim_p)   !< PE-local result vector
+  REAL, TARGET, INTENT(in)    :: v_p(dim_cvec) !< PE-local control vector
+  REAL, TARGET, INTENT(inout) :: Vv_p(dim_p)   !< PE-local result vector
 
-
+  IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(1, iter, dim_p, -1, dim_cvec, &
+      c_null_ptr, c_loc(v_p), c_loc(Vv_p))
+  RETURN
 ! ***************************************************
 ! *** Apply covariance operator to control vector ***
 ! *** by computing Vmat v_p                       ***
@@ -780,9 +798,12 @@ SUBROUTINE cvt_adj_pdaf(iter, dim_p, dim_cvec, Vv_p, v_p)
   INTEGER, INTENT(in) :: iter          !< Iteration of optimization
   INTEGER, INTENT(in) :: dim_p         !< PE-local observation dimension
   INTEGER, INTENT(in) :: dim_cvec      !< Dimension of control vector
-  REAL, INTENT(in)    :: Vv_p(dim_p)   !< PE-local input vector
-  REAL, INTENT(inout) :: v_p(dim_cvec) !< PE-local result vector
+  REAL, TARGET, INTENT(in)    :: Vv_p(dim_p)   !< PE-local input vector
+  REAL, TARGET, INTENT(inout) :: v_p(dim_cvec) !< PE-local result vector
 
+  IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(2, iter, dim_p, -1, dim_cvec, &
+      c_null_ptr, c_loc(v_p), c_loc(Vv_p))
+  RETURN
 
 ! ***************************************************
 ! *** Apply covariance operator to a state vector ***
@@ -811,15 +832,18 @@ SUBROUTINE cvt_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, v_p, Vv_p)
   INTEGER, INTENT(in) :: dim_p              !< PE-local dimension of state
   INTEGER, INTENT(in) :: dim_ens            !< Ensemble size
   INTEGER, INTENT(in) :: dim_cvec_ens       !< Dimension of control vector
-  REAL, INTENT(in) :: ens_p(dim_p, dim_ens) !< PE-local ensemble
-  REAL, INTENT(in) :: v_p(dim_cvec_ens)     !< PE-local control vector
-  REAL, INTENT(inout) :: Vv_p(dim_p)        !< PE-local state increment
+  REAL, TARGET, INTENT(in) :: ens_p(dim_p, dim_ens) !< PE-local ensemble
+  REAL, TARGET, INTENT(in) :: v_p(dim_cvec_ens)     !< PE-local control vector
+  REAL, TARGET, INTENT(inout) :: Vv_p(dim_p)        !< PE-local state increment
 
 ! *** local variables ***
   INTEGER :: i, member, row          ! Counters
   REAL :: fact                       ! Scaling factor
   REAL :: invdimens                  ! Inverse ensemble size
 
+  IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(3, iter, dim_p, dim_ens, dim_cvec_ens, &
+      c_loc(ens_p), c_loc(v_p), c_loc(Vv_p))
+  RETURN
 
 ! *************************************************
 ! *** Convert control vector to state increment ***
@@ -881,10 +905,13 @@ SUBROUTINE cvt_adj_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, Vv_p, v_p
   INTEGER, INTENT(in) :: dim_p              !< PE-local dimension of state
   INTEGER, INTENT(in) :: dim_ens            !< Ensemble size
   INTEGER, INTENT(in) :: dim_cvec_ens       !< Number of columns in HV_p
-  REAL, INTENT(in) :: ens_p(dim_p, dim_ens) !< PE-local ensemble
-  REAL, INTENT(in)    :: Vv_p(dim_p)        !< PE-local input vector
-  REAL, INTENT(inout) :: v_p(dim_cvec_ens)  !< PE-local result vector
+  REAL, TARGET, INTENT(in) :: ens_p(dim_p, dim_ens) !< PE-local ensemble
+  REAL, TARGET, INTENT(in)    :: Vv_p(dim_p)        !< PE-local input vector
+  REAL, TARGET, INTENT(inout) :: v_p(dim_cvec_ens)  !< PE-local result vector
 
+  IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(4, iter, dim_p, dim_ens, dim_cvec_ens, &
+      c_loc(ens_p), c_loc(v_p), c_loc(Vv_p))
+  RETURN
 
 ! ***************************************************
 ! *** Apply covariance operator to a state vector ***
