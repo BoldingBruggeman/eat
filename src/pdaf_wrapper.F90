@@ -883,9 +883,21 @@ SUBROUTINE cvt_adj_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, Vv_p, v_p
        dim_p, Vv_p, 1, 0.0, v_p, 1)
 END SUBROUTINE cvt_adj_ens_pdaf
 
-!KB - this routine needs content
-SUBROUTINE obs_op_adj_pdaf()
-   call abort('obs_op_adj_pdaf')
+! Implementation of the adjoint Observation operator
+SUBROUTINE obs_op_adj_pdaf(step, dim_p, dim_obs_p, m_state_p, state_p)
+   INTEGER, INTENT(in) :: step               ! Currrent time step
+   INTEGER, INTENT(in) :: dim_p              ! PE-local dimension of state
+   INTEGER, INTENT(in) :: dim_obs_p          ! Dimension of observed state
+   REAL(REAL64), INTENT(in) :: m_state_p(dim_obs_p) ! PE-local observed state
+   REAL(REAL64), INTENT(out) :: state_p(dim_p) ! PE-local model state
+
+   integer :: i
+
+   if (verbosity >= debug) write(stderr,*) 'obs_op_adj_pdaf() ',dim_p, dim_obs_p
+   state_p = 0.0
+   DO i = 1, dim_obs_p
+      state_p(iobs(i)) = m_state_p(i)
+   END DO
 END SUBROUTINE obs_op_adj_pdaf
 
 !KB - this routine needs content
