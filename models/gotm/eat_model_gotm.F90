@@ -65,7 +65,11 @@ program eat_model_gotm
 
    call pre_model_initialize()
 
-   signal=signal_initialize
+   if (ensemble_only) then
+      signal=signal_initialize+signal_integrate+signal_finalize
+   else
+      signal=signal_initialize
+   end if
    do
       if (verbosity >= debug) write(stderr,*) 'model(signal) 1 ',signal
       if (iand(signal,signal_initialize) == signal_initialize) then
