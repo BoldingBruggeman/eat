@@ -11,4 +11,10 @@
     filtertype=1,
 !   filtertype=6,
    subtype=5
+
+   ! variables used for 3D-var - they are user defined
+   !dim_cvec=-1     ! Dimension of control vector (parameterized part)
+   !dim_cvec_ens=-1 ! Dimension of control vector (ensemble part)
+                    ! will be set to dim_ens during initialization
+   
 /
