@@ -185,7 +185,9 @@ integer :: dim_state_p
    filename = 'output.dat'
    logical :: fileexists
 
-   namelist /nml_config_pdaf/ screen,filtertype,subtype,dim_cvec,dim_cvec_ens
+   namelist /nml_config_pdaf/ screen, filtertype, subtype, &
+                              type_trans, type_forget, forget, &
+                              dim_cvec, dim_cvec_ens, beta_3dvar
 
    INQUIRE(FILE=nmlfile, EXIST=fileexists)
    if (fileexists) then

@@ -8,13 +8,14 @@
 ! need input from Lars to finish this
 &nml_config_pdaf
    screen=3,
-    filtertype=1,
-!   filtertype=6,
-   subtype=5
-
-   ! variables used for 3D-var - they are user defined
+   !filtertype=6
+   !subtype=0
+   !type_trans=0 ! [0,1,2]
+   !type_forget=0 ! [0,1]
+   !forget=1. ! [0-[
+   !variables used for 3D-var - they are user defined
    !dim_cvec=-1     ! Dimension of control vector (parameterized part)
    !dim_cvec_ens=-1 ! Dimension of control vector (ensemble part)
                     ! will be set to dim_ens during initialization
-   
+   !beta_3dvar=0.5  ! [0-1]
 /
