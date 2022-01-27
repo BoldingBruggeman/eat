@@ -14,14 +14,14 @@ from . import output
 from . import _eat_filter_pdaf
 
 class CvtHandler(shared.Plugin):
-    def cvt(self, iter: int, v_p: numpy.ndarray) -> numpy.ndarray:
-        self.logger.error('cvt called but not implemented; v_p shape = %s' % (v_p.shape,))
-    def cvt_adj(self, iter: int, Vv_p: numpy.ndarray) -> numpy.ndarray:
-        self.logger.error('cvt_adj called but not implemented; Vv_p shape = %s' % (Vv_p.shape,))
-    def cvt_ens(self, iter: int, ens_p: numpy.ndarray, v_p: numpy.ndarray) -> numpy.ndarray:
-        self.logger.error('cvt_ens called but not implemented; ens_p shape = %s, v_p shape = %s, Vv_p = %s' % (ens_p.shape, v_p.shape))
-    def cvt_adj_ens(self, iter: int, ens_p: numpy.ndarray, Vv_p: numpy.ndarray) -> numpy.ndarray:
-        self.logger.error('cvt_adj_ens called but not implemented; ens_p shape = %s, Vv_p shape = %s' % (ens_p.shape, Vv_p.shape))
+    def cvt(self, iter: int, state: numpy.ndarray, v_p: numpy.ndarray) -> numpy.ndarray:
+        raise Exception('cvt called but not implemented; state shape = %s, v_p shape = %s' % (state.shape, v_p.shape,))
+    def cvt_adj(self, iter: int, state: numpy.ndarray, Vv_p: numpy.ndarray) -> numpy.ndarray:
+        raise Exception('cvt_adj called but not implemented; state shape = %s, Vv_p shape = %s' % (state.shape, Vv_p.shape,))
+    def cvt_ens(self, iter: int, state: numpy.ndarray, v_p: numpy.ndarray) -> numpy.ndarray:
+        raise Exception('cvt_ens called but not implemented; state shape = %s, v_p shape = %s, Vv_p = %s' % (state.shape, v_p.shape))
+    def cvt_adj_ens(self, iter: int, state: numpy.ndarray, Vv_p: numpy.ndarray) -> numpy.ndarray:
+        raise Exception('cvt_adj_ens called but not implemented; state shape = %s, Vv_p shape = %s' % (state.shape, Vv_p.shape))
 
 class PDAF(shared.Filter):
     """Filter class that wraps PDAF."""

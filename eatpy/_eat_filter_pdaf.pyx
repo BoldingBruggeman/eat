@@ -13,15 +13,17 @@ cdef extern void finish_pdaf() nogil
 cdef extern void ceat_pdaf_set_observations(int nobs, int* iobs, double* obs) nogil
 
 cvt_handler_ = None
+state_ = None
 
 def initialize(mpi4py.MPI.Comm comm, int state_size, int ensemble_size, cvt_handler=None):
-    global cvt_handler_
+    global cvt_handler_, state_
     cdef int stat
     cdef double* p
     cvt_handler_ = cvt_handler
     ceat_pdaf_init(mpi4py.libmpi.MPI_Comm_c2f(comm.ob_mpi), state_size, ensemble_size, &ccvt_callback, &p, &stat)
     assert stat == 0, 'init_pdaf failed'
-    return numpy.asarray(<double[:ensemble_size, :state_size:1]> p)
+    state_ = numpy.asarray(<double[:ensemble_size, :state_size:1]> p)
+    return state_
 
 def assimilate(int[::1] iobs not None, double[::1] obs not None):
     ceat_pdaf_set_observations(iobs.shape[0], &iobs[0], &obs[0])
@@ -40,12 +42,12 @@ cdef void ccvt_callback(int cb_type, int iter, int dim_p, int dim_ens, int dim_c
     if cvt_handler_ is not None:
         if cb_type == 1:
             v_p_.flags.writeable = False
-            result = cvt_handler_.cvt(iter, v_p_)
+            result = cvt_handler_.cvt(iter, state_.mean(axis=0), v_p_)
             assert numpy.shape(result) == Vv_p_.shape, 'Array returned by cvt should have shape %s, but it has shape %s.' % (Vv_p_.shape, numpy.shape(result))
             Vv_p_[:] = result
         elif cb_type == 2:
             Vv_p_.flags.writeable = False
-            result = cvt_handler_.cvt_adj(iter, Vv_p_)
+            result = cvt_handler_.cvt_adj(iter, state_.mean(axis=0), Vv_p_)
             assert numpy.shape(result) == v_p_.shape, 'Array returned by cvt_adj should have shape %s, but it has shape %s.' % (v_p_.shape, numpy.shape(result))
             v_p_[:] = result
         elif cb_type == 3:
