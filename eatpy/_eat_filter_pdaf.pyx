@@ -42,12 +42,12 @@ cdef void ccvt_callback(int cb_type, int iter, int dim_p, int dim_ens, int dim_c
     if cvt_handler_ is not None:
         if cb_type == 1:
             v_p_.flags.writeable = False
-            result = cvt_handler_.cvt(iter, state_, v_p_)
+            result = cvt_handler_.cvt(iter, state_.mean(axis=0), v_p_)
             assert numpy.shape(result) == Vv_p_.shape, 'Array returned by cvt should have shape %s, but it has shape %s.' % (Vv_p_.shape, numpy.shape(result))
             Vv_p_[:] = result
         elif cb_type == 2:
             Vv_p_.flags.writeable = False
-            result = cvt_handler_.cvt_adj(iter, state_, Vv_p_)
+            result = cvt_handler_.cvt_adj(iter, state_.mean(axis=0), Vv_p_)
             assert numpy.shape(result) == v_p_.shape, 'Array returned by cvt_adj should have shape %s, but it has shape %s.' % (v_p_.shape, numpy.shape(result))
             v_p_[:] = result
         elif cb_type == 3:
