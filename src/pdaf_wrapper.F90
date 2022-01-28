@@ -5,53 +5,62 @@
 
 module pdaf_wrapper
 
-   !! A wrapper around the 'off_line PDAF' implmentation to keep it alive during
-   !! ensemble simulations
+   !! A wrapper around 'PDAF'
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
-   !use mpi
    use eat_config, only: info, debug
    use pdaf_mod_filter
    use PDAF_interfaces_module
    use iso_c_binding, only: c_ptr, c_null_ptr, c_loc, c_int, c_double
+
    IMPLICIT NONE
 
    private
 
    public init_pdaf, assimilation_pdaf, finish_pdaf, iobs, obs, pcvt_callback
 
-   integer, pointer, contiguous :: iobs(:)
-   real(real64), pointer, contiguous :: obs(:)
-
    integer :: stderr=error_unit,stdout=output_unit
    integer :: verbosity=info
 
-!    logical :: fileexists
-   character(len=*), parameter :: nmlfile='eat_pdaf.nml'
-   integer :: nmlunit
+   integer, pointer, contiguous :: iobs(:)
+   real(real64), pointer, contiguous :: obs(:)
 
-!    ! PDAF variables
+   !! PDAF main configuration variables
+   !! filtertype = 6 ! Type of filter
+                     !  (1) SEIK
+                     !  (2) EnKF
+                     !  (3) LSEIK
+                     !  (4) ETKF
+                     !  (5) LETKF
+                     !  (6) ESTKF
+                     !  (7) LESTKF
+                     ! (13) 3D-var
    integer :: filtertype=6
-   integer :: subtype = 0 ! valid for all filtertypes
-! !KB
-REAL(real64) :: timenow
-integer :: doexit,steps
-   real(real64) :: rms_obs = 0.05    ! Observation error standard deviation
-
-! 3Dvar
-!KB   integer :: mcols_cvec_ens=1
+   integer :: subtype = 0
+   !
+   REAL(real64) :: timenow
+   integer :: doexit,steps
+   real(real64) :: rms_obs = 0.05
+     !! Observation error standard deviation !KB shall be replaced
 
    interface
       subroutine cvt_callback_interface(cb_type, iter, dim_p, dim_cvec, dim_cvec_ens, ens_p, v_p, Vv_p) bind(c)
          import C_PTR, C_INT
-         INTEGER(C_INT), VALUE, INTENT(IN)  :: cb_type
-         INTEGER(C_INT), VALUE, INTENT(IN)  :: iter          !< Iteration of optimization
-         INTEGER(C_INT), VALUE, INTENT(IN)  :: dim_p         !< PE-local observation dimension
-         INTEGER(C_INT), VALUE, INTENT(IN)  :: dim_cvec      !< Dimension of control vector
-         INTEGER(C_INT), VALUE, INTENT(IN)  :: dim_cvec_ens  !< Dimension of control vector
-         TYPE(C_PTR), VALUE, INTENT(IN) :: ens_p         !< PE-local ensemble
-         TYPE(C_PTR), VALUE, INTENT(IN) :: v_p           !< PE-local control vector
-         TYPE(C_PTR), VALUE, INTENT(IN) :: Vv_p          !< PE-local result vector
+         INTEGER(C_INT), VALUE, INTENT(IN) :: cb_type
+         INTEGER(C_INT), VALUE, INTENT(IN) :: iter
+           !!< Iteration of optimization
+         INTEGER(C_INT), VALUE, INTENT(IN) :: dim_p
+           !!< PE-local observation dimension
+         INTEGER(C_INT), VALUE, INTENT(IN) :: dim_cvec
+           !!< Dimension of control vector
+         INTEGER(C_INT), VALUE, INTENT(IN) :: dim_cvec_ens
+           !!< Dimension of control vector
+         TYPE(C_PTR), VALUE, INTENT(IN) :: ens_p
+           !!< PE-local ensemble
+         TYPE(C_PTR), VALUE, INTENT(IN) :: v_p
+           !!< PE-local control vector
+         TYPE(C_PTR), VALUE, INTENT(IN) :: Vv_p
+           !!< PE-local result vector
       end subroutine
    end interface
    procedure (cvt_callback_interface), pointer, save :: pcvt_callback => null()
@@ -78,54 +87,25 @@ end subroutine finish_pdaf
 
 SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, stat)
 
-#if 0
-  USE mod_parallel, &     ! Parallelization variables
-       ONLY: mype_world, n_modeltasks, task_id, &
-       COMM_model, COMM_filter, COMM_couple, filterpe, abort_parallel
-  USE mod_assimilation, & ! Variables for assimilation
-       ONLY: dim_state_p, screen, filtertype, subtype, dim_ens, &
-       rms_obs, incremental, covartype, type_forget, forget, &
-       rank_analysis_enkf, locweight, local_range, srange, &
-       filename, type_trans, type_sqrt
-#endif
-
    integer, intent(in), value :: EAT_COMM_filter, state_size, ensemble_size
    real(real64), pointer, contiguous :: model_states(:,:)
    integer, intent(out) :: stat
 
-!KB
-integer :: dim_state_p
+   !! Local variables
+   INTEGER :: filter_param_i(7)
+     !! Integer parameter array for filter
+   REAL(REAL64) :: filter_param_r(2)
+     !! Real parameter array for filter
+   INTEGER :: status_pdaf
+     !! PDAF status flag
 
-  integer :: comm_couple, comm_filter, comm_model, n_modeltasks, task_id
-  logical :: filterpe=.true.
-!KB
+   integer :: screen = 2
+     !! Write screen output (1) for output, (2) add timings
+   integer :: dim_state_p = -1
+   integer :: comm_couple, comm_filter, comm_model, n_modeltasks, task_id
+   logical :: filterpe=.true.
 
-! Local variables
-   INTEGER :: filter_param_i(7) ! Integer parameter array for filter
-   REAL(REAL64)    :: filter_param_r(2) ! Real parameter array for filter
-   INTEGER :: status_pdaf       ! PDAF status flag
-
-   ! External subroutines
-!KB  EXTERNAL :: init_ens_pdaf  ! Ensemble initialization
-
-   integer :: &
-   screen      = 2  ! Write screen output (1) for output, (2) add timings
-
-! *** Filter specific variables
-!KB  integer :: &
-!KB  filtertype = 6    ! Type of filter
-                    !   (1) SEIK
-                    !   (2) EnKF
-                    !   (3) LSEIK
-                    !   (4) ETKF
-                    !   (5) LETKF
-                    !   (6) ESTKF
-                    !   (7) LESTKF
-!KB   integer :: &
-!KB   dim_ens = 7      ! Size of ensemble for all ensemble filters
-                    ! Number of EOFs to be used for SEEK
-!KB   integer :: &
-!KB   subtype = 0       ! valid for all filtertypes
+   !! Filter specific variables
    integer :: &
    type_trans = 0    ! Type of ensemble transformation
                      !   SEIK/LSEIK and ESTKF/LESTKF:
@@ -144,8 +124,9 @@ integer :: dim_state_p
                      !   (2) local adaptive for LSEIK/LETKF/LESTKF
    real :: &
    forget  = 1.0     ! Forgetting factor
+
    real :: &
-   type_sqrt = 0     ! Type of transform matrix square-root
+   type_sqrt = 0    ! Type of transform matrix square-root
                     !   (0) symmetric square root, (1) Cholesky decomposition
    integer :: &
    incremental = 0   ! (1) to perform incremental updating (only in SEIK/LSEIK!)
@@ -158,16 +139,7 @@ integer :: dim_state_p
    rank_analysis_enkf = 0   ! rank to be considered for inversion of HPH
                      ! in analysis of EnKF; (0) for analysis w/o eigendecomposition
 
-
-! *********************************************************************
-! ***   Settings for analysis steps  - used in call-back routines   ***
-! *********************************************************************
-
-! *** specifications for observations ***
-!KB  real :: &
-!KB  rms_obs = 0.5    ! Observation error standard deviation
-                   ! for the Gaussian distribution
-! *** Localization settings
+   ! *** Localization settings
    integer :: &
    locweight = 0     ! Type of localizating weighting
                      !   (0) constant weight of 1
@@ -177,13 +149,14 @@ integer :: dim_state_p
                      !   (4) regulated localization of R with single-point error variance
    integer :: &
    local_range = 0  ! Range in grid points for observation domain in local filters
-!KB  srange = local_range  ! Support range for 5th-order polynomial
+   !KB  srange = local_range  ! Support range for 5th-order polynomial
                     ! or range for 1/e for exponential weighting
 
-! *** File names
-   character(len=128) :: &
-   filename = 'output.dat'
+   ! File handling
    logical :: fileexists
+   character(len=128) :: filename = 'output.dat'
+   character(len=*), parameter :: nmlfile='eat_pdaf.nml'
+   integer :: nmlunit
 
    namelist /nml_config_pdaf/ screen, filtertype, subtype, &
                               type_trans, type_forget, forget, &
@@ -205,75 +178,74 @@ integer :: dim_state_p
    filterpe=.true.
    task_id=1
    n_modeltasks=1
-
    ! values must be provided via namelist
    dim_cvec=-1
    dim_cvec_ens=dim_ens
 
    select case (filtertype)
       case (2)
-      ! *** EnKF with Monte Carlo init ***
-      filter_param_i(1) = dim_state_p ! State dimension
-      filter_param_i(2) = dim_ens     ! Size of ensemble
-      filter_param_i(3) = rank_analysis_enkf ! Rank of speudo-inverse in analysis
-      filter_param_i(4) = incremental ! Whether to perform incremental analysis
-      filter_param_i(5) = 0           ! Smoother lag (not implemented here)
-      filter_param_r(1) = forget      ! Forgetting factor
-      call PDAF_set_comm_pdaf(EAT_COMM_filter)
-      CALL PDAF_init(filtertype, subtype, 0, &
-           filter_param_i, 6,&
-           filter_param_r, 2, &
-           COMM_model, COMM_filter, COMM_couple, &
-           task_id, n_modeltasks, filterpe, init_ens_pdaf, &
-           screen, status_pdaf)
+         ! *** EnKF with Monte Carlo init ***
+         filter_param_i(1) = dim_state_p ! State dimension
+         filter_param_i(2) = dim_ens     ! Size of ensemble
+         filter_param_i(3) = rank_analysis_enkf ! Rank of speudo-inverse in analysis
+         filter_param_i(4) = incremental ! Whether to perform incremental analysis
+         filter_param_i(5) = 0           ! Smoother lag (not implemented here)
+         filter_param_r(1) = forget      ! Forgetting factor
+         call PDAF_set_comm_pdaf(EAT_COMM_filter)
+         CALL PDAF_init(filtertype, subtype, 0, &
+              filter_param_i, 6,&
+              filter_param_r, 2, &
+              COMM_model, COMM_filter, COMM_couple, &
+              task_id, n_modeltasks, filterpe, init_ens_pdaf, &
+              screen, status_pdaf)
       case (1,3,4,5,6,7)
-      ! *** All other filters                       ***
-      ! *** SEIK, LSEIK, ETKF, LETKF, ESTKF, LESTKF ***
-      filter_param_i(1) = dim_state_p ! State dimension
-      filter_param_i(2) = dim_ens     ! Size of ensemble
-      filter_param_i(3) = 0           ! Smoother lag (not implemented here)
-      filter_param_i(4) = incremental ! Whether to perform incremental analysis
-      filter_param_i(5) = type_forget ! Type of forgetting factor
-      filter_param_i(6) = type_trans  ! Type of ensemble transformation
-      filter_param_i(7) = type_sqrt   ! Type of transform square-root (SEIK-sub4/ESTKF)
-      filter_param_r(1) = forget      ! Forgetting factor
-      call PDAF_set_comm_pdaf(EAT_COMM_filter)
-      CALL PDAF_init(filtertype, subtype, 0, &
-           filter_param_i, 7,&
-           filter_param_r, 2, &
-           COMM_model, COMM_filter, COMM_couple, &
-           task_id, n_modeltasks, filterpe, init_ens_pdaf, &
-           screen, status_pdaf)
+         ! *** All other filters                       ***
+         ! *** SEIK, LSEIK, ETKF, LETKF, ESTKF, LESTKF ***
+         filter_param_i(1) = dim_state_p ! State dimension
+         filter_param_i(2) = dim_ens     ! Size of ensemble
+         filter_param_i(3) = 0           ! Smoother lag (not implemented here)
+         filter_param_i(4) = incremental ! Whether to perform incremental analysis
+         filter_param_i(5) = type_forget ! Type of forgetting factor
+         filter_param_i(6) = type_trans  ! Type of ensemble transformation
+         filter_param_i(7) = type_sqrt   ! Type of transform square-root (SEIK-sub4/ESTKF)
+         filter_param_r(1) = forget      ! Forgetting factor
+         call PDAF_set_comm_pdaf(EAT_COMM_filter)
+         CALL PDAF_init(filtertype, subtype, 0, &
+              filter_param_i, 7,&
+              filter_param_r, 2, &
+              COMM_model, COMM_filter, COMM_couple, &
+              task_id, n_modeltasks, filterpe, init_ens_pdaf, &
+              screen, status_pdaf)
       case (13)
-         filter_param_i(1) = dim_state_p    ! State dimension
-         filter_param_i(2) = dim_ens        ! Size of ensemble
-         filter_param_i(3) = type_opt       ! Choose type of optimizer
-         filter_param_i(4) = dim_cvec       ! Dimension of control vector (parameterized part)
-         filter_param_i(5) = dim_cvec_ens   ! Dimension of control vector (ensemble part)
-         filter_param_r(1) = forget         ! Forgetting factor
-         filter_param_r(2) = beta_3dvar     ! Hybrid weight for hybrid 3D-Var
-         select case (subtype)
-            case (0) ! parameterized 3D-Var
-               if (dim_cvec < 0) then
-                  call abort('init_pdaf(): dim_cvec < 0')
-               end if
-               CALL PDAF_init(filtertype, subtype, 0, &
-                    filter_param_i, 5,&
-                    filter_param_r, 1, &
-                    COMM_model, COMM_filter, COMM_couple, &
-                    task_id, n_modeltasks, filterpe, init_3dvar_pdaf, &
-                    screen, status_pdaf)
-            case (1) ! Ensemble or hybrid 3D-Var
-               if (dim_cvec_ens < 0) then
-                  call abort('init_pdaf(): dim_cvec_ens < 0')
-               end if
-               CALL PDAF_init(filtertype, subtype, 0, &
-                    filter_param_i, 5,&
-                    filter_param_r, 2, &
-                    COMM_model, COMM_filter, COMM_couple, &
-                    task_id, n_modeltasks, filterpe, init_ens_pdaf, &
-                    screen, status_pdaf)
-         end select
+            filter_param_i(1) = dim_state_p    ! State dimension
+            filter_param_i(2) = dim_ens        ! Size of ensemble
+            filter_param_i(3) = type_opt       ! Choose type of optimizer
+            filter_param_i(4) = dim_cvec       ! Dimension of control vector (parameterized part)
+            filter_param_i(5) = dim_cvec_ens   ! Dimension of control vector (ensemble part)
+            filter_param_r(1) = forget         ! Forgetting factor
+            filter_param_r(2) = beta_3dvar     ! Hybrid weight for hybrid 3D-Var
+            select case (subtype)
+               case (0) ! parameterized 3D-Var
+                  if (dim_cvec < 0) then
+                     call abort('init_pdaf(): dim_cvec < 0')
+                  end if
+                  CALL PDAF_init(filtertype, subtype, 0, &
+                       filter_param_i, 5,&
+                       filter_param_r, 1, &
+                       COMM_model, COMM_filter, COMM_couple, &
+                       task_id, n_modeltasks, filterpe, init_3dvar_pdaf, &
+                       screen, status_pdaf)
+               case (1) ! Ensemble or hybrid 3D-Var
+                  if (dim_cvec_ens < 0) then
+                     call abort('init_pdaf(): dim_cvec_ens < 0')
+                  end if
+                  CALL PDAF_init(filtertype, subtype, 0, &
+                       filter_param_i, 5,&
+                       filter_param_r, 2, &
+                       COMM_model, COMM_filter, COMM_couple, &
+                       task_id, n_modeltasks, filterpe, init_ens_pdaf, &
+                       screen, status_pdaf)
+            end select
       case default
          stop 'init_pdaf(): Non-valid filtertype'
     end select
@@ -291,73 +263,8 @@ END SUBROUTINE init_pdaf
 
 SUBROUTINE assimilation_pdaf() bind(c)
 
-#if 0
-   USE mod_parallel, &    ! Parallelization
-        ONLY: mype_world, abort_parallel
-   USE mod_assimilation, & ! airables for assimilation
-        ONLY: filtertype
-#endif
-
-!KB
-!KB   integer :: mype_world, filtertype
-!KB   integer :: mype_world=rank_filter_comm
-!KB
-
-!
-#if 0
-   EXTERNAL :: collect_state_pdaf, &    ! Routine to collect a state vector from model fields
-        init_dim_obs_pdaf, &            ! Initialize dimension of observation vector
-        obs_op_pdaf, &                  ! Implementation of the Observation operator
-        init_obs_pdaf                   ! Routine to provide vector of measurements
-! ! Subroutine used in SEIK and ETKF
-   EXTERNAL :: prepoststep_ens_pdaf, &  ! User supplied pre/poststep routine
-        init_obsvar_pdaf                ! Initialize mean observation error variance
-! ! Subroutines used in EnKF
-   EXTERNAL :: add_obs_error_pdaf, &    ! Add obs. error covariance R to HPH in EnKF
-        init_obscovar_pdaf              ! Initialize obs error covar R in EnKF
-! ! Subroutine used in SEIK and ETKF
-   EXTERNAL :: prodRinvA_pdaf           ! Provide product R^-1 A for some matrix A
-! ! Subroutines used in LSEIK and LETKF
-   EXTERNAL :: init_n_domains_pdaf, &   ! Provide number of local analysis domains
-        init_dim_l_pdaf, &              ! Initialize state dimension for local ana. domain
-        init_dim_obs_l_pdaf,&           ! Initialize dim. of obs. vector for local ana. domain
-        g2l_state_pdaf, &               ! Get state on local ana. domain from global state
-        l2g_state_pdaf, &               ! Init global state from state on local analysis domain
-        g2l_obs_pdaf, &                 ! Restrict a global obs. vector to local analysis domain
-        init_obs_l_pdaf, &              ! Provide vector of measurements for local ana. domain
-        prodRinvA_l_pdaf, &             ! Provide product R^-1 A for some matrix A (for LSEIK)
-        init_obsvar_l_pdaf, &           ! Initialize local mean observation error variance
-        init_obs_f_pdaf, &              ! Provide full vector of measurements for PE-local domain
-        obs_op_f_pdaf, &                ! Obs. operator for full obs. vector for PE-local domain
-        init_dim_obs_f_pdaf             ! Get dimension of full obs. vector for PE-local domain
-#endif
-
-! !CALLING SEQUENCE:
-! Called by: main
-! Calls: PDAF_get_state (possible, but not required!)
-! Calls: PDAF_put_state_seik
-! Calls: PDAF_put_state_enkf
-! Calls: PDAF_put_state_lseik
-! Calls: PDAF_put_state_etkf
-! Calls: PDAF_put_state_letkf
-! Calls: MPI_barrier (MPI)
-!EOP
-
-! local variables
-   INTEGER :: status_pdaf    ! Status flag for filter routines
-
-
-! ************************
-! *** Perform analysis ***
-! ************************
-
-! *** Note on PDAF_get_state for offline implementation: ***
-! *** For the offline mode of PDAF the call to           ***
-! *** PDAF_get_state is not required as no forecasting   ***
-! *** is performed in this mode. However, it is save     ***
-! *** to call PDAF_get_state, even it is not necessary.  ***
-! *** The functionality of PDAF_get_state is deactived   ***
-! *** for the offline mode.                              ***
+  !! local variables
+  INTEGER :: status_pdaf    ! Status flag for filter routines
 
    call PDAF_force_analysis() ! Suggested by Lars
 
@@ -405,7 +312,6 @@ SUBROUTINE assimilation_pdaf() bind(c)
                CALL PDAF_put_state_3dvar(collect_state_pdaf, &
                     init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
                     cvt_pdaf, cvt_adj_pdaf, obs_op_pdaf, obs_op_adj_pdaf, &
-!KB                    cvt_pdaf, cvt_adj_pdaf, obs_op_lin_pdaf, obs_op_adj_pdaf, &
                     prepoststep_3dvar_pdaf, status_pdaf)
 #endif
             case (1)
@@ -469,20 +375,24 @@ END SUBROUTINE assimilation_pdaf
 #define _CLASSICAL_OFFLINE_SERIAL_
 #ifdef _CLASSICAL_OFFLINE_SERIAL_
 SUBROUTINE init_ens_pdaf(filtertype,dim_p,dim_ens,state_p,Uinv,ens_p,flag)
-! !ARGUMENTS:
-   INTEGER, INTENT(in) :: filtertype              ! Type of filter to initialize
-   INTEGER, INTENT(in) :: dim_p                   ! PE-local state dimension
-   INTEGER, INTENT(in) :: dim_ens                 ! Size of ensemble
-   REAL(REAL64), INTENT(inout) :: state_p(dim_p)          ! PE-local model state
-   ! It is not necessary to initialize the array 'state_p' for SEIK.
-   ! It is available here only for convenience and can be used freely.
-   REAL(REAL64), INTENT(inout) :: Uinv(dim_ens-1,dim_ens-1) ! Array not referenced for SEIK
-   REAL(REAL64), INTENT(out)   :: ens_p(dim_p, dim_ens)   ! PE-local state ensemble
-   INTEGER, INTENT(inout) :: flag                 ! PDAF status flag
+   INTEGER, INTENT(in) :: filtertype
+     !! Type of filter to initialize
+   INTEGER, INTENT(in) :: dim_p
+     !! PE-local state dimension
+   INTEGER, INTENT(in) :: dim_ens
+     !! Size of ensemble
+   REAL(REAL64), INTENT(inout) :: state_p(dim_p)
+     !! PE-local model state
+     ! It is not necessary to initialize the array 'state_p' for SEIK.
+     ! It is available here only for convenience and can be used freely.
+   REAL(REAL64), INTENT(inout) :: Uinv(dim_ens-1,dim_ens-1)
+     !! Array not referenced for SEIK
+   REAL(REAL64), INTENT(out)   :: ens_p(dim_p, dim_ens)
+     !! PE-local state ensemble
+   INTEGER, INTENT(inout) :: flag
+     !! PDAF status flag
 
    if (verbosity >= debug) write(stderr,*) 'init_ens_pdaf() ',filtertype,dim_p,dim_ens
-   ! copy all_states(:,:) to ens_p
-!KB   ens_p=model_states
 END SUBROUTINE init_ens_pdaf
 
 !-----------------------------------------------------------------------
@@ -491,6 +401,7 @@ END SUBROUTINE init_ens_pdaf
 SUBROUTINE collect_state_pdaf(dim_p, state_p)
    INTEGER, INTENT(in) :: dim_p
    INTEGER, INTENT(inout) :: state_p(dim_p)
+
    ! can be empty as all states have already been collected
    if (verbosity >= debug) write(stderr,*) 'collect_state_pdaf()'
 END SUBROUTINE collect_state_pdaf
@@ -501,6 +412,7 @@ END SUBROUTINE collect_state_pdaf
 SUBROUTINE distribute_state_pdaf(dim_p, state_p)
    INTEGER, INTENT(in) :: dim_p
    INTEGER, INTENT(inout) :: state_p(dim_p)
+
    ! can be empty as all states have already been distrubuted
    if (verbosity >= debug) write(stderr,*) 'distribute_state_pdaf()'
 END SUBROUTINE distribute_state_pdaf
@@ -509,21 +421,29 @@ END SUBROUTINE distribute_state_pdaf
 
 ! Initialize dimension of observation vector
 SUBROUTINE init_dim_obs_pdaf(step, dim_obs_p)
-   INTEGER, INTENT(in)  :: step       ! Current time step
-   INTEGER, INTENT(out) :: dim_obs_p  ! Dimension of observation vector
-   dim_obs_p = size(obs)
+   INTEGER, INTENT(in)  :: step
+     !! Current time step
+   INTEGER, INTENT(out) :: dim_obs_p
+     !! Dimension of observation vector
+
    if (verbosity >= debug) write(stderr,*) 'init_dim_obs_pdaf() ',step,dim_obs_p
+   dim_obs_p = size(obs)
 END SUBROUTINE init_dim_obs_pdaf
 
 !-----------------------------------------------------------------------
 
 ! Implementation of the Observation operator
 SUBROUTINE obs_op_pdaf(step, dim_p, dim_obs_p, state_p, m_state_p)
-   INTEGER, INTENT(in) :: step               ! Currrent time step
-   INTEGER, INTENT(in) :: dim_p              ! PE-local dimension of state
-   INTEGER, INTENT(in) :: dim_obs_p          ! Dimension of observed state
-   REAL(REAL64), INTENT(in)    :: state_p(dim_p)     ! PE-local model state
-   REAL(REAL64), INTENT(out) :: m_state_p(dim_obs_p) ! PE-local observed state
+   INTEGER, INTENT(in) :: step
+     !! Currrent time step
+   INTEGER, INTENT(in) :: dim_p
+     !! PE-local dimension of state
+   INTEGER, INTENT(in) :: dim_obs_p
+     !! Dimension of observed state
+   REAL(REAL64), INTENT(in) :: state_p(dim_p)
+     !! PE-local model state
+   REAL(REAL64), INTENT(out) :: m_state_p(dim_obs_p)
+     !! PE-local observed state
 
    integer :: i
 
@@ -537,11 +457,15 @@ END SUBROUTINE obs_op_pdaf
 
 ! Routine to provide vector of measurements
 SUBROUTINE init_obs_pdaf(step, dim_obs_f, observation_f)
-  INTEGER, INTENT(in) :: step        ! Current time step
-  INTEGER, INTENT(in) :: dim_obs_f   ! Dimension of full observation vector
-  REAL(REAL64), INTENT(out)   :: observation_f(dim_obs_f) ! Full observation vector
-  if (verbosity >= debug) write(stderr,*) 'init_obs_pdaf() ',dim_obs_f,size(observation_f)
-  observation_f = obs(1:dim_obs_f)
+   INTEGER, INTENT(in) :: step
+     !! Current time step
+   INTEGER, INTENT(in) :: dim_obs_f
+     !! Dimension of full observation vector
+   REAL(REAL64), INTENT(out) :: observation_f(dim_obs_f)
+     !! Full observation vector
+
+   if (verbosity >= debug) write(stderr,*) 'init_obs_pdaf() ',dim_obs_f,size(observation_f)
+   observation_f = obs(1:dim_obs_f)
 END SUBROUTINE init_obs_pdaf
 
 !-----------------------------------------------------------------------
@@ -549,29 +473,48 @@ END SUBROUTINE init_obs_pdaf
 ! ! Subroutine used in SEIK and ETKF
 ! User supplied pre/poststep routine
 SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state_p, Uinv, ens_p, flag)
-   INTEGER, INTENT(in) :: step        ! Current time step (not relevant for offline mode)
-   INTEGER, INTENT(in) :: dim_p       ! PE-local state dimension
-   INTEGER, INTENT(in) :: dim_ens     ! Size of state ensemble
-   INTEGER, INTENT(in) :: dim_ens_p   ! PE-local size of ensemble
-   INTEGER, INTENT(in) :: dim_obs_p   ! PE-local dimension of observation vector
-   REAL(REAL64), INTENT(inout) :: state_p(dim_p) ! PE-local forecast/analysis state
-   ! The array 'state_p' is not generally not initialized in the case of SEIK.
-   ! It can be used freely here.
-   REAL(REAL64), INTENT(inout) :: Uinv(dim_ens-1, dim_ens-1) ! Inverse of matrix U
-   REAL(REAL64), INTENT(inout) :: ens_p(dim_p, dim_ens)      ! PE-local state ensemble
-   INTEGER, INTENT(in) :: flag        ! PDAF status flag
+   INTEGER, INTENT(in) :: step
+     !! Current time step (not relevant for offline mode)
+   INTEGER, INTENT(in) :: dim_p
+     !! PE-local state dimension
+   INTEGER, INTENT(in) :: dim_ens
+     !! Size of state ensemble
+   INTEGER, INTENT(in) :: dim_ens_p
+     !! PE-local size of ensemble
+   INTEGER, INTENT(in) :: dim_obs_p
+     !! PE-local dimension of observation vector
+   REAL(REAL64), INTENT(inout) :: state_p(dim_p)
+     !! PE-local forecast/analysis state
+     ! The array 'state_p' is not generally not initialized in the case of SEIK.
+     ! It can be used freely here.
+   REAL(REAL64), INTENT(inout) :: Uinv(dim_ens-1, dim_ens-1)
+     !! Inverse of matrix U
+   REAL(REAL64), INTENT(inout) :: ens_p(dim_p, dim_ens)
+     !! PE-local state ensemble
+   INTEGER, INTENT(in) :: flag
+     !! PDAF status flag
 
-! *** local variables ***
-  INTEGER :: i, j, member             ! Counters
-  LOGICAL, SAVE :: firsttime = .TRUE. ! Routine is called for first time?
-  REAL :: invdim_ens                  ! Inverse ensemble size
-  REAL :: invdim_ensm1                ! Inverse of ensemble size minus 1
-  REAL :: rmserror_est                ! estimated RMS error
-  REAL, ALLOCATABLE :: variance(:)    ! model state variances
-  REAL, ALLOCATABLE :: field(:,:)     ! global model field
-  CHARACTER(len=2) :: ensstr          ! String for ensemble member
-  CHARACTER(len=2) :: stepstr         ! String for time step
-  CHARACTER(len=3) :: anastr          ! String for call type (initial, forecast, analysis)
+   !! local variables
+   INTEGER :: i, j, member
+     !! Counters
+   LOGICAL, SAVE :: firsttime = .TRUE.
+     !! Routine is called for first time?
+   REAL :: invdim_ens
+     !! Inverse ensemble size
+   REAL :: invdim_ensm1
+     !! Inverse of ensemble size minus 1
+   REAL :: rmserror_est
+     !! estimated RMS error
+   REAL, ALLOCATABLE :: variance(:)
+     !! model state variances
+   REAL, ALLOCATABLE :: field(:,:)
+     !! global model field
+   CHARACTER(len=2) :: ensstr
+     !! String for ensemble member
+   CHARACTER(len=2) :: stepstr
+     !! String for time step
+   CHARACTER(len=3) :: anastr
+     !! String for call type (initial, forecast, analysis)
 
    if (verbosity >= debug) write(stderr,*) 'prepoststep_ens_pdaf()',dim_p, dim_ens, dim_ens_p, dim_obs_p
 
@@ -579,26 +522,26 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
 ! *** INITIALIZATION ***
 ! **********************
 
-  IF (firsttime) THEN
-     WRITE (*, '(8x, a)') 'Analyze initial state ensemble'
-     anastr = 'ini'
-  ELSE
-     IF (step<0) THEN
-        WRITE (*, '(8x, a)') 'Analyze and write forecasted state ensemble'
-        anastr = 'for'
-     ELSE
-        WRITE (*, '(8x, a)') 'Analyze and write assimilated state ensemble'
-        anastr = 'ana'
-     END IF
-  END IF
+   IF (firsttime) THEN
+      WRITE (*, '(8x, a)') 'Analyze initial state ensemble'
+      anastr = 'ini'
+   ELSE
+      IF (step<0) THEN
+         WRITE (*, '(8x, a)') 'Analyze and write forecasted state ensemble'
+         anastr = 'for'
+      ELSE
+         WRITE (*, '(8x, a)') 'Analyze and write assimilated state ensemble'
+         anastr = 'ana'
+      END IF
+   END IF
 
-  ! Allocate fields
-  ALLOCATE(variance(dim_p))
+   ! Allocate fields
+   ALLOCATE(variance(dim_p))
 
-  ! Initialize numbers
-  rmserror_est  = 0.0
-  invdim_ens    = 1.0 / REAL(dim_ens)
-  invdim_ensm1  = 1.0 / REAL(dim_ens - 1)
+   ! Initialize numbers
+   rmserror_est  = 0.0
+   invdim_ens    = 1.0 / REAL(dim_ens)
+   invdim_ensm1  = 1.0 / REAL(dim_ens - 1)
 
 
 ! ****************************************************************
@@ -606,30 +549,27 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
 ! *** completely in the ensemble.                              ***
 ! ****************************************************************
 
-  ! *** Compute mean state
-  WRITE (*, '(8x, a)') '--- compute ensemble mean'
+   ! *** Compute mean state
+   WRITE (*, '(8x, a)') '--- compute ensemble mean'
 
-  state_p = 0.0
-  DO member = 1, dim_ens
-     DO i = 1, dim_p
-        state_p(i) = state_p(i) + ens_p(i, member)
-     END DO
-  END DO
-  state_p(:) = invdim_ens * state_p(:)
+   state_p = 0.0
+   DO member = 1, dim_ens
+      DO i = 1, dim_p
+         state_p(i) = state_p(i) + ens_p(i, member)
+      END DO
+   END DO
+   state_p(:) = invdim_ens * state_p(:)
 
-!KB  write (*,*) anastr, 'state ', state_p(1:10)
-
-
-  ! *** Compute sampled variances ***
-  variance(:) = 0.0
-  DO member = 1, dim_ens
-     DO j = 1, dim_p
-        variance(j) = variance(j) &
-             + (ens_p(j, member) - state_p(j)) &
-             * (ens_p(j, member) - state_p(j))
-     END DO
-  END DO
-  variance(:) = invdim_ensm1 * variance(:)
+   ! *** Compute sampled variances ***
+   variance(:) = 0.0
+   DO member = 1, dim_ens
+      DO j = 1, dim_p
+         variance(j) = variance(j) &
+              + (ens_p(j, member) - state_p(j)) &
+              * (ens_p(j, member) - state_p(j))
+      END DO
+   END DO
+   variance(:) = invdim_ensm1 * variance(:)
 
    block
    real(real64) :: s=0._real64,ss=0._real64
@@ -655,22 +595,21 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
 ! *** Compute RMS errors according to sampled covar matrix ***
 ! ************************************************************
 
-  ! total estimated RMS error
-  DO i = 1, dim_p
-     rmserror_est = rmserror_est + variance(i)
-  ENDDO
-  rmserror_est = SQRT(rmserror_est / dim_p)
+   ! total estimated RMS error
+   DO i = 1, dim_p
+      rmserror_est = rmserror_est + variance(i)
+   ENDDO
+   rmserror_est = SQRT(rmserror_est / dim_p)
 
-  DEALLOCATE(variance)
-
+   DEALLOCATE(variance)
 
 ! *****************
 ! *** Screen IO ***
 ! *****************
 
-  ! Output RMS errors given by sampled covar matrix
-  WRITE (*, '(12x, a, es12.4)') &
-       'RMS error according to sampled variance: ', rmserror_est
+   ! Output RMS errors given by sampled covar matrix
+   WRITE (*, '(12x, a, es12.4)') &
+        'RMS error according to sampled variance: ', rmserror_est
 
 #if 0
    block
@@ -689,17 +628,21 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
    end if
    end block
 #endif
-
 END SUBROUTINE prepoststep_ens_pdaf
 
 !-----------------------------------------------------------------------
 
 ! Initialize mean observation error variance
 SUBROUTINE init_obsvar_pdaf(step, dim_obs_p, obs_p, meanvar)
-   INTEGER, INTENT(in) :: step          ! Current time step
-   INTEGER, INTENT(in) :: dim_obs_p     ! PE-local dimension of observation vector
-   REAL(REAL64), INTENT(in) :: obs_p(dim_obs_p) ! PE-local observation vector
-   REAL(REAL64), INTENT(out)   :: meanvar       ! Mean observation error variance
+   INTEGER, INTENT(in) :: step
+     !! Current time step
+   INTEGER, INTENT(in) :: dim_obs_p
+     !! PE-local dimension of observation vector
+   REAL(REAL64), INTENT(in) :: obs_p(dim_obs_p)
+     !! PE-local observation vector
+   REAL(REAL64), INTENT(out) :: meanvar
+     !! Mean observation error variance
+
    if (verbosity >= debug) write(stderr,*) 'init_obsvar_pdaf() ',rms_obs
    meanvar = rms_obs ** 2
 END SUBROUTINE init_obsvar_pdaf
@@ -707,10 +650,14 @@ END SUBROUTINE init_obsvar_pdaf
 !-----------------------------------------------------------------------
 
 SUBROUTINE next_observation_pdaf(stepnow, nsteps, doexit, time)
-   INTEGER, INTENT(in)  :: stepnow  ! Number of the current time step
-   INTEGER, INTENT(out) :: nsteps   ! Number of time steps until next obs
-   INTEGER, INTENT(out) :: doexit   ! Whether to exit forecasting (1 for exit)
-   REAL(REAL64), INTENT(out)    :: time     ! Current model (physical) time
+   INTEGER, INTENT(in)  :: stepnow
+     !! Number of the current time step
+   INTEGER, INTENT(out) :: nsteps
+     !! Number of time steps until next obs
+   INTEGER, INTENT(out) :: doexit
+     !! Whether to exit forecasting (1 for exit)
+   REAL(REAL64), INTENT(out) :: time
+     !! Current model (physical) time
 
    if (verbosity >= debug) write(stderr,*) 'next_observation_pdaf() '
    nsteps=1
@@ -737,18 +684,24 @@ END SUBROUTINE init_obscovar_pdaf
 ! ! Subroutine used in SEIK and ETKF
 ! Provide product R^-1 A for some matrix A
 SUBROUTINE prodRinvA_pdaf(step, dim_obs_p, rank, obs_p, A_p, C_p)
-   INTEGER, INTENT(in) :: step                ! Current time step
-   INTEGER, INTENT(in) :: dim_obs_p           ! PE-local dimension of obs. vector
-   INTEGER, INTENT(in) :: rank                ! Rank of initial covariance matrix
-   REAL(REAL64), INTENT(in)    :: obs_p(dim_obs_p)    ! PE-local vector of observations
-   REAL(REAL64), INTENT(in)    :: A_p(dim_obs_p,rank) ! Input matrix from SEEK_ANALYSIS
-   REAL(REAL64), INTENT(out)   :: C_p(dim_obs_p,rank) ! Output matrix
+   INTEGER, INTENT(in) :: step
+     !! Current time step
+   INTEGER, INTENT(in) :: dim_obs_p
+     !! PE-local dimension of obs. vector
+   INTEGER, INTENT(in) :: rank
+     !! Rank of initial covariance matrix
+   REAL(REAL64), INTENT(in) :: obs_p(dim_obs_p)
+     !! PE-local vector of observations
+   REAL(REAL64), INTENT(in) :: A_p(dim_obs_p,rank)
+     !! Input matrix from SEEK_ANALYSIS
+   REAL(REAL64), INTENT(out) :: C_p(dim_obs_p,rank)
+     !! Output matrix
 
+   !! local variables
    integer :: i,j
    REAL(REAL64) :: ivariance_obs
 
    if (verbosity >= debug) write(stderr,*) 'prodRinvA_pdaf() ',dim_obs_p,rank,rms_obs
-
    ivariance_obs = 1.0 / rms_obs ** 2
    DO j = 1, rank
       DO i = 1, dim_obs_p
@@ -764,17 +717,20 @@ END SUBROUTINE prodRinvA_pdaf
 ! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_pdaf.F90
 SUBROUTINE cvt_pdaf(iter, dim_p, dim_cvec, v_p, Vv_p)
 
-  IMPLICIT NONE
+   ! *** Arguments ***
+   INTEGER, INTENT(in) :: iter
+     !!< Iteration of optimization
+   INTEGER, INTENT(in) :: dim_p
+     !!< PE-local observation dimension
+   INTEGER, INTENT(in) :: dim_cvec
+     !!< Dimension of control vector
+   REAL, TARGET, INTENT(in)    :: v_p(dim_cvec)
+     !!< PE-local control vector
+   REAL, TARGET, INTENT(inout) :: Vv_p(dim_p)
+     !!< PE-local result vector
 
-  ! *** Arguments ***
-  INTEGER, INTENT(in) :: iter          !< Iteration of optimization
-  INTEGER, INTENT(in) :: dim_p         !< PE-local observation dimension
-  INTEGER, INTENT(in) :: dim_cvec      !< Dimension of control vector
-  REAL, TARGET, INTENT(in)    :: v_p(dim_cvec) !< PE-local control vector
-  REAL, TARGET, INTENT(inout) :: Vv_p(dim_p)   !< PE-local result vector
-
-  IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(1, iter, dim_p, -1, dim_cvec, &
-      c_null_ptr, c_loc(v_p), c_loc(Vv_p))
+   IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(1, iter, dim_p, -1, dim_cvec, &
+       c_null_ptr, c_loc(v_p), c_loc(Vv_p))
 END SUBROUTINE cvt_pdaf
 
 !-----------------------------------------------------------------------
@@ -782,17 +738,20 @@ END SUBROUTINE cvt_pdaf
 ! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_adj_pdaf.F90
 SUBROUTINE cvt_adj_pdaf(iter, dim_p, dim_cvec, Vv_p, v_p)
 
-  IMPLICIT NONE
+!  *** Arguments ***
+   INTEGER, INTENT(in) :: iter
+     !!< Iteration of optimization
+   INTEGER, INTENT(in) :: dim_p
+     !!< PE-local observation dimension
+   INTEGER, INTENT(in) :: dim_cvec
+     !!< Dimension of control vector
+   REAL, TARGET, INTENT(in)    :: Vv_p(dim_p)
+     !!< PE-local input vector
+   REAL, TARGET, INTENT(inout) :: v_p(dim_cvec)
+     !!< PE-local result vector
 
-! *** Arguments ***
-  INTEGER, INTENT(in) :: iter          !< Iteration of optimization
-  INTEGER, INTENT(in) :: dim_p         !< PE-local observation dimension
-  INTEGER, INTENT(in) :: dim_cvec      !< Dimension of control vector
-  REAL, TARGET, INTENT(in)    :: Vv_p(dim_p)   !< PE-local input vector
-  REAL, TARGET, INTENT(inout) :: v_p(dim_cvec) !< PE-local result vector
-
-  IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(2, iter, dim_p, -1, dim_cvec, &
-      c_null_ptr, c_loc(v_p), c_loc(Vv_p))
+   IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(2, iter, dim_p, -1, dim_cvec, &
+       c_null_ptr, c_loc(v_p), c_loc(Vv_p))
 END SUBROUTINE cvt_adj_pdaf
 
 !-----------------------------------------------------------------------
@@ -800,19 +759,23 @@ END SUBROUTINE cvt_adj_pdaf
 ! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_ens_pdaf.F90
 SUBROUTINE cvt_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, v_p, Vv_p)
 
-  IMPLICIT NONE
+   INTEGER, INTENT(in) :: iter
+     !!< Iteration of optimization
+   INTEGER, INTENT(in) :: dim_p
+     !!< PE-local dimension of state
+   INTEGER, INTENT(in) :: dim_ens
+     !!< Ensemble size
+   INTEGER, INTENT(in) :: dim_cvec_ens
+     !!< Dimension of control vector
+   REAL, TARGET, INTENT(in) :: ens_p(dim_p, dim_ens)
+     !!< PE-local ensemble
+   REAL, TARGET, INTENT(in) :: v_p(dim_cvec_ens)
+     !!< PE-local control vector
+   REAL, TARGET, INTENT(inout) :: Vv_p(dim_p)
+     !!< PE-local state increment
 
-! *** Arguments ***
-  INTEGER, INTENT(in) :: iter               !< Iteration of optimization
-  INTEGER, INTENT(in) :: dim_p              !< PE-local dimension of state
-  INTEGER, INTENT(in) :: dim_ens            !< Ensemble size
-  INTEGER, INTENT(in) :: dim_cvec_ens       !< Dimension of control vector
-  REAL, TARGET, INTENT(in) :: ens_p(dim_p, dim_ens) !< PE-local ensemble
-  REAL, TARGET, INTENT(in) :: v_p(dim_cvec_ens)     !< PE-local control vector
-  REAL, TARGET, INTENT(inout) :: Vv_p(dim_p)        !< PE-local state increment
-
-  IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(3, iter, dim_p, dim_ens, dim_cvec_ens, &
-      c_loc(ens_p), c_loc(v_p), c_loc(Vv_p))
+   IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(3, iter, dim_p, dim_ens, dim_cvec_ens, &
+       c_loc(ens_p), c_loc(v_p), c_loc(Vv_p))
 END SUBROUTINE cvt_ens_pdaf
 
 !-----------------------------------------------------------------------
@@ -820,31 +783,42 @@ END SUBROUTINE cvt_ens_pdaf
 ! ~PDAF_V2.0/tutorial/3dvar/online_2D_serialmodel/cvt_adj_ens_pdaf.F90
 SUBROUTINE cvt_adj_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, Vv_p, v_p)
 
-  IMPLICIT NONE
-
 ! *** Arguments ***
-  INTEGER, INTENT(in) :: iter               !< Iteration of optimization
-  INTEGER, INTENT(in) :: dim_p              !< PE-local dimension of state
-  INTEGER, INTENT(in) :: dim_ens            !< Ensemble size
-  INTEGER, INTENT(in) :: dim_cvec_ens       !< Number of columns in HV_p
-  REAL, TARGET, INTENT(in) :: ens_p(dim_p, dim_ens) !< PE-local ensemble
-  REAL, TARGET, INTENT(in)    :: Vv_p(dim_p)        !< PE-local input vector
-  REAL, TARGET, INTENT(inout) :: v_p(dim_cvec_ens)  !< PE-local result vector
+   INTEGER, INTENT(in) :: iter
+     !!< Iteration of optimization
+   INTEGER, INTENT(in) :: dim_p
+     !!< PE-local dimension of state
+   INTEGER, INTENT(in) :: dim_ens
+     !!< Ensemble size
+   INTEGER, INTENT(in) :: dim_cvec_ens
+     !!< Number of columns in HV_p
+   REAL, TARGET, INTENT(in) :: ens_p(dim_p, dim_ens)
+     !!< PE-local ensemble
+   REAL, TARGET, INTENT(in)    :: Vv_p(dim_p)
+     !!< PE-local input vector
+   REAL, TARGET, INTENT(inout) :: v_p(dim_cvec_ens)
+     !!< PE-local result vector
 
-  IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(4, iter, dim_p, dim_ens, dim_cvec_ens, &
-      c_loc(ens_p), c_loc(v_p), c_loc(Vv_p))
+   IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(4, iter, dim_p, dim_ens, dim_cvec_ens, &
+       c_loc(ens_p), c_loc(v_p), c_loc(Vv_p))
 END SUBROUTINE cvt_adj_ens_pdaf
 
 !-----------------------------------------------------------------------
 
 ! Implementation of the adjoint Observation operator
 SUBROUTINE obs_op_adj_pdaf(step, dim_p, dim_obs_p, m_state_p, state_p)
-   INTEGER, INTENT(in) :: step               ! Currrent time step
-   INTEGER, INTENT(in) :: dim_p              ! PE-local dimension of state
-   INTEGER, INTENT(in) :: dim_obs_p          ! Dimension of observed state
-   REAL(REAL64), INTENT(in) :: m_state_p(dim_obs_p) ! PE-local observed state
-   REAL(REAL64), INTENT(out) :: state_p(dim_p) ! PE-local model state
+   INTEGER, INTENT(in) :: step
+     !! Currrent time step
+   INTEGER, INTENT(in) :: dim_p
+     !! PE-local dimension of state
+   INTEGER, INTENT(in) :: dim_obs_p
+     !! Dimension of observed state
+   REAL(REAL64), INTENT(in) :: m_state_p(dim_obs_p)
+     !! PE-local observed state
+   REAL(REAL64), INTENT(out) :: state_p(dim_p)
+     !! PE-local model state
 
+   !! local variables
    integer :: i
 
    if (verbosity >= debug) write(stderr,*) 'obs_op_adj_pdaf() ',dim_p, dim_obs_p
