@@ -1,10 +1,9 @@
 ! Copyright (C) 2021 Bolding & Bruggeman
 
-!KB#define _F08_
-
 module eat_config
 
-   !! General MPI routines shared by server, worker and obs_handler
+   !! Initialize the MPI environment - Fortran side.
+   !! Defined constants here must be matched by Python
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
 #ifdef _F08_

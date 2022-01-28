@@ -9,7 +9,7 @@ module pdaf_wrapper
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use eat_config, only: info, debug
-   use pdaf_mod_filter
+   use PDAF_mod_filter
    use PDAF_interfaces_module
    use iso_c_binding, only: c_ptr, c_null_ptr, c_loc, c_int, c_double
 
@@ -22,22 +22,24 @@ module pdaf_wrapper
    integer :: stderr=error_unit,stdout=output_unit
    integer :: verbosity=info
 
-   integer, pointer, contiguous :: iobs(:)
-   real(real64), pointer, contiguous :: obs(:)
+   integer, pointer, contiguous :: iobs(:) => null()
+      !! map observations to state
+   real(real64), pointer, contiguous :: obs(:) => null()
+      !! observation vector
 
-   !! PDAF main configuration variables
-   !! filtertype = 6 ! Type of filter
-                     !  (1) SEIK
-                     !  (2) EnKF
-                     !  (3) LSEIK
-                     !  (4) ETKF
-                     !  (5) LETKF
-                     !  (6) ESTKF
-                     !  (7) LESTKF
-                     ! (13) 3D-var
    integer :: filtertype=6
+      !! PDAF filter selection
+      ! filtertype = 6 ! Type of filter
+                       !  (1) SEIK
+                       !  (2) EnKF
+                       !  (3) LSEIK
+                       !  (4) ETKF
+                       !  (5) LETKF
+                       !  (6) ESTKF
+                       !  (7) LESTKF
+                       ! (13) 3D-var
    integer :: subtype = 0
-   !
+      !! PDAF subtype selection
    REAL(real64) :: timenow
    integer :: doexit,steps
    real(real64) :: rms_obs = 0.05
@@ -64,6 +66,7 @@ module pdaf_wrapper
       end subroutine
    end interface
    procedure (cvt_callback_interface), pointer, save :: pcvt_callback => null()
+      !! user implemented routine (in Python)
 
 !-----------------------------------------------------------------------
 
@@ -71,27 +74,16 @@ contains
 
 !-----------------------------------------------------------------------
 
-subroutine finish_pdaf() bind(c)
-
-   !! Cleanup and finalize the EAT/PDAF component
-
-!-----------------------------------------------------------------------
-#ifdef _USE_PDAF__
-   CALL finalize_pdaf(0) ! Basically CALL PDAF_deallocate()
-#endif
-end subroutine finish_pdaf
-
-!-----------------------------------------------------------------------
-
 ! Below are the routines implemented to link to the PDAF library - pdaf-d.
 
 SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, stat)
+
+      !! Initialize various variable and call PDAF_init()
 
    integer, intent(in), value :: EAT_COMM_filter, state_size, ensemble_size
    real(real64), pointer, contiguous :: model_states(:,:)
    integer, intent(out) :: stat
 
-   !! Local variables
    INTEGER :: filter_param_i(7)
      !! Integer parameter array for filter
    REAL(REAL64) :: filter_param_r(2)
@@ -105,7 +97,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
    integer :: comm_couple, comm_filter, comm_model, n_modeltasks, task_id
    logical :: filterpe=.true.
 
-   !! Filter specific variables
+   ! Filter specific variables
    integer :: &
    type_trans = 0    ! Type of ensemble transformation
                      !   SEIK/LSEIK and ESTKF/LESTKF:
@@ -366,6 +358,18 @@ SUBROUTINE assimilation_pdaf() bind(c)
         distribute_state_pdaf, prepoststep_ens_pdaf, status_pdaf)
    if (verbosity >= debug) write(stderr,*) 'PDAF GET STATUS= ',status_pdaf
 END SUBROUTINE assimilation_pdaf
+
+!-----------------------------------------------------------------------
+
+subroutine finish_pdaf() bind(c)
+
+   !! Cleanup and finalize the EAT/PDAF component
+
+!-----------------------------------------------------------------------
+#ifdef _USE_PDAF__
+   CALL finalize_pdaf(0) ! Basically CALL PDAF_deallocate()
+#endif
+end subroutine finish_pdaf
 
 !-----------------------------------------------------------------------
 
@@ -830,6 +834,14 @@ END SUBROUTINE obs_op_adj_pdaf
 
 !-----------------------------------------------------------------------
 
+SUBROUTINE abort(msg)
+   character(len=*), intent(in) :: msg
+   write (stderr, '(a)') msg
+   stop 1
+   ! call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
+END SUBROUTINE
+
+#if 1
 !KB - this routine needs content
 SUBROUTINE obs_op_lin_pdaf()
    call abort('obs_op_lin_pdaf')
@@ -849,13 +861,6 @@ END SUBROUTINE init_3dvar_pdaf
 SUBROUTINE prepoststep_3dvar_pdaf()
    call abort('prepoststep_3dvar_pdaf')
 END SUBROUTINE prepoststep_3dvar_pdaf
-
-SUBROUTINE abort(msg)
-   character(len=*), intent(in) :: msg
-   write (stderr, '(a)') msg
-   stop 1
-   ! call MPI_Abort(MPI_COMM_WORLD,-3,ierr)
-END SUBROUTINE
 
 ! ! Subroutines used in LSEIK and LETKF
 ! Provide number of local analysis domains
@@ -917,6 +922,7 @@ END SUBROUTINE obs_op_f_pdaf
 SUBROUTINE init_dim_obs_f_pdaf()
    call abort('init_dim_obs_f_pdaf')
 END SUBROUTINE init_dim_obs_f_pdaf
+#endif
 #endif
 
 end module pdaf_wrapper
