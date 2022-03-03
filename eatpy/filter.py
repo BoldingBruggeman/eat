@@ -81,6 +81,26 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
     state_size = numpy.array(0, dtype='i4')
     if nmodel:
         comm_model.Recv(state_size, source=1, tag=MPI.ANY_TAG)
+    model_states = numpy.empty((nmodel, state_size))
+
+    # Initialize plugins
+    variables = collections.OrderedDict(shared.parse_memory_map('da_variables.dat'))
+    for plugin in plugins:
+        plugin.initialize(variables, nmodel)
+
+    # Determine final state size (plugins may have added or removed variables)
+    if not variables:
+        raise Exception('No variables left to act upon (possibly due to plugins filtering out all)')
+    logger.info('The filter will affect the following %i state variables:' % len(variables))
+    state_size = 0
+    for name, info in variables.items():
+        model_loc = 'not in model'
+        if 'start' in info:
+            info['_data'] = model_states[:, info['start']:info['start'] + info['length']]
+            model_loc = '%i:%i in model' % (info['start'], info['start'] + info['length'])
+        info['start'] = state_size
+        state_size += info['length']
+        logger.info('- %s = %s (%s) [%i values, %s]' % (name, info['long_name'], info['units'], info['length'], model_loc))
 
     # Create filter. This will allocate an array to hold the state of all members: f.model_states
     cvt_handler = None
@@ -89,11 +109,11 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
             cvt_handler = plugin
     f = PDAF(comm, state_size, nmodel, cvt_handler)
 
-    # Initialize plugins
-    if plugins:
-        variables = collections.OrderedDict(shared.parse_memory_map('da_variables.dat'))
-        for plugin in plugins:
-            plugin.initialize(variables, nmodel)
+    # Create a mapping between state fo the modle and state as seen by the filter
+    model2filter_state_map = []
+    for info in variables.values():
+        if '_data' in info:
+            model2filter_state_map.append((info['_data'], f.model_states[:, info['start']:info['start'] + info['length']]))
 
     nobs = numpy.array(-1, dtype='i4')
     timestr = numpy.empty((19,), dtype=numpy.byte)
@@ -118,8 +138,12 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
 
         # Receive state from models
         for imodel in range(nmodel):
-            reqs.append(comm_model.Irecv(f.model_states[imodel, :], source=imodel + 1, tag=shared.TAG_FORECAST))
+            reqs.append(comm_model.Irecv(model_states[imodel, :], source=imodel + 1, tag=shared.TAG_FORECAST))
         MPI.Request.Waitall(reqs)
+
+        # Select the parts of the model state that the filter will act upon
+        for model_state, filter_state in model2filter_state_map:
+            filter_state[...] = model_state
 
         # Allow plugins to act before analysis begins
         if plugins:
@@ -135,10 +159,14 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
         for plugin in reversed(plugins):
             plugin.after_analysis(f.model_states)
 
+        # Select the parts of the model state that the filter has acted upon
+        for model_state, filter_state in model2filter_state_map:
+            model_state[...] = filter_state
+
         # Return state to models
         reqs = []
         for imodel in range(nmodel):
-            reqs.append(comm_model.Isend(f.model_states[imodel, :], dest=imodel + 1, tag=shared.TAG_ANALYSIS))
+            reqs.append(comm_model.Isend(model_states[imodel, :], dest=imodel + 1, tag=shared.TAG_ANALYSIS))
         MPI.Request.Waitall(reqs)
 
     # Allow plugins and filter to clean-up
