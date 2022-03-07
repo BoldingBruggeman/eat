@@ -152,7 +152,14 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
 
    namelist /nml_config_pdaf/ screen, filtertype, subtype, &
                               type_trans, type_forget, forget, &
-                              dim_cvec, dim_cvec_ens, beta_3dvar
+                              dim_cvec, dim_cvec_ens, beta_3dvar, &
+                              type_opt
+!KB                              type_3dvar, type_opt
+
+   ! values must be provided via namelist
+   dim_cvec=-1
+   dim_cvec_ens=ensemble_size
+   type_opt=0
 
    INQUIRE(FILE=nmlfile, EXIST=fileexists)
    if (fileexists) then
@@ -170,9 +177,6 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
    filterpe=.true.
    task_id=1
    n_modeltasks=1
-   ! values must be provided via namelist
-   dim_cvec=-1
-   dim_cvec_ens=dim_ens
 
    select case (filtertype)
       case (2)

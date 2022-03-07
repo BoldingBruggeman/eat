@@ -18,4 +18,6 @@
    !dim_cvec_ens=-1 ! Dimension of control vector (ensemble part)
                     ! will be set to dim_ens during initialization
    !beta_3dvar=0.5  ! [0-1]
+   !type_opt=0      ! [-1: LBFGS, 0: CG+, 1:steepest descent]
+
 /
