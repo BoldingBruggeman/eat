@@ -4,6 +4,17 @@ cmake_minimum_required(VERSION 3.0)
 
 project(eat VERSION 0.1.0 LANGUAGES Fortran)
 
+# In principle the code should be fixed - but here we provide a working fix
+# Set -fallow-argument-mismatch for major version >= 10
+if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
+    string(REPLACE "." ";" VERSION_LIST ${CMAKE_Fortran_COMPILER_VERSION})
+    list(GET VERSION_LIST 0 VERSION_MAJOR)
+    if(${VERSION_MAJOR} GREATER "9")
+        set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch")
+#KB - will fail when compiling C-code        add_definitions(-fallow-argument-mismatch)
+    endif()
+endif()
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake/Modules/")
 
 # Use solution folders in IDEs
@@ -47,9 +58,11 @@ endif(EAT_USE_MPI)
 add_subdirectory("extern/datetime-fortran" EXCLUDE_FROM_ALL)
 
 # As PDAF can't be added as a submodule we need to find out where it is located
-# First we look in EAT_PDAF_BASE (as configured via the call to cmake) - next we look in .../extern/pdaf
+# We look in EAT_PDAF_BASE (as configured via the call to cmake)
 if(EAT_USE_PDAF)
-   find_path(PDAF_BASE src/PDAF-D_init.F90 HINTS ${EAT_PDAF_BASE} ${CMAKE_CURRENT_LIST_DIR}/extern/pdaf DOC "Path to PDAF source directory.")
+   # PDAF naming scheme changed from V2.0 "-D" was dropped
+   find_path(PDAF_BASE NAMES src/PDAF_init.F90 src/PDAF-D_init.F90 HINTS ${EAT_PDAF_BASE} DOC "Path to PDAF source directory.")
+   message("${PDAF_BASE}")
    add_subdirectory(${PDAF_BASE} "extern/pdaf" EXCLUDE_FROM_ALL)
 endif(EAT_USE_PDAF)
 
