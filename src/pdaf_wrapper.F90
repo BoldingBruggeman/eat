@@ -178,6 +178,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
    task_id=1
    n_modeltasks=1
 
+   call PDAF_set_comm_pdaf(EAT_COMM_filter)
    select case (filtertype)
       case (2)
          ! *** EnKF with Monte Carlo init ***
@@ -187,7 +188,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
          filter_param_i(4) = incremental ! Whether to perform incremental analysis
          filter_param_i(5) = 0           ! Smoother lag (not implemented here)
          filter_param_r(1) = forget      ! Forgetting factor
-         call PDAF_set_comm_pdaf(EAT_COMM_filter)
+!KB         call PDAF_set_comm_pdaf(EAT_COMM_filter)
          CALL PDAF_init(filtertype, subtype, 0, &
               filter_param_i, 6,&
               filter_param_r, 2, &
@@ -205,7 +206,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
          filter_param_i(6) = type_trans  ! Type of ensemble transformation
          filter_param_i(7) = type_sqrt   ! Type of transform square-root (SEIK-sub4/ESTKF)
          filter_param_r(1) = forget      ! Forgetting factor
-         call PDAF_set_comm_pdaf(EAT_COMM_filter)
+!KB         call PDAF_set_comm_pdaf(EAT_COMM_filter)
          CALL PDAF_init(filtertype, subtype, 0, &
               filter_param_i, 7,&
               filter_param_r, 2, &
