@@ -134,7 +134,7 @@ end subroutine pre_model_initialize
 !-----------------------------------------------------------------------
 
 subroutine post_model_initialize()
-   type (type_output_item),  pointer :: item
+   type (type_output_item), pointer :: item
    integer :: ios, i
    integer, parameter :: unit = 250
    character(len=64) :: fn='da_variables.dat'
@@ -164,7 +164,7 @@ subroutine post_model_initialize()
       do i = 1, size(extra_state)
          if (extra_state(i) /= '') then
             allocate(item)
-            item%name = extra_state(i)
+            item%field => memory_file%field_manager%select_for_output(extra_state(i))
             call memory_file%append_item(item)
          end if
       end do
