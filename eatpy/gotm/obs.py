@@ -18,30 +18,46 @@ class File:
    def __init__(self, path: str, is_1d: bool=False):
       self.f = open(path, 'r')
       self.is_1d = is_1d
+      self.iline = 0
+      self.next = ''
+      self.read()
 
    def read(self):
-      for iline, line in enumerate(self.f):
+      if self.next is None:
+         # EOF reached previously
+         return
+
+      line = None
+      while line is None:
+         line = self.f.readline()
+         self.iline += 1
          if line.startswith('#'):
-            continue
+            # skip commented lines
+            line = None
+
+      if line == '':
+         # EOF
+         self.next = None
+      else:
          datematch = datetimere.match(line)
          if datematch is None:
-            raise Exception('Line %i does not start with time (yyyy-mm-dd hh:mm:ss). Line contents: %s' % (iline + 1, line))
+            raise Exception('Line %i does not start with time (yyyy-mm-dd hh:mm:ss). Line contents: %s' % (self.iline, line))
          refvals = map(int, datematch.group(1, 2, 3, 4, 5, 6)) # Convert matched strings into integers
          curtime = datetime.datetime(*refvals)
          data = line[datematch.end():].rstrip('\n').split()
          if self.is_1d:
             # Depth-explicit variable (on each line: time, depth, value)
             if len(data) != 2:
-               raise Exception('Line %i does not contain two values (depth, observation) after the date + time, but %i values.' % (iline + 1, len(data)))
+               raise Exception('Line %i does not contain two values (depth, observation) after the date + time, but %i values.' % (self.iline, len(data)))
             z = float(data[0])
             if not numpy.isfinite(z):
-               raise Exception('Depth on line %i is not a valid number: %s.' % (iline + 1, data[0]))
-            yield curtime, z, float(data[1])
+               raise Exception('Depth on line %i is not a valid number: %s.' % (self.iline, data[0]))
+            self.next = curtime, z, float(data[1])
          else:
             # Depth-independent variable (on each line: time, value)
             #if len(data) != 1:
-            #   raise Exception('Line %i does not contain one value (observation) after the date + time, but %i values.' % (iline + 1, len(data)))
-            yield curtime, float(data[0])
+            #   raise Exception('Line %i does not contain one value (observation) after the date + time, but %i values.' % (self.iline, len(data)))
+            self.next = curtime, None, float(data[0])
 
 class ObservationHandler:
    def __init__(self, state_layout_path: str='da_variables.dat', start: Optional[datetime.datetime]=None, stop: Optional[datetime.datetime]=None, logger: Optional[logging.Logger]=None):
@@ -88,10 +104,31 @@ class ObservationHandler:
 
    def observations(self):
       assert self.datasets
-      variable, idx, obsfile = self.datasets[0]
-      for time, value in obsfile.read():
+      while True:
+         # Find time of next observation
+         time = None
+         for _, _, obsfile in self.datasets:
+            if obsfile.next is not None:
+               current_time = obsfile.next[0]
+               if time is None or current_time < time:
+                  time = current_time
+
+         if time is None:
+            # No more observations
+            break
+
+         self.logger.debug('next observation time: %s' % time.strftime('%Y-%m-%d %H:%M:%S'))
+
+         indices, values = [], []
+         for variable, idx, obsfile in self.datasets:
+            while obsfile.next is not None and obsfile.next[0] == time:
+               self.logger.debug('- %s = %s' % (variable, obsfile.next[2]))
+               indices.append(idx)
+               values.append(obsfile.next[2])
+               obsfile.read()
+
          if (self.start_time is None or time >= self.start_time) and (self.stop_time is None or time <= self.stop_time):
-            yield time, numpy.array([idx], dtype='i4'), numpy.array([value], dtype=float)
+            yield time, numpy.array(indices, dtype='i4'), numpy.array(values, dtype=float)
 
    def start(self):
       reqs = []
@@ -116,9 +153,8 @@ class ObservationHandler:
             nobs = iobs.size
             self.logger.info('(-> filter) {}'.format(nobs))
             reqs.append(self.comm_filter.Issend(numpy.array(nobs, dtype='i4'), dest=1, tag=shared.TAG_NOBS))
-            if nobs > 0:
-               reqs.append(self.comm_filter.Issend(iobs, dest=1, tag=shared.TAG_IOBS))
-               reqs.append(self.comm_filter.Issend(obs, dest=1, tag=shared.TAG_OBS))
+            reqs.append(self.comm_filter.Issend(iobs, dest=1, tag=shared.TAG_IOBS))
+            reqs.append(self.comm_filter.Issend(obs, dest=1, tag=shared.TAG_OBS))
 
       if self.have_filter:
          self.comm_filter.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=1, tag=shared.TAG_TIMESTR)
@@ -135,6 +171,7 @@ def main():
    parser.add_argument('-o', '--obs', nargs=2, action='append', default=[])
    parser.add_argument('--start')
    parser.add_argument('--stop')
+   parser.add_argument('-v', '--verbose', action='store_true')
    args = parser.parse_args()
    assert args.obs, 'At least one dataset with observations must be provided with -o/--obs'
    if args.start is not None:
@@ -142,6 +179,8 @@ def main():
    if args.stop is not None:
       args.stop = datetime.datetime.strptime(args.stop, '%Y-%m-%d %H:%M:%S')
    handler = ObservationHandler(start=args.start, stop=args.stop)
+   if args.verbose:
+      handler.logger.setLevel(logging.DEBUG)
    for variable, path in args.obs:
       handler.add_observations(variable, path)
    handler.start()
