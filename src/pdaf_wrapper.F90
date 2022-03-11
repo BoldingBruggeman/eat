@@ -406,6 +406,13 @@ END SUBROUTINE init_ens_pdaf
 
 !-----------------------------------------------------------------------
 
+SUBROUTINE init_3dvar_pdaf()
+   ! initialized via Python plugin
+   if (verbosity >= debug) write(stderr,*) 'init_3dvar_pdaf()'
+END SUBROUTINE init_3dvar_pdaf
+
+!-----------------------------------------------------------------------
+
 ! Routine to collect a state vector from model fields
 SUBROUTINE collect_state_pdaf(dim_p, state_p)
    INTEGER, INTENT(in) :: dim_p
@@ -641,6 +648,12 @@ END SUBROUTINE prepoststep_ens_pdaf
 
 !-----------------------------------------------------------------------
 
+SUBROUTINE prepoststep_3dvar_pdaf()
+   if (verbosity >= debug) write(stderr,*) 'prepoststep_3dvar_pdaf()'
+END SUBROUTINE prepoststep_3dvar_pdaf
+
+!-----------------------------------------------------------------------
+
 ! Initialize mean observation error variance
 SUBROUTINE init_obsvar_pdaf(step, dim_obs_p, obs_p, meanvar)
    INTEGER, INTENT(in) :: step
@@ -856,16 +869,6 @@ END SUBROUTINE obs_op_lin_pdaf
 SUBROUTINE prepoststep_pdaf()
    call abort('prepoststep_pdaf')
 END SUBROUTINE prepoststep_pdaf
-
-!KB - this routine needs content
-SUBROUTINE init_3dvar_pdaf()
-   call abort('init_3dvar_pdaf')
-END SUBROUTINE init_3dvar_pdaf
-
-!KB - this routine needs content
-SUBROUTINE prepoststep_3dvar_pdaf()
-   call abort('prepoststep_3dvar_pdaf')
-END SUBROUTINE prepoststep_3dvar_pdaf
 
 ! ! Subroutines used in LSEIK and LETKF
 ! Provide number of local analysis domains
