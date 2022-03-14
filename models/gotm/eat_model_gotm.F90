@@ -164,6 +164,7 @@ subroutine post_model_initialize()
       do i = 1, size(extra_state)
          if (extra_state(i) /= '') then
             allocate(item)
+            item%name = trim(extra_state(i))
             item%field => memory_file%field_manager%select_for_output(extra_state(i))
             call memory_file%append_item(item)
          end if
