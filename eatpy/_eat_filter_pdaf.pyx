@@ -37,7 +37,7 @@ cdef void ccvt_callback(int cb_type, int iter, int dim_p, int dim_ens, int dim_c
     Vv_p_ = numpy.asarray(<double[:dim_p:1]> Vv_p)
     ens_p_ = None
     if ens_p != NULL:
-        ens_p_ = numpy.asarray(<double[:dim_ens, :dim_p:1]> Vv_p)
+        ens_p_ = numpy.asarray(<double[:dim_ens, :dim_p:1]> ens_p)
         ens_p_.flags.writeable = False
     if cvt_handler_ is not None:
         if cb_type == 1:
