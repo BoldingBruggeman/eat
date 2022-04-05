@@ -40,8 +40,7 @@ module pdaf_wrapper
                        ! (13) 3D-var
    integer :: subtype = 0
       !! PDAF subtype selection
-   integer :: type_3dvar = 0
-      !! PDAF 3dvar type selection
+      !! PDAF 3dvar subtype selection
                        ! (0) Parameterized 3D-Var
                        ! (1) Ensemble 3D-Var using LETKF for ensemble transformation
                        ! (4) Ensemble 3D-Var using global ETKF for ensemble transformation
@@ -160,7 +159,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
    namelist /nml_config_pdaf/ screen, filtertype, subtype, &
                               type_trans, type_forget, forget, &
                               dim_cvec, dim_cvec_ens, beta_3dvar, &
-                              type_3dvar, type_opt
+                              type_opt
 
    ! values must be provided via namelist
    dim_cvec=-1
@@ -225,7 +224,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
             filter_param_i(5) = dim_cvec_ens   ! Dimension of control vector (ensemble part)
             filter_param_r(1) = forget         ! Forgetting factor
             filter_param_r(2) = beta_3dvar     ! Hybrid weight for hybrid 3D-Var
-            select case (type_3dvar)
+            select case (subtype)
                case (0) ! parameterized 3D-Var
                   if (dim_cvec < 0) then
                      call abort('init_pdaf(): dim_cvec < 0')
@@ -307,7 +306,7 @@ SUBROUTINE assimilation_pdaf() bind(c)
       case (13)
          ! From .../PDAF_V1.16_var_devel/models/lorenz96/assimilation_pdaf.F90
 ! tkdiff ./tutorial/3dvar/online_2D_serialmodel/prepoststep_3dvar_pdaf.F90 ./tutorial/3dvar/online_2D_serialmodel/prepoststep_ens_pdaf.F90
-         select case (type_3dvar)
+         select case (subtype)
             case (0)
                CALL PDAF_put_state_3dvar(collect_state_pdaf, &
                     init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
@@ -329,9 +328,9 @@ SUBROUTINE assimilation_pdaf() bind(c)
                ! Ensemble 3D-Var with global ESTKF update of ensemble perturbations
                CALL PDAF_put_state_en3dvar_estkf(collect_state_pdaf, &
                     init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
-                    cvt_ens_pdaf, cvt_adj_ens_pdaf, obs_op_lin_pdaf, obs_op_adj_pdaf, &
+                    cvt_ens_pdaf, cvt_adj_ens_pdaf, obs_op_pdaf, obs_op_adj_pdaf, &
                     init_obsvar_pdaf, &
-                    prepoststep_pdaf, status_pdaf)
+                    prepoststep_ens_pdaf, status_pdaf)
             case (6)
 #if 0
                ! Hybrid 3D-Var with local ESTKF update of ensmeble perturbations
@@ -350,8 +349,8 @@ SUBROUTINE assimilation_pdaf() bind(c)
                CALL PDAF_put_state_hyb3dvar_estkf(collect_state_pdaf, &
                     init_dim_obs_pdaf, obs_op_pdaf, init_obs_pdaf, prodRinvA_pdaf, &
                     cvt_ens_pdaf, cvt_adj_ens_pdaf, cvt_pdaf, cvt_adj_pdaf, &
-                    obs_op_lin_pdaf, obs_op_adj_pdaf, init_obsvar_pdaf, &
-                    prepoststep_pdaf, status_pdaf)
+                    obs_op_pdaf, obs_op_adj_pdaf, init_obsvar_pdaf, &
+                    prepoststep_ens_pdaf, status_pdaf)
          end select
    end select
    if (status_pdaf /= 0) stop 'assimilation_pdaf(): status_pdaf /= 0'
