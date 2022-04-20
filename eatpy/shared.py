@@ -21,17 +21,14 @@ TAG_FORECAST=2
 
 def setup_mpi(color: int) -> Tuple[MPI.Comm, MPI.Comm, MPI.Comm, MPI.Comm]:
     """Set up MPI communicators."""
-    comm_obs = MPI.COMM_WORLD.Split(color=color if color == COLOR_OBS else MPI.UNDEFINED)
     comm_model = MPI.COMM_WORLD.Split(color=color if color == COLOR_MODEL else MPI.UNDEFINED)
     comm_filter = MPI.COMM_WORLD.Split(color=color if color == COLOR_FILTER else MPI.UNDEFINED)
 
-    comm_obs_model = MPI.COMM_WORLD.Split(color=MPI.UNDEFINED if color == COLOR_FILTER else COLOR_OBS + COLOR_MODEL, key=-1 if color == COLOR_OBS else MPI.COMM_WORLD.rank)
-    comm_obs_filter = MPI.COMM_WORLD.Split(color=MPI.UNDEFINED if color == COLOR_MODEL else COLOR_OBS + COLOR_FILTER, key=-1 if color == COLOR_OBS else 1)
     comm_model_filter = MPI.COMM_WORLD.Split(color=MPI.UNDEFINED if color == COLOR_OBS else COLOR_MODEL + COLOR_FILTER, key=-1 if color == COLOR_FILTER else 1)
 
     MPI.COMM_WORLD.Barrier()
 
-    return {COLOR_OBS: comm_obs, COLOR_MODEL: comm_model, COLOR_FILTER: comm_filter}[color], comm_obs_model, comm_obs_filter, comm_model_filter
+    return {COLOR_MODEL: comm_model, COLOR_FILTER: comm_filter}[color], comm_model_filter
 
 def parse_memory_map(path: str):
     """Parse file describing layout of state in memory. This file is written by GOTM."""
@@ -68,7 +65,7 @@ class Plugin:
     def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
         pass
 
-    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray, filter: Filter):
+    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray, obs_sds: numpy.ndarray, filter: Filter):
         pass
 
     def after_analysis(self, state: numpy.ndarray):
@@ -81,12 +78,12 @@ class TestPlugin(Plugin):
     def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
         print('TestPlugin.initialize')
 
-    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray, filter: Filter):
+    def before_analysis(self, *args, **kwargs):
         print('TestPlugin.before_analysis')
 
-    def after_analysis(self, state: numpy.ndarray):
+    def after_analysis(self, *args, **kwargs):
         print('TestPlugin.after_analysis')
 
-    def finalize(self):        
+    def finalize(self):
         print('TestPlugin.finalize')
 

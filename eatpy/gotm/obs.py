@@ -4,22 +4,21 @@ import datetime
 import argparse
 import re
 import logging
-from typing import Optional
+from typing import Optional, List, Tuple
 
 import numpy
-from mpi4py import MPI
-
-from .. import shared
 
 # Regular expression for ISO 8601 datetimes
 datetimere = re.compile(r'(\d\d\d\d).(\d\d).(\d\d) (\d\d).(\d\d).(\d\d)\s*')
 
 class File:
-   def __init__(self, path: str, is_1d: bool=False):
+   def __init__(self, path: str, is_1d: bool=False, sd: Optional[float]=None, offset: int=0):
       self.f = open(path, 'r')
       self.is_1d = is_1d
       self.iline = 0
       self.next = ''
+      self.sd = sd
+      self.offset = offset
       self.read()
 
    def read(self):
@@ -30,160 +29,133 @@ class File:
       line = None
       while line is None:
          line = self.f.readline()
+         if line == '':
+            # EOF
+            self.next = None
+            return
          self.iline += 1
-         if line.startswith('#'):
+         line = line.split('#', 1)[0].strip()
+         if line == '':
             # skip commented lines
             line = None
 
-      if line == '':
-         # EOF
-         self.next = None
+      datematch = datetimere.match(line)
+      if datematch is None:
+         raise Exception('Line %i does not start with time (yyyy-mm-dd hh:mm:ss). Line contents: %s' % (self.iline, line))
+      refvals = map(int, datematch.group(1, 2, 3, 4, 5, 6)) # Convert matched strings into integers
+      curtime = datetime.datetime(*refvals)
+      data = line[datematch.end():].rstrip('\n').split()
+      if self.is_1d:
+         # Depth-explicit variable (on each line: time, depth, value)
+         if len(data) not in (2, 3):
+            raise Exception('Line %i must contain two values (depth, observation) or three values (depth, observation, sd) after the date + time, but it contains %i values.' % (self.iline, len(data)))
+         if len(data) == 2 and self.sd is None:
+            raise Exception('Line %i must contain three values (depth, observation, sd) after the date + time, since the standard deviation of observations has not been prescribed separately. However, the line contains %i values.' % (self.iline, len(data)))
+         z = float(data[0])
+         if not numpy.isfinite(z):
+            raise Exception('Depth on line %i is not a valid number: %s.' % (self.iline, data[0]))
+         value = float(data[1])
+         sd = self.sd if self.sd is not None else float(data[2])
+         self.next = curtime, z, value, sd
       else:
-         datematch = datetimere.match(line)
-         if datematch is None:
-            raise Exception('Line %i does not start with time (yyyy-mm-dd hh:mm:ss). Line contents: %s' % (self.iline, line))
-         refvals = map(int, datematch.group(1, 2, 3, 4, 5, 6)) # Convert matched strings into integers
-         curtime = datetime.datetime(*refvals)
-         data = line[datematch.end():].rstrip('\n').split()
-         if self.is_1d:
-            # Depth-explicit variable (on each line: time, depth, value)
-            if len(data) != 2:
-               raise Exception('Line %i does not contain two values (depth, observation) after the date + time, but %i values.' % (self.iline, len(data)))
-            z = float(data[0])
-            if not numpy.isfinite(z):
-               raise Exception('Depth on line %i is not a valid number: %s.' % (self.iline, data[0]))
-            self.next = curtime, z, float(data[1])
-         else:
-            # Depth-independent variable (on each line: time, value)
-            #if len(data) != 1:
-            #   raise Exception('Line %i does not contain one value (observation) after the date + time, but %i values.' % (self.iline, len(data)))
-            self.next = curtime, None, float(data[0])
+         # Depth-independent variable (on each line: time, value)
+         if len(data) not in (1, 2):
+            raise Exception('Line %i must contain one value (observation) or two values (observation, sd) after the date + time, but it contains %i values.' % (self.iline, len(data)))
+         value = float(data[0])
+         sd = self.sd if self.sd is not None else float(data[1])
+         self.next = curtime, None, value, sd
 
 class ObservationHandler:
-   def __init__(self, state_layout_path: str='da_variables.dat', start: Optional[datetime.datetime]=None, stop: Optional[datetime.datetime]=None, logger: Optional[logging.Logger]=None):
+   def __init__(self, start: Optional[datetime.datetime]=None, stop: Optional[datetime.datetime]=None, verbose: bool=False, logger: Optional[logging.Logger]=None):
       self.logger = logger or logging.getLogger('obs')
+      if verbose:
+         self.logger.setLevel(logging.DEBUG)
 
       self.start_time = start
       self.stop_time = stop
+      self.time = None
 
-      comm, self.comm_model, self.comm_filter, _ = shared.setup_mpi(shared.COLOR_OBS)
-      assert comm.size == 1, 'There can only be one instance of the observation handler active.'
-      assert self.comm_model.rank == 0
-      assert self.comm_filter.rank == 0
-      self.have_filter = self.comm_filter.size > 1
+      self.datasets: List[Tuple[str, File]] = []
 
-      size_obs_model = self.comm_model.size
-      self.nmodel = size_obs_model - comm.size
-      self.logger.info(' obs() connected with {} models'.format(self.nmodel))
-
-      # Wait for model to generate the file that describes the memory layout
-      self.comm_model.Barrier()
-
-      self.logger.info('Parsing memory map %s' % state_layout_path)
-      self.memory_map = {}
-      for name, metadata in shared.parse_memory_map(state_layout_path):
-         self.memory_map[name] = (metadata['start'] + 1, metadata['start'] + metadata['length'])
-
-      self.datasets = []
-
-   def add_observations(self, variable: str, path: str):
-      idx = None
+   def add_observations(self, variable: str, path: str, is_1d: bool, sd: Optional[float]=None):
+      offset = 0
       if '[' in variable and variable[-1] == ']':
-         variable, idx = variable[:-1].split('[')
-         idx = int(idx)
-      assert variable in self.memory_map
-      istart, istop = self.memory_map[variable]
-      if idx is None:
-         assert istart == istop, 'Variable %s can only be assimilated at a single depth. Specify a depth index like this: %s[<INDEX>], using for instance <INDEX>=0 for bottom or <INDEX>=-1 for surface.' % (variable, variable)
-         idx = istart
-      elif idx < 0:
-         idx = istop + idx + 1
-      else:
-         idx = istart + idx
-      self.datasets.append((variable, idx, File(path)))
+         variable, depth_index = variable[:-1].split('[')
+         offset = int(depth_index)
+      self.datasets.append((variable, File(path, is_1d=is_1d, sd=sd, offset=offset)))
 
    def observations(self):
       assert self.datasets
       while True:
          # Find time of next observation
-         time = None
-         for _, _, obsfile in self.datasets:
+         self.time = None
+         for _, obsfile in self.datasets:
             if obsfile.next is not None:
                current_time = obsfile.next[0]
-               if time is None or current_time < time:
-                  time = current_time
+               if self.time is None or current_time < self.time:
+                  self.time = current_time
 
-         if time is None:
+         if self.time is None:
             # No more observations
             break
 
-         self.logger.debug('next observation time: %s' % time.strftime('%Y-%m-%d %H:%M:%S'))
+         if (self.start_time is None or self.time >= self.start_time) and (self.stop_time is None or self.time <= self.stop_time):
+            self.logger.debug('next observation time: %s' % self.time.strftime('%Y-%m-%d %H:%M:%S'))
+            yield self.time
+         else:
+            self.logger.debug('skipping observations at time %s' % self.time.strftime('%Y-%m-%d %H:%M:%S'))
+            for _, obsfile in self.datasets:
+               while obsfile.next is not None and obsfile.next[0] == self.time:
+                  obsfile.read()
 
-         indices, values = [], []
-         for variable, idx, obsfile in self.datasets:
-            while obsfile.next is not None and obsfile.next[0] == time:
-               self.logger.debug('- %s = %s' % (variable, obsfile.next[2]))
-               indices.append(idx)
-               values.append(obsfile.next[2])
-               obsfile.read()
+   def collect_observations(self):
+      self.depth_map = []
+      self.values = []
+      self.sds = []
+      self.depth_indices = []
+      istart = 0
+      for variable, obsfile in self.datasets:
+         zs = []
+         while obsfile.next is not None and obsfile.next[0] == self.time:
+            _, z, value, sd = obsfile.next
+            self.logger.debug('- %s%s = %s (sd = %s)' % (variable, '' if z is None else (' @ %.2f m' % z), value, sd))
+            zs.append(z if obsfile.is_1d else obsfile.offset)
+            self.values.append(value)
+            self.sds.append(sd)
+            obsfile.read()
+         self.depth_map.append((variable, istart, numpy.array(zs), obsfile.is_1d))
+         istart = len(self.values)
+      self.values = numpy.array(self.values, dtype=float)
+      self.sds = numpy.array(self.sds, dtype=float)
+      self.depth_indices = numpy.full(self.values.shape, -10000, dtype='i4')
 
-         if (self.start_time is None or time >= self.start_time) and (self.stop_time is None or time <= self.stop_time):
-            yield time, numpy.array(indices, dtype='i4'), numpy.array(values, dtype=float)
+   def get_observations(self, model_variables, model_states, variables):
+      z_model = model_states[0, model_variables['z']['start']:model_variables['z']['start'] + model_variables['z']['length']]
+      for model_variable, istart, zs, is_1d in self.depth_map:
+         assert model_variable in variables, '%s not present in model state (after processing by plugins, if any)' % model_variable
+         if is_1d:
+            # zs contains depth coordinate (depth above mean sea level, typically negative)
+            zs = numpy.abs(z_model[numpy.newaxis, :] - zs[:, numpy.newaxis]).argmin(axis=1)
+         else:
+            # zs contains depth index, which may be negative to indicate distance from surface (e.g., z=-1 for surface)
+            zs = zs % variables[model_variable]['length']
+         istop = istart + len(zs)
+         self.depth_indices[istart:istop] = variables[model_variable]['start'] + zs
+         self.logger.debug('observed %s: %s (sd %s) @ %s' % (model_variable, self.values[istart:istop], self.sds[istart:istop], self.depth_indices[istart:istop])) 
+      return self.depth_indices, self.values, self.sds
 
-   def start(self):
-      reqs = []
-      for obs_time, iobs, obs in self.observations():
-         assert iobs.size == obs.size
-         assert iobs.size != 0
+   def add_arguments(self, parser: argparse.ArgumentParser):
+      parser.add_argument('-o', '--obs', nargs=3, action='append', default=[])
+      parser.add_argument('--start')
+      parser.add_argument('--stop')
 
-         # Make sure all previous requests have been received
-         MPI.Request.Waitall(reqs)
-
-         reqs = []
-         if self.nmodel:
-            # Send new time to ensemble members
-            strtime = obs_time.strftime('%Y-%m-%d %H:%M:%S')
-            self.logger.info('(-> model) {}'.format(strtime))
-            for dest in range(1, self.nmodel + 1):
-               reqs.append(self.comm_model.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=dest, tag=shared.TAG_TIMESTR))
-
-         if self.have_filter:
-            # Send new observations to filter
-            reqs.append(self.comm_filter.Issend([strtime.encode('ascii'), MPI.CHARACTER], dest=1, tag=shared.TAG_TIMESTR))
-            nobs = iobs.size
-            self.logger.info('(-> filter) {}'.format(nobs))
-            reqs.append(self.comm_filter.Issend(numpy.array(nobs, dtype='i4'), dest=1, tag=shared.TAG_NOBS))
-            reqs.append(self.comm_filter.Issend(iobs, dest=1, tag=shared.TAG_IOBS))
-            reqs.append(self.comm_filter.Issend(obs, dest=1, tag=shared.TAG_OBS))
-
-      if self.have_filter:
-         self.comm_filter.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=1, tag=shared.TAG_TIMESTR)
-         self.comm_filter.Send(numpy.array(-1, dtype='i4'), dest=1, tag=shared.TAG_NOBS)
-      
-      if self.nmodel:
-         for dest in range(1, self.nmodel + 1):
-            self.comm_model.Send([b'0000-00-00 00:00:00', MPI.CHARACTER], dest=dest, tag=shared.TAG_TIMESTR)
-
-def main():
-   logging.basicConfig(level=logging.INFO)
-
-   parser = argparse.ArgumentParser()
-   parser.add_argument('-o', '--obs', nargs=2, action='append', default=[])
-   parser.add_argument('--start')
-   parser.add_argument('--stop')
-   parser.add_argument('-v', '--verbose', action='store_true')
-   args = parser.parse_args()
-   assert args.obs, 'At least one dataset with observations must be provided with -o/--obs'
-   if args.start is not None:
-      args.start = datetime.datetime.strptime(args.start, '%Y-%m-%d %H:%M:%S')
-   if args.stop is not None:
-      args.stop = datetime.datetime.strptime(args.stop, '%Y-%m-%d %H:%M:%S')
-   handler = ObservationHandler(start=args.start, stop=args.stop)
-   if args.verbose:
-      handler.logger.setLevel(logging.DEBUG)
-   for variable, path in args.obs:
-      handler.add_observations(variable, path)
-   handler.start()
-
-if __name__ == '__main__':
-   main()
+   def process_arguments(self, args):
+      assert args.obs, 'At least one dataset with observations must be provided with -o/--obs'
+      if args.start is not None:
+         self.start_time = datetime.datetime.strptime(args.start, '%Y-%m-%d %H:%M:%S')
+      if args.stop is not None:
+         self.stop_time = datetime.datetime.strptime(args.stop, '%Y-%m-%d %H:%M:%S')
+      for type, variable, path in args.obs:
+         assert type in ('0', '1'), 'First argument after --obs must be the observation type: 0 for scalar, 1 for depth-explicit'
+         type = int(type)
+         self.add_observations(variable, path, is_1d=type==1)

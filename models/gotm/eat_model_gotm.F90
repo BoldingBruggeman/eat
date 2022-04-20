@@ -75,7 +75,7 @@ program eat_model_gotm
       if (iand(signal,signal_initialize) == signal_initialize) then
          call initialize_gotm()
          call post_model_initialize()
-         if (have_obs) call MPI_Barrier(EAT_COMM_obs_model,ierr)
+         ! if (have_obs) call MPI_Barrier(EAT_COMM_obs_model,ierr)
       end if
 
       if (verbosity >= debug) write(stderr,*) 'model(signal) 2 ',signal
@@ -102,11 +102,11 @@ contains
 !-----------------------------------------------------------------------
 
 subroutine pre_model_initialize()
-   if (EAT_COMM_obs_model == MPI_COMM_NULL) then
-      if (verbosity >= warn) write(stderr,*) "model(no observation program present)"
-      have_obs=.false.
-      ensemble_only=.true.
-   end if
+   ! if (EAT_COMM_obs_model == MPI_COMM_NULL) then
+   !    if (verbosity >= warn) write(stderr,*) "model(no observation program present)"
+   !    have_obs=.false.
+   !    ensemble_only=.true.
+   ! end if
 
    if (EAT_COMM_model_filter == MPI_COMM_NULL) then
       if (verbosity >= warn) write(stderr,*) "model(no filter program present)"
@@ -195,12 +195,6 @@ subroutine pre_model_integrate()
 
    if (ensemble_only) return
 
-   call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_obs_model,stat,ierr)
-   if (ierr /= MPI_SUCCESS) then
-      call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
-   end if
-   if (verbosity >= debug) write(stderr,*) 'model(<-- time)  ',trim(timestr)
-
    if (have_filter .and. iand(signal,signal_recv_state) == signal_recv_state) then
       call MPI_IRECV(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
       if(ierr /= MPI_SUCCESS) THEN
@@ -215,6 +209,12 @@ subroutine pre_model_integrate()
       call memory_file%restore()
       signal=signal-signal_recv_state
    end if
+
+   call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+   if (ierr /= MPI_SUCCESS) then
+      call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
+   end if
+   if (verbosity >= debug) write(stderr,*) 'model(<-- time)  ',trim(timestr)
 
    if(trim(timestr) == "0000-00-00 00:00:00") then
       stop_time=sim_stop

@@ -15,7 +15,7 @@ class Log(shared.Plugin):
             info = variables[name]
             self.slices.append((info['start'], info['start'] + info['length']))
 
-    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray, filter: shared.Filter):
+    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray, *args, **kwargs):
         for start, stop in self.slices:
             affected_obs = numpy.logical_and(iobs > start, iobs <= stop)  # note: iobs uses 1-based indices!
             if affected_obs.any():

@@ -125,7 +125,7 @@ subroutine init_eat_config(color)
    if (color >= debug) then
       write(stderr,'(A,I4,A,I4,2A)') 'MPI_COMM_WORLD(process) ',rank,' of ',nprocs,' is alive on ',pname(1:len)
    end if
-
+#if 0
    ! Setup inter/intra communicators
    ! Observations only
    if (iand(color,color_obs) == color_obs) then
@@ -139,7 +139,7 @@ subroutine init_eat_config(color)
    else
       size_obs_comm=0
    end if
-
+#endif
    ! Model only
    if (iand(color,color_model) == color_model) then
       call MPI_Comm_split(MPI_COMM_WORLD,color_model,rank,EAT_COMM_model,ierr)
@@ -165,7 +165,7 @@ subroutine init_eat_config(color)
    else
       size_filter_comm=0
    end if
-
+#if 0
    ! Observations and model
    if (iand(color,color_obs) == color_obs .or. iand(color,color_model) == color_model) then
       call MPI_Comm_split(MPI_COMM_WORLD,color_obs+color_model,rank,EAT_COMM_obs_model,ierr)
@@ -207,7 +207,7 @@ subroutine init_eat_config(color)
    else
       size_obs_filter_comm=-1
    end if
-
+#endif
    ! Model and filter
    if (iand(color,color_model) == color_model .or. iand(color,color_filter) == color_filter) then
       call MPI_Comm_split(MPI_COMM_WORLD,color_model+color_filter,rank,EAT_COMM_model_filter,ierr)
