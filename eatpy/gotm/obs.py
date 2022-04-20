@@ -12,7 +12,7 @@ import numpy
 datetimere = re.compile(r'(\d\d\d\d).(\d\d).(\d\d) (\d\d).(\d\d).(\d\d)\s*')
 
 class File:
-   def __init__(self, path: str, is_1d: bool=False, sd: Optional[float]=None, offset: int=0):
+   def __init__(self, path: str, is_1d: bool=False, sd: Optional[float]=None, offset: Optional[int]=None):
       self.f = open(path, 'r')
       self.is_1d = is_1d
       self.iline = 0
@@ -78,11 +78,18 @@ class ObservationHandler:
       self.datasets: List[Tuple[str, File]] = []
 
    def add_observations(self, variable: str, path: str, is_1d: bool, sd: Optional[float]=None):
-      offset = 0
+      offset = None
       if '[' in variable and variable[-1] == ']':
          variable, depth_index = variable[:-1].split('[')
          offset = int(depth_index)
       self.datasets.append((variable, File(path, is_1d=is_1d, sd=sd, offset=offset)))
+
+   def initialize(self, variables, nmodel: int):
+      for model_variable, obsfile in self.datasets:
+         if model_variable not in variables:
+            raise Exception('Observed variable %s is not present in model state (after processing by plugins, if any). Available: %s' % (model_variable, ', '.join(sorted(variables))))
+         if variables[model_variable]['length'] > 1 and not obsfile.is_1d and obsfile.offset is None:
+            raise Exception('Model variable %s is depth-dependent, but the provided observations are depth-INdependent. Either index the variable (e.g., %s[-1] for surface, %s[0] for bottom), or provided depth-explicit observations.' % (model_variable, model_variable, model_variable))
 
    def observations(self):
       assert self.datasets
@@ -113,35 +120,30 @@ class ObservationHandler:
       self.values = []
       self.sds = []
       self.depth_indices = []
-      istart = 0
       for variable, obsfile in self.datasets:
          zs = []
          while obsfile.next is not None and obsfile.next[0] == self.time:
             _, z, value, sd = obsfile.next
             self.logger.debug('- %s%s = %s (sd = %s)' % (variable, '' if z is None else (' @ %.2f m' % z), value, sd))
-            zs.append(z if obsfile.is_1d else obsfile.offset)
             self.values.append(value)
             self.sds.append(sd)
+            self.depth_indices.append(-10000 if obsfile.is_1d else obsfile.offset)
+            if obsfile.is_1d:
+               zs.append(z)
             obsfile.read()
-         self.depth_map.append((variable, istart, numpy.array(zs), obsfile.is_1d))
-         istart = len(self.values)
+         if zs:
+            self.depth_map.append((variable, slice(len(self.values) - len(zs), len(self.values)), numpy.array(zs)))
       self.values = numpy.array(self.values, dtype=float)
       self.sds = numpy.array(self.sds, dtype=float)
-      self.depth_indices = numpy.full(self.values.shape, -10000, dtype='i4')
+      self.depth_indices = numpy.array(self.depth_indices, dtype='i4')
 
    def get_observations(self, model_variables, model_states, variables):
       z_model = model_states[0, model_variables['z']['start']:model_variables['z']['start'] + model_variables['z']['length']]
-      for model_variable, istart, zs, is_1d in self.depth_map:
-         assert model_variable in variables, '%s not present in model state (after processing by plugins, if any)' % model_variable
-         if is_1d:
-            # zs contains depth coordinate (depth above mean sea level, typically negative)
-            zs = numpy.abs(z_model[numpy.newaxis, :] - zs[:, numpy.newaxis]).argmin(axis=1)
-         else:
-            # zs contains depth index, which may be negative to indicate distance from surface (e.g., z=-1 for surface)
-            zs = zs % variables[model_variable]['length']
-         istop = istart + len(zs)
-         self.depth_indices[istart:istop] = variables[model_variable]['start'] + zs
-         self.logger.debug('observed %s: %s (sd %s) @ %s' % (model_variable, self.values[istart:istop], self.sds[istart:istop], self.depth_indices[istart:istop])) 
+      for model_variable, obs_slice, zs in self.depth_map:
+         # Determine the index of layer that is nearest to the observation depth (depth above mean sea level, typically negative)
+         zs = numpy.abs(z_model[numpy.newaxis, :] - zs[:, numpy.newaxis]).argmin(axis=1)
+         self.depth_indices[obs_slice] = variables[model_variable]['start'] + zs
+         self.logger.debug('observed %s: %s (sd %s) @ %s' % (model_variable, self.values[obs_slice], self.sds[obs_slice], self.depth_indices[obs_slice])) 
       return self.depth_indices, self.values, self.sds
 
    def add_arguments(self, parser: argparse.ArgumentParser):

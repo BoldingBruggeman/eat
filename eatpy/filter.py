@@ -107,6 +107,9 @@ def main(parse_args: bool=True, plugins: Iterable[shared.Plugin]=()):
         state_size += info['length']
         logger.info('- %s = %s (%s) [%i values, %s]' % (name, info['long_name'], info['units'], info['length'], model_loc))
 
+    # Let the obsveration handler verify whether the model state and the set of observed variables are compatible
+    obs_handler.initialize(variables, nmodel)
+
     # Create filter. This will allocate an array to hold the state of all members: f.model_states
     cvt_handler = None
     for plugin in plugins:
