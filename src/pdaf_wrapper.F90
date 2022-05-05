@@ -17,7 +17,7 @@ module pdaf_wrapper
 
    private
 
-   public init_pdaf, assimilation_pdaf, finish_pdaf, iobs, obs, pcvt_callback
+   public init_pdaf, assimilation_pdaf, finish_pdaf, iobs, obs, rms_obs, pcvt_callback
 
    integer :: stderr=error_unit,stdout=output_unit
    integer :: verbosity=info
@@ -26,6 +26,8 @@ module pdaf_wrapper
       !! map observations to state
    real(real64), pointer, contiguous :: obs(:) => null()
       !! observation vector
+   real(real64), pointer, contiguous :: rms_obs(:) => null()
+      !! observation standard deviation
 
    integer :: filtertype=6
       !! PDAF filter selection
@@ -48,8 +50,6 @@ module pdaf_wrapper
                        ! (7) Hybrid 3D-Var using global ETKF for ensemble transformation
    REAL(real64) :: timenow
    integer :: doexit,steps
-   real(real64) :: rms_obs = 0.05
-     !! Observation error standard deviation !KB shall be replaced
 
    interface
       subroutine cvt_callback_interface(cb_type, iter, dim_p, dim_cvec, dim_cvec_ens, ens_p, v_p, Vv_p) bind(c)
@@ -663,7 +663,8 @@ SUBROUTINE init_obsvar_pdaf(step, dim_obs_p, obs_p, meanvar)
      !! Mean observation error variance
 
    if (verbosity >= debug) write(stderr,*) 'init_obsvar_pdaf() ',rms_obs
-   meanvar = rms_obs ** 2
+   stop 'KB - init_obsvar_pdaf()'
+!KB   meanvar = rms_obs ** 2
 END SUBROUTINE init_obsvar_pdaf
 
 !-----------------------------------------------------------------------
@@ -721,12 +722,20 @@ SUBROUTINE prodRinvA_pdaf(step, dim_obs_p, rank, obs_p, A_p, C_p)
    REAL(REAL64) :: ivariance_obs
 
    if (verbosity >= debug) write(stderr,*) 'prodRinvA_pdaf() ',dim_obs_p,rank,rms_obs
-   ivariance_obs = 1.0 / rms_obs ** 2
+#if 0
+!KB   ivariance_obs = 1.0 / rms_obs ** 2
    DO j = 1, rank
       DO i = 1, dim_obs_p
          C_p(i, j) = ivariance_obs * A_p(i, j)
       END DO
    END DO
+#else
+   DO j = 1, rank
+!KB      DO i = 1, dim_obs_p
+         C_p(:, j) = 1._real64/rms_obs(:)**2 * A_p(i, j)
+!KB      END DO
+   END DO
+#endif
 END SUBROUTINE prodRinvA_pdaf
 
 !-----------------------------------------------------------------------
