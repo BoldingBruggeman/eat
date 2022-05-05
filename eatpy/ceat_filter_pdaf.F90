@@ -12,12 +12,14 @@ module ceat_filter_pdaf
 
 contains
 
-   subroutine ceat_pdaf_set_observations(nobs_, iobs_, obs_) bind(c)
+   subroutine ceat_pdaf_set_observations(nobs_, iobs_, obs_, rms_obs_) bind(c)
       integer, value, intent(in) :: nobs_
       integer,      target, intent(inout) :: iobs_(nobs_)
       real(REAL64), target, intent(inout) :: obs_(nobs_)
+      real(REAL64), target, intent(inout) :: rms_obs_(nobs_)
       iobs => iobs_
       obs => obs_
+      rms_obs => rms_obs_
    end subroutine
 
    subroutine ceat_pdaf_init(EAT_COMM_filter, state_size, ensemble_size, cb_3dvar, p, stat) bind(c)

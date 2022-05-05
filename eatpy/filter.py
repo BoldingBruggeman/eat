@@ -31,7 +31,7 @@ class PDAF(shared.Filter):
         super().__init__(model_states)
 
     def assimilate(self, iobs: numpy.ndarray, obs: numpy.ndarray, sds: numpy.ndarray):
-        _eat_filter_pdaf.assimilate(iobs, obs)
+        _eat_filter_pdaf.assimilate(iobs, obs, sds)
 
     def finalize(self):
         _eat_filter_pdaf.finalize()

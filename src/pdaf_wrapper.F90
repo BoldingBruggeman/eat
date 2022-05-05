@@ -732,7 +732,7 @@ SUBROUTINE prodRinvA_pdaf(step, dim_obs_p, rank, obs_p, A_p, C_p)
 #else
    DO j = 1, rank
 !KB      DO i = 1, dim_obs_p
-         C_p(:, j) = 1._real64/rms_obs(:)**2 * A_p(i, j)
+         C_p(:, j) = 1._real64/rms_obs(:)**2 * A_p(:, j)
 !KB      END DO
    END DO
 #endif
