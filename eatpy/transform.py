@@ -25,9 +25,7 @@ class Log(shared.Plugin):
         **kwargs
     ):
         for metadata in self.variable_metadata:
-            affected_obs = np.logical_and(
-                iobs >= metadata["start"], iobs < metadata["start"] + metadata["length"]
-            )
+            affected_obs = (iobs >= metadata["start"]) & (iobs < metadata["stop"])
             if affected_obs.any():
                 obs[affected_obs] = np.log10(obs[affected_obs])
             metadata["data"][...] = np.log10(metadata["data"])

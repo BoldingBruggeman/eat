@@ -171,6 +171,7 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
             model_loc = "%i:%i in model" % (start, stop,)
         info["start"] = state_size
         state_size += info["length"]
+        info["stop"] = state_size
         logger.info(
             "- %s = %s (%s) [%i values, %s]"
             % (name, info["long_name"], info["units"], info["length"], model_loc)
@@ -191,9 +192,8 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
     # Create a mapping between state of the model and state as seen by the filter
     model2filter_state_map = []
     for info in variables.values():
-        start = info["start"]
-        stop = start + info["length"]
-        info["data"] = info["filter_data"] = f.model_states[:, start:stop]
+        info["filter_data"] = f.model_states[:, info["start"]:info["stop"]]
+        info["data"] = info["filter_data"]
         if "model_data" in info:
             model2filter_state_map.append((info["model_data"], info["filter_data"]))
 
