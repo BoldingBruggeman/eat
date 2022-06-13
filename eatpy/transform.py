@@ -1,27 +1,37 @@
-from typing import Mapping, Any, List, Tuple
+from typing import Mapping, Any, List
 import datetime
 
-import numpy
+import numpy as np
 
 from . import shared
 
+
 class Log(shared.Plugin):
-    def __init__(self, *variables):
-        self.variables = frozenset(variables)
-        self.slices: List[Tuple[int, int]] = []
+    def __init__(self, *variable_names):
+        self.variable_names = frozenset(variable_names)
+        self.variable_metadata: List[Any] = []
 
-    def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
-        for name in self.variables:
-            info = variables[name]
-            self.slices.append((info['start'], info['start'] + info['length']))
+    def initialize(self, variables: Mapping[str, Any], *args, **kwargs):
+        for name in self.variable_names:
+            self.variable_metadata.append(variables[name])
 
-    def before_analysis(self, time: datetime.datetime, state: numpy.ndarray, iobs: numpy.ndarray, obs: numpy.ndarray, *args, **kwargs):
-        for start, stop in self.slices:
-            affected_obs = numpy.logical_and(iobs > start, iobs <= stop)  # note: iobs uses 1-based indices!
+    def before_analysis(
+        self,
+        time: datetime.datetime,
+        state: np.ndarray,
+        iobs: np.ndarray,
+        obs: np.ndarray,
+        *args,
+        **kwargs
+    ):
+        for metadata in self.variable_metadata:
+            affected_obs = np.logical_and(
+                iobs >= metadata["start"], iobs < metadata["start"] + metadata["length"]
+            )
             if affected_obs.any():
-                obs[affected_obs] = numpy.log10(obs[affected_obs])
-            state[:, start:stop] = numpy.log10(state[:, start:stop])
+                obs[affected_obs] = np.log10(obs[affected_obs])
+            metadata["data"][...] = np.log10(metadata["data"])
 
-    def after_analysis(self, state: numpy.ndarray):
-        for start, stop in self.slices:
-            state[:, start:stop] = 10. ** state[:, start:stop]
+    def after_analysis(self, *args, **kwargs):
+        for metadata in self.variable_metadata:
+            metadata["data"][...] = 10.0 ** metadata["data"]

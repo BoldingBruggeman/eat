@@ -6,158 +6,242 @@ import re
 import logging
 from typing import Optional, List, Tuple
 
-import numpy
+import numpy as np
 
 # Regular expression for ISO 8601 datetimes
-datetimere = re.compile(r'(\d\d\d\d).(\d\d).(\d\d) (\d\d).(\d\d).(\d\d)\s*')
+datetimere = re.compile(r"(\d\d\d\d).(\d\d).(\d\d) (\d\d).(\d\d).(\d\d)\s*")
+
 
 class File:
-   def __init__(self, path: str, is_1d: bool=False, sd: Optional[float]=None, offset: Optional[int]=None):
-      self.f = open(path, 'r')
-      self.is_1d = is_1d
-      self.iline = 0
-      self.next = ''
-      self.sd = sd
-      self.offset = offset
-      self.read()
+    def __init__(
+        self, path: str, is_1d: bool = False, sd: Optional[float] = None,
+    ):
+        self.path = path
+        self.f = open(path, "r")
+        self.is_1d = is_1d
+        self.iline = 0
+        self.next = ""
+        self.sd = sd
+        self.read()
 
-   def read(self):
-      if self.next is None:
-         # EOF reached previously
-         return
-
-      line = None
-      while line is None:
-         line = self.f.readline()
-         if line == '':
-            # EOF
-            self.next = None
+    def read(self):
+        if self.next is None:
+            # EOF reached previously
             return
-         self.iline += 1
-         line = line.split('#', 1)[0].strip()
-         if line == '':
-            # skip commented lines
-            line = None
 
-      datematch = datetimere.match(line)
-      if datematch is None:
-         raise Exception('Line %i does not start with time (yyyy-mm-dd hh:mm:ss). Line contents: %s' % (self.iline, line))
-      refvals = map(int, datematch.group(1, 2, 3, 4, 5, 6)) # Convert matched strings into integers
-      curtime = datetime.datetime(*refvals)
-      data = line[datematch.end():].rstrip('\n').split()
-      if self.is_1d:
-         # Depth-explicit variable (on each line: time, depth, value)
-         if len(data) not in (2, 3):
-            raise Exception('Line %i must contain two values (depth, observation) or three values (depth, observation, sd) after the date + time, but it contains %i values.' % (self.iline, len(data)))
-         if len(data) == 2 and self.sd is None:
-            raise Exception('Line %i must contain three values (depth, observation, sd) after the date + time, since the standard deviation of observations has not been prescribed separately. However, the line contains %i values.' % (self.iline, len(data)))
-         z = float(data[0])
-         if not numpy.isfinite(z):
-            raise Exception('Depth on line %i is not a valid number: %s.' % (self.iline, data[0]))
-         value = float(data[1])
-         sd = self.sd if self.sd is not None else float(data[2])
-         self.next = curtime, z, value, sd
-      else:
-         # Depth-independent variable (on each line: time, value)
-         if len(data) not in (1, 2):
-            raise Exception('Line %i must contain one value (observation) or two values (observation, sd) after the date + time, but it contains %i values.' % (self.iline, len(data)))
-         value = float(data[0])
-         sd = self.sd if self.sd is not None else float(data[1])
-         self.next = curtime, None, value, sd
+        line = None
+        while line is None:
+            line = self.f.readline()
+            if line == "":
+                # EOF
+                self.next = None
+                return
+            self.iline += 1
+            line = line.split("#", 1)[0].strip()
+            if line == "":
+                # skip commented lines
+                line = None
+
+        datematch = datetimere.match(line)
+        if datematch is None:
+            raise Exception(
+                "%s: line %i does not start with time (yyyy-mm-dd hh:mm:ss)."
+                " Line contents: %s" % (self.path, self.iline, line)
+            )
+        refvals = map(
+            int, datematch.group(1, 2, 3, 4, 5, 6)
+        )  # Convert matched strings into integers
+        curtime = datetime.datetime(*refvals)
+        data = line[datematch.end() :].rstrip("\n").split()
+        if self.is_1d:
+            # Depth-explicit variable (on each line: time, depth, value)
+            if len(data) not in (2, 3):
+                raise Exception(
+                    "%s: line %i must contain two values (depth, observation) or three"
+                    " values (depth, observation, sd) after the date + time, but it"
+                    " contains %i values." % (self.path, self.iline, len(data))
+                )
+            if len(data) == 2 and self.sd is None:
+                raise Exception(
+                    "%s: line %i must contain three values (depth, observation, sd)"
+                    " after the date + time, since the standard deviation of"
+                    " observations has not been prescribed separately. However, the"
+                    " line contains %i values." % (self.path, self.iline, len(data))
+                )
+            z = float(data[0])
+            if not np.isfinite(z):
+                raise Exception(
+                    "%s: depth on line %i is not a valid number: %s."
+                    % (self.path, self.iline, data[0])
+                )
+            value = float(data[1])
+            sd = self.sd if self.sd is not None else float(data[2])
+            self.next = curtime, z, value, sd
+        else:
+            # Depth-independent variable (on each line: time, value)
+            if len(data) not in (1, 2):
+                raise Exception(
+                    "%s: line %i must contain one value (observation) or two values"
+                    " (observation, sd) after the date + time, but it contains %i"
+                    " values." % (self.path, self.iline, len(data))
+                )
+            if len(data) == 1 and self.sd is None:
+                raise Exception(
+                    "%s: line %i must contain two values (observation, sd)"
+                    " after the date + time, since the standard deviation of"
+                    " observations has not been prescribed separately. However, the"
+                    " line contains %i values." % (self.path, self.iline, len(data))
+                )
+            value = float(data[0])
+            sd = self.sd if self.sd is not None else float(data[1])
+            self.next = curtime, None, value, sd
+
 
 class ObservationHandler:
-   def __init__(self, start: Optional[datetime.datetime]=None, stop: Optional[datetime.datetime]=None, verbose: bool=False, logger: Optional[logging.Logger]=None):
-      self.logger = logger or logging.getLogger('obs')
-      if verbose:
-         self.logger.setLevel(logging.DEBUG)
+    def __init__(
+        self,
+        start: Optional[datetime.datetime] = None,
+        stop: Optional[datetime.datetime] = None,
+        verbose: bool = False,
+        logger: Optional[logging.Logger] = None,
+    ):
+        self.logger = logger or logging.getLogger("obs")
+        if verbose:
+            self.logger.setLevel(logging.DEBUG)
 
-      self.start_time = start
-      self.stop_time = stop
-      self.time = None
+        self.start_time = start
+        self.stop_time = stop
+        self.time = None
 
-      self.datasets: List[Tuple[str, File]] = []
+        self.datasets: List[Tuple[str, File]] = []
 
-   def add_observations(self, variable: str, path: str, is_1d: bool, sd: Optional[float]=None):
-      offset = None
-      if '[' in variable and variable[-1] == ']':
-         variable, depth_index = variable[:-1].split('[')
-         offset = int(depth_index)
-      self.datasets.append((variable, File(path, is_1d=is_1d, sd=sd, offset=offset)))
+    def initialize(self, args, variables):
+        # Determine time range for assimilation
+        # Before the start time, the model will effectively be spinning up
+        # After the stop time, it will run in forecast-only model
+        if args.start is not None:
+            self.start_time = datetime.datetime.strptime(
+                args.start, "%Y-%m-%d %H:%M:%S"
+            )
+        if args.stop is not None:
+            self.stop_time = datetime.datetime.strptime(args.stop, "%Y-%m-%d %H:%M:%S")
 
-   def initialize(self, variables, nmodel: int):
-      for model_variable, obsfile in self.datasets:
-         if model_variable not in variables:
-            raise Exception('Observed variable %s is not present in model state (after processing by plugins, if any). Available: %s' % (model_variable, ', '.join(sorted(variables))))
-         if variables[model_variable]['length'] > 1 and not obsfile.is_1d and obsfile.offset is None:
-            raise Exception('Model variable %s is depth-dependent, but the provided observations are depth-INdependent. Either index the variable (e.g., %s[-1] for surface, %s[0] for bottom), or provided depth-explicit observations.' % (model_variable, model_variable, model_variable))
+        # Enumerate observed variables and their associated data files
+        for variable_name, path in args.obs:
+            depth_index = None
+            if "[" in variable_name and variable_name[-1] == "]":
+                variable_name, depth_index = variable_name[:-1].split("[")
 
-   def observations(self):
-      assert self.datasets
-      while True:
-         # Find time of next observation
-         self.time = None
-         for _, obsfile in self.datasets:
-            if obsfile.next is not None:
-               current_time = obsfile.next[0]
-               if self.time is None or current_time < self.time:
-                  self.time = current_time
+            if variable_name not in variables:
+                raise Exception(
+                    "Observed variable %s is not present in model state (after"
+                    " processing by plugins, if any). Available: %s"
+                    % (variable_name, ", ".join(sorted(variables)))
+                )
 
-         if self.time is None:
-            # No more observations
-            break
+            # Determine offset into state array
+            is_1d = variables[variable_name]["length"] > 1
+            offset = variables[variable_name]["start"]
+            if depth_index is not None:
+                offset += int(depth_index) % variables[variable_name]["length"]
+                is_1d = False
 
-         if (self.start_time is None or self.time >= self.start_time) and (self.stop_time is None or self.time <= self.stop_time):
-            self.logger.debug('next observation time: %s' % self.time.strftime('%Y-%m-%d %H:%M:%S'))
-            yield self.time
-         else:
-            self.logger.debug('skipping observations at time %s' % self.time.strftime('%Y-%m-%d %H:%M:%S'))
-            for _, obsfile in self.datasets:
-               while obsfile.next is not None and obsfile.next[0] == self.time:
-                  obsfile.read()
+            self.datasets.append(
+                (variable_name, File(path, is_1d=is_1d, sd=None), offset)
+            )
 
-   def collect_observations(self):
-      self.depth_map = []
-      self.values = []
-      self.sds = []
-      self.depth_indices = []
-      for variable, obsfile in self.datasets:
-         zs = []
-         while obsfile.next is not None and obsfile.next[0] == self.time:
-            _, z, value, sd = obsfile.next
-            self.logger.debug('- %s%s = %s (sd = %s)' % (variable, '' if z is None else (' @ %.2f m' % z), value, sd))
-            self.values.append(value)
-            self.sds.append(sd)
-            self.depth_indices.append(-10000 if obsfile.is_1d else obsfile.offset)
-            if obsfile.is_1d:
-               zs.append(z)
-            obsfile.read()
-         if zs:
-            self.depth_map.append((variable, slice(len(self.values) - len(zs), len(self.values)), numpy.array(zs)))
-      self.values = numpy.array(self.values, dtype=float)
-      self.sds = numpy.array(self.sds, dtype=float)
-      self.depth_indices = numpy.array(self.depth_indices, dtype='i4')
+            self.logger.info(
+                "Observations in %s mapped to model variable %s (%iD)."
+                " Offset in state array: %i"
+                % (path, variable_name, 1 if is_1d else 0, offset)
+            )
 
-   def get_observations(self, model_variables, model_states, variables):
-      z_model = model_states[0, model_variables['z']['start']:model_variables['z']['start'] + model_variables['z']['length']]
-      for model_variable, obs_slice, zs in self.depth_map:
-         # Determine the index of layer that is nearest to the observation depth (depth above mean sea level, typically negative)
-         zs = numpy.abs(z_model[numpy.newaxis, :] - zs[:, numpy.newaxis]).argmin(axis=1)
-         self.depth_indices[obs_slice] = variables[model_variable]['start'] + zs
-         self.logger.debug('observed %s: %s (sd %s) @ %s' % (model_variable, self.values[obs_slice], self.sds[obs_slice], self.depth_indices[obs_slice])) 
-      return self.depth_indices, self.values, self.sds
+    def observations(self):
+        """Iterate over all observation times"""
+        while True:
+            # Find time of next observation
+            self.time = None
+            for _, obsfile, _ in self.datasets:
+                if obsfile.next is not None:
+                    current_time = obsfile.next[0]
+                    if self.time is None or current_time < self.time:
+                        self.time = current_time
 
-   def add_arguments(self, parser: argparse.ArgumentParser):
-      parser.add_argument('-o', '--obs', nargs=3, action='append', default=[])
-      parser.add_argument('--start')
-      parser.add_argument('--stop')
+            if self.time is None:
+                # No more observations
+                break
 
-   def process_arguments(self, args):
-      assert args.obs, 'At least one dataset with observations must be provided with -o/--obs'
-      if args.start is not None:
-         self.start_time = datetime.datetime.strptime(args.start, '%Y-%m-%d %H:%M:%S')
-      if args.stop is not None:
-         self.stop_time = datetime.datetime.strptime(args.stop, '%Y-%m-%d %H:%M:%S')
-      for type, variable, path in args.obs:
-         assert type in ('0', '1'), 'First argument after --obs must be the observation type: 0 for scalar, 1 for depth-explicit'
-         type = int(type)
-         self.add_observations(variable, path, is_1d=type==1)
+            if (self.start_time is None or self.time >= self.start_time) and (
+                self.stop_time is None or self.time <= self.stop_time
+            ):
+                self.logger.debug(
+                    "next observation time: %s"
+                    % self.time.strftime("%Y-%m-%d %H:%M:%S")
+                )
+                yield self.time
+            else:
+                self.logger.debug(
+                    "skipping observations at time %s"
+                    % self.time.strftime("%Y-%m-%d %H:%M:%S")
+                )
+                for _, obsfile, _ in self.datasets:
+                    while obsfile.next is not None and obsfile.next[0] == self.time:
+                        obsfile.read()
+
+    def collect_observations(self):
+        """Collect observations applicable to the current time
+        (the last time yielded by :meth:`observations`)."""
+        self.depth_map = []
+        self.values = []
+        self.sds = []
+        self.offsets = []
+        for variable, obsfile, offset in self.datasets:
+            zs = []
+            while obsfile.next is not None and obsfile.next[0] == self.time:
+                _, z, value, sd = obsfile.next
+                self.logger.debug(
+                    "- %s%s = %s (sd = %s)"
+                    % (variable, "" if z is None else (" @ %.2f m" % z), value, sd)
+                )
+                self.values.append(value)
+                self.sds.append(sd)
+                self.offsets.append(offset)
+                if obsfile.is_1d:
+                    zs.append(z)
+                obsfile.read()
+            if zs:
+                self.depth_map.append(
+                    (
+                        variable,
+                        slice(len(self.values) - len(zs), len(self.values)),
+                        np.array(zs),
+                    )
+                )
+        self.values = np.array(self.values, dtype=float)
+        self.sds = np.array(self.sds, dtype=float)
+        self.offsets = np.array(self.offsets, dtype="i4")
+
+    def get_observations(self, variables) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Map observations collected by :meth:`collect_observations` to the model
+        state space and return them."""
+        z_model = variables["z"]["model_data"][0, :]
+        for model_variable, obs_slice, zs in self.depth_map:
+            # Determine the index of layer that is nearest to the observation depth
+            # (depth above mean sea level, typically negative)
+            izs = np.abs(z_model[np.newaxis, :] - zs[:, np.newaxis]).argmin(axis=1)
+            self.offsets[obs_slice] += izs
+            self.logger.debug(
+                "observed %s: %s (sd %s) @ %s"
+                % (
+                    model_variable,
+                    self.values[obs_slice],
+                    self.sds[obs_slice],
+                    self.offsets[obs_slice],
+                )
+            )
+        return self.offsets, self.values, self.sds
+
+    def add_arguments(self, parser: argparse.ArgumentParser):
+        parser.add_argument("-o", "--obs", nargs=2, action="append", default=[])
+        parser.add_argument("--start")
+        parser.add_argument("--stop")

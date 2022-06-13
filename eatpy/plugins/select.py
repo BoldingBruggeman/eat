@@ -3,12 +3,15 @@ import fnmatch
 
 from .. import shared
 
+
 class Select(shared.Plugin):
-    def __init__(self, include: Union[Iterable, str]='*', exclude: Union[Iterable, str]=()):
+    def __init__(
+        self, include: Union[Iterable, str] = "*", exclude: Union[Iterable, str] = ()
+    ):
         self.include = include if not isinstance(include, str) else (include,)
         self.exclude = exclude if not isinstance(exclude, str) else (exclude,)
 
-    def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
+    def initialize(self, variables: Mapping[str, Any], *args, **kwargs):
         eliminate = set()
         for name in variables:
             use = False
