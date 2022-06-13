@@ -225,6 +225,11 @@ subroutine pre_model_integrate()
    end if
    td = stop_time-sim_start
    MaxN=int(td%total_seconds()/timestep)
+   if (MaxN < 0) then
+      write(stderr,*) 'New stop time ', timestr, ' precedes start time (overall simulation start&
+         & or end of previous time slice)',member; call flush(stderr)
+      call MPI_Abort(MPI_COMM_WORLD,1,ierr)
+   end if
 end subroutine pre_model_integrate
 
 !-----------------------------------------------------------------------
