@@ -111,6 +111,8 @@ subroutine pre_model_initialize()
    if (EAT_COMM_model_filter == MPI_COMM_NULL) then
       if (verbosity >= warn) write(stderr,*) "model(no filter program present)"
       have_filter=.false.
+      have_obs=.false.
+      ensemble_only=.true.
    end if
 
    output: block
