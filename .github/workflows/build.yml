@@ -7,7 +7,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.9
       - name: Clone
         uses: actions/checkout@v2
         with:
@@ -21,10 +21,23 @@ jobs:
           source ${CONDA}/etc/profile.d/conda.sh
           conda activate eat
           source ./install
-      - name: Run 2d test case
+      # - name: Run 2d test case
+      #   run: |
+      #     source ${CONDA}/etc/profile.d/conda.sh
+      #     conda activate eat
+      #     cd tests/2d/
+      #     mpiexec -np 1 eat_obs_2d : -np 1 eat_filter_pdaf : -np 9 eat_model_2d
+      #     mpiexec -np 1 eat_obs_2d : -np 1 eatpy-filter : -np 9 eat_model_2d
+      - name: Clone gotm-cases
+        run: |
+          git clone -b v6.0 https://github.com/gotm-model/cases.git gotm-cases
+      - name: Run gotm test case
         run: |
           source ${CONDA}/etc/profile.d/conda.sh
           conda activate eat
-          cd tests/2d/
-          mpiexec -np 1 eat_obs_2d : -np 1 eat_filter_pdaf : -np 9 eat_model_2d
-          mpiexec -np 1 eat_obs_2d : -np 1 eatpy-filter : -np 9 eat_model_2d
+          cd gotm-cases/nns_annual
+          cp ../../tests/nns_annual/eat_pdaf.nml .
+          cp ../../tests/nns_annual/eat_gotm.nml .
+          eat_model_gotm
+          eatpy-gotm-gen restart restart.nc 10 --exclude z --exclude zi --exclude h
+          mpiexec -n 10 eat_model_gotm
