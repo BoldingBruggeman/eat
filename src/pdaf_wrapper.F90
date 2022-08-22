@@ -506,7 +506,7 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
      !! PE-local state ensemble
    INTEGER, INTENT(in) :: flag
      !! PDAF status flag
-
+#if 0
    !! local variables
    INTEGER :: i, j, member
      !! Counters
@@ -640,6 +640,7 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
       i=i+1
    end if
    end block
+#endif
 #endif
 END SUBROUTINE prepoststep_ens_pdaf
 

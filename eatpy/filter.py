@@ -227,6 +227,13 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
         # Ensure the model state has been received
         MPI.Request.Waitall(reqs)
 
+        logger.info('Ensemble spread (root-mean-square differences):')
+        for name, info in all_variables.items():
+            d = info.get('model_data')
+            if d is not None:
+                rms = np.sqrt(np.mean(np.var(d, axis=0)))
+                logger.info('  %s: %.3g %s' % (name, rms, info['units']))
+
         # Select the parts of the model state that the filter will act upon
         for model_state, filter_state in model2filter_state_map:
             filter_state[...] = model_state
