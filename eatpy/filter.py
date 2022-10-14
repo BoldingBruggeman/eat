@@ -245,11 +245,26 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
         )
 
         # Allow plugins to act before analysis begins
-        if plugins:
-            for plugin in plugins:
-                plugin.before_analysis(
-                    time, f.model_states, obs_indices, obs_values, obs_sds, f,
-                )
+        for plugin in plugins:
+            plugin.before_analysis(
+                time, f.model_states, obs_indices, obs_values, obs_sds, f
+            )
+
+        if not np.isfinite(f.model_states).all():
+            logger.error(
+                "Non-finite values in ensemble state state sent to PDAF (after plugin.before_analysis)"
+            )
+            raise Exception('non-finite ensemble state')
+        if not np.isfinite(obs_values).all():
+            logger.error(
+                "Non-finite values in observations sent to PDAF (after plugin.before_analysis)"
+            )
+            raise Exception('non-finite observations')
+        if not np.isfinite(obs_sds).all():
+            logger.error(
+                "Non-finite values in observation s.d. sent to PDAF (after plugin.before_analysis)"
+            )
+            raise Exception('non-finite observation errors')
 
         # If we have observations, then perform assimilation.
         # This updates f.model_states
