@@ -8,3 +8,7 @@
 [submodule "extern/pdaf"]
 	path = extern/pdaf
 	url = ../pdaf-temp.git
+[submodule "extern/fabm"]
+	path = extern/fabm
+	url = ../../fabm-model/fabm.git
+	branch = yaml-settings
