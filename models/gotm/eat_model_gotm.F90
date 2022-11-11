@@ -16,6 +16,8 @@ program eat_model_gotm
    use output_manager
    use memory_output
    use register_all_variables, only: fm
+   use fabm_types, only: fabm_parameter_pointers
+   
    IMPLICIT NONE
 
    integer :: ierr
@@ -39,16 +41,18 @@ program eat_model_gotm
    integer :: verbosity=info
    character(len=*), parameter :: nmlfile='eat_gotm.nml'
    character(len=128) :: extra_state(64)
+   character(len=128) :: fabm_parameters_in_state(64)
    logical :: fileexists
    integer :: nmlunit,outunit
    logical :: all_verbose=.false.
    logical :: shared_gotm_yaml=.true.
    logical :: shared_restart_file=.true.
-   namelist /nml_eat_model/ verbosity,all_verbose,shared_gotm_yaml,shared_restart_file,extra_state
+   namelist /nml_eat_model/ verbosity,all_verbose,shared_gotm_yaml,shared_restart_file,extra_state, fabm_parameters_in_state
 
    type (type_field_set) :: field_set
 !-----------------------------------------------------------------------
    extra_state = ''
+   fabm_parameters_in_state = ''
    inquire(FILE=nmlfile,EXIST=fileexists)
    if (fileexists) then
       open(newunit=nmlunit,file=nmlfile)
@@ -56,6 +60,8 @@ program eat_model_gotm
       close(nmlunit)
       if (verbosity >= warn) write(stderr,*) 'model(read namelist)'
    end if
+
+   fabm_parameter_pointers = any(fabm_parameters_in_state /= '')
 
    call init_eat_config(color_model+verbosity)
 
@@ -136,10 +142,15 @@ end subroutine pre_model_initialize
 !-----------------------------------------------------------------------
 
 subroutine post_model_initialize()
+   use yaml_settings, only: type_key_value_pair, type_real_setting, format_real
+   use gotm_fabm, only: fabm_model => model
+
    type (type_output_item), pointer :: item
-   integer :: ios, i
+   integer :: ios, i, j
    integer, parameter :: unit = 250
    character(len=64) :: fn='da_variables.dat'
+   character(len=:), allocatable :: str_scale_factor
+   class (type_key_value_pair), pointer :: pair
 
    sim_start = strptime(trim(start), time_format)
    sim_stop  = strptime(trim(stop), time_format)
@@ -161,6 +172,34 @@ subroutine post_model_initialize()
       item%name = 'state'
       item%output_level = output_level_debug
       call memory_file%append_item(item)
+
+      ! Optionally extend state with user-selected variables
+      do i = 1, size(fabm_parameters_in_state)
+         if (fabm_parameters_in_state(i) /= '') then
+            if (.not. associated(fabm_model)) then
+               write(stderr,*) 'Fatal error (MODEL): FABM is not used in this GOTM configuration'
+               call flush(stderr)
+               call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            end if
+            pair => fabm_model%settings%get_node(trim(fabm_parameters_in_state(i)))
+            select type (value => pair%value)
+            class is (type_real_setting)
+               allocate(item)
+               str_scale_factor = ''
+               if (value%scale_factor /= 1.0) str_scale_factor = '*' // format_real(value%scale_factor)
+               call fm%register(pair%name,value%units//str_scale_factor,value%long_name,data0d=value%pvalue,field=item%field)
+               item%name = trim(fabm_parameters_in_state(i))
+               do j=1,len_trim(item%name)
+                  if (item%name(j:j) == '/') item%name(j:j) = '_'
+               end do
+               call memory_file%append_item(item)
+            class default
+               write(stderr,*) 'Fatal error (MODEL): ',trim(fabm_parameters_in_state(i)),' is not a real-valued FABM parameter'
+               call flush(stderr)
+               call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            end select
+         end if
+      end do
 
       ! Optionally extend state with user-selected variables
       do i = 1, size(extra_state)
