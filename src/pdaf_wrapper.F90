@@ -653,27 +653,19 @@ END SUBROUTINE prepoststep_3dvar_pdaf
 !-----------------------------------------------------------------------
 
 ! Initialize mean observation error variance
-SUBROUTINE init_obsvar_pdaf(step, dim_obs, dim_obs_p, covar, m_state_p, isdiag)
+SUBROUTINE init_obsvar_pdaf(step, dim_obs_p, obs_p, meanvar)
    INTEGER, INTENT(in) :: step
      !! Current time step
-   INTEGER, INTENT(in) :: dim_obs
-     !! Dimension of observation vector
    INTEGER, INTENT(in) :: dim_obs_p
      !! PE-local dimension of observation vector
-   REAL(REAL64), INTENT(out) :: covar(dim_obs,dim_obs)
-     !! Observation error covar. matrix
-   REAL(REAL64), INTENT(out) :: m_state_p(dim_obs_p)
-     !! PE-local observed state
-   LOGICAL, INTENT(out) :: isdiag
-     !! Whether matrix R is diagonal
+   REAL(REAL64), INTENT(in) :: obs_p(dim_obs_p)
+     !! PE-local observation vector
+   REAL(REAL64), INTENT(out) :: meanvar
+     !! Mean observation error variance
 
-   integer :: i
-
-   covar(:, :) = 0.0
-   DO i = 1, dim_obs
-      covar(i, i) = rms_obs(i)**2
-   ENDDO
-   isdiag = .TRUE.
+   if (verbosity >= debug) write(stderr,*) 'init_obsvar_pdaf() ',rms_obs
+   stop 'KB - init_obsvar_pdaf()'
+!KB   meanvar = rms_obs ** 2
 END SUBROUTINE init_obsvar_pdaf
 
 !-----------------------------------------------------------------------
