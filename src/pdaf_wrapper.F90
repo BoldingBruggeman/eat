@@ -708,8 +708,28 @@ END SUBROUTINE add_obs_error_pdaf
 !-----------------------------------------------------------------------
 
 ! Initialize obs error covar R in EnKF
-SUBROUTINE init_obscovar_pdaf()
-   call abort('init_obscovar_pdaf')
+SUBROUTINE init_obscovar_pdaf(step, dim_obs, dim_obs_p, covar, m_state_p, &
+                              isdiag)
+   INTEGER, INTENT(in) :: step
+     !! Current time step
+   INTEGER, INTENT(in) :: dim_obs
+     !! Dimension of observation vector
+   INTEGER, INTENT(in) :: dim_obs_p
+     !! PE-local dimension of observation vector
+   REAL(REAL64), INTENT(out) :: covar(dim_obs,dim_obs)
+     !! Observation error covar. matrix
+   REAL(REAL64), INTENT(out) :: m_state_p(dim_obs_p)
+     !! PE-local observed state
+   LOGICAL, INTENT(out) :: isdiag
+     !! Whether matrix R is diagonal
+
+   integer :: i
+
+   covar(:, :) = 0.0
+   DO i = 1, dim_obs
+      covar(i, i) = rms_obs(i)**2
+   ENDDO
+   isdiag = .TRUE.
 END SUBROUTINE init_obscovar_pdaf
 
 !-----------------------------------------------------------------------
