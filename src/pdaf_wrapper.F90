@@ -689,8 +689,20 @@ END SUBROUTINE next_observation_pdaf
 
 ! ! Subroutines used in EnKF
 ! Add obs. error covariance R to HPH in EnKF
-SUBROUTINE add_obs_error_pdaf()
-   call abort('add_obs_error_pdaf')
+SUBROUTINE add_obs_error_pdaf(step,dim_obs_p,C_p)
+   INTEGER, INTENT(in) :: step
+     !! Current time step
+   INTEGER, INTENT(in) :: dim_obs_p
+     !! PE-local dimension of obs. vector
+   REAL(REAL64), INTENT(inout) :: C_p(dim_obs_p,dim_obs_p)
+     !! Output matrix
+
+   !! local variables
+   integer :: i
+
+   do i=1,dim_obs_p
+      C_p(i,i) = C_p(i,i) + rms_obs(i)**2
+   end do
 END SUBROUTINE add_obs_error_pdaf
 
 !-----------------------------------------------------------------------
