@@ -10,7 +10,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # Find target Python interpreter.
 set(Python_FIND_STRATEGY LOCATION)
 set(Python3_FIND_STRATEGY LOCATION)
-find_package(Python3 COMPONENTS Interpreter Development NumPy)
+find_package(Python3 COMPONENTS Interpreter Development)
 
 add_library(ceat_filter_pdaf ceat_filter_pdaf.F90)
 target_link_libraries(ceat_filter_pdaf PRIVATE eat_config)
@@ -23,7 +23,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/_eat_filter_pdaf.c
 
 Python3_add_library(_eat_filter_pdaf MODULE
   _eat_filter_pdaf.c)
-target_link_libraries(_eat_filter_pdaf PRIVATE ceat_filter_pdaf Python3::NumPy)
+target_link_libraries(_eat_filter_pdaf PRIVATE ceat_filter_pdaf)
 
 # Build wheel
 add_custom_command(OUTPUT wheel.stamp
