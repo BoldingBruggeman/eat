@@ -34,4 +34,4 @@ add_custom_command(OUTPUT wheel.stamp
 add_custom_target(wheel ALL DEPENDS wheel.stamp)
 
 # Let pip install the wheel
-install(CODE "execute_process(COMMAND ${Python3_EXECUTABLE} -m pip install --no-index --find-links=${CMAKE_CURRENT_BINARY_DIR}/dist --user --force-reinstall --upgrade eatpy WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dist)")
+install(CODE "execute_process(COMMAND ${Python3_EXECUTABLE} -m pip install --no-index --find-links=${CMAKE_CURRENT_BINARY_DIR}/dist --force-reinstall --upgrade eatpy WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dist)")
