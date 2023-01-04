@@ -61,7 +61,7 @@ add_subdirectory("extern/datetime-fortran" EXCLUDE_FROM_ALL)
 # We look in EAT_PDAF_BASE (as configured via the call to cmake)
 if(EAT_USE_PDAF)
    # PDAF naming scheme changed from V2.0 "-D" was dropped
-   find_path(PDAF_BASE NAMES src/PDAF_init.F90 src/PDAF-D_init.F90 HINTS ${EAT_PDAF_BASE} extern/pdaf DOC "Path to PDAF source directory.")
+   find_path(PDAF_BASE NAMES src/PDAF_init.F90 src/PDAF-D_init.F90 HINTS ${EAT_PDAF_BASE} extern/pdaf DOC "Path to PDAF source directory." NO_CMAKE_FIND_ROOT_PATH)
    message("${PDAF_BASE}")
    add_subdirectory(${PDAF_BASE} "extern/pdaf" EXCLUDE_FROM_ALL)
 endif(EAT_USE_PDAF)
