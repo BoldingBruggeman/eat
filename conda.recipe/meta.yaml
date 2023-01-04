@@ -1,0 +1,48 @@
+package:
+  name: eatpy
+  version: "0.5"
+
+build:
+  entry_points:
+    - eatpy-filter = eatpy.filter:main
+    - eatpy-gotm-gen = eatpy.gotm.generate_ensemble:main
+  ignore_run_exports:
+    - mpi4py                     # only needed for types and access to MPI itself
+
+requirements:
+  host:
+    - python {{ python }}
+    - cython
+    - pip
+    - setuptools
+    #- numpy>=1.17               # only needed if "cimport numpy" is done in a pyx file
+    - blas
+    - lapack
+    - netcdf-fortran             # [not win]
+    - {{ mpi }}
+    - mpi4py                     # because eatpy/_eat_filter_pdaf.pyx does "cimport mpi4py.xxx"
+  build:
+    - cmake
+    - make                       # [not win]
+    - {{ compiler('c') }}
+    - {{ compiler('fortran') }}  # [not win]
+  run:
+    - python
+    - {{ pin_compatible('numpy') }}
+    - mpi4py
+    - netCDF4
+    - pyyaml                      # for eatpy-gotm-gen
+    - {{ mpi }}
+
+test:
+  requires:
+  imports:
+    - eatpy
+  commands:
+    - eatpy-filter -h
+    - eatpy-gotm-gen -h
+    #- eat_model_gotm -h
+
+about:
+  home: https://github.com/BoldingBruggeman/eat
+  license: GPL
