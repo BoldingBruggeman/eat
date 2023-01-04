@@ -159,7 +159,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
    namelist /nml_config_pdaf/ screen, filtertype, subtype, &
                               type_trans, type_forget, forget, &
                               dim_cvec, dim_cvec_ens, beta_3dvar, &
-                              type_opt, forget
+                              type_opt
 
    ! values must be provided via namelist
    dim_cvec=-1
