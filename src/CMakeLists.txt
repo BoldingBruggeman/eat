@@ -1,6 +1,6 @@
 # Copyright (C) 2021 Bolding & Bruggeman
 
-add_library(eat_config eat_config.F90 pdaf_wrapper.F90 ${MPI_Fortran_EXTRA_SOURCES})
+add_library(eat_config eat_config.F90 pdaf_wrapper.F90 ${MPI_Fortran_ADDITIONAL_SOURCES})
 target_link_libraries(eat_config PUBLIC pdaf-d ${MPI_Fortran_LIBRARIES} )
 
 add_executable(eat_filter_pdaf eat_filter_pdaf.F90)
