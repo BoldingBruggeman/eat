@@ -1,6 +1,7 @@
 # Copyright (C) 2021 Bolding & Bruggeman
 
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.15)
+cmake_policy(SET CMP0091 NEW)
 
 project(eat VERSION 0.1.0 LANGUAGES Fortran)
 
@@ -56,6 +57,9 @@ endif()
 endif(EAT_USE_MPI)
 
 add_subdirectory("extern/datetime-fortran" EXCLUDE_FROM_ALL)
+if(WIN32)
+  set_property(TARGET strptime PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 # As PDAF can't be added as a submodule we need to find out where it is located
 # We look in EAT_PDAF_BASE (as configured via the call to cmake)
