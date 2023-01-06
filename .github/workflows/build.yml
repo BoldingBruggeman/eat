@@ -39,6 +39,5 @@ jobs:
           cp ../../tests/nns_annual/eat_pdaf.nml .
           cp ../../tests/nns_annual/eat_gotm.nml .
           eat_model_gotm
-          cp restart_0001.nc restart.nc
           eatpy-gotm-gen restart restart.nc 10 --exclude z --exclude zi --exclude h
           mpiexec -n 10 eat_model_gotm
