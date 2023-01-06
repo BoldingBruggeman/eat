@@ -10,5 +10,5 @@ conflict reported during the testing phase. This happened 2022-11-29 with Python
 
 `conda-build <RECIPEDIR> -c conda-forge`
 
-Before this command, the VS 2017 environment needs to be loaded.
-To do this, use "x64 Native Tools Command Prompt for VS 2017" in the start menu.
+If VS2017 is installed, this command should work on a normal command prompt.
+(no need to load MSVC or Intel-specific environments)
