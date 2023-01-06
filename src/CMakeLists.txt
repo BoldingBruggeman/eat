@@ -12,8 +12,8 @@ install(TARGETS eat_config
    ARCHIVE DESTINATION lib
 )
 install(FILES
-   $<TARGET_PROPERTY:eat_config,Fortran_MODULE_DIRECTORY>/eat_config.mod
-   $<TARGET_PROPERTY:eat_config,Fortran_MODULE_DIRECTORY>/pdaf_wrapper.mod
+   $<TARGET_PROPERTY:eat_config,Fortran_MODULE_DIRECTORY>/\${BUILD_TYPE}/eat_config.mod
+   $<TARGET_PROPERTY:eat_config,Fortran_MODULE_DIRECTORY>/\${BUILD_TYPE}/pdaf_wrapper.mod
    DESTINATION include
 )
 install(TARGETS eat_filter_pdaf RUNTIME DESTINATION bin)

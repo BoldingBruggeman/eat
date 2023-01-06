@@ -8,6 +8,9 @@ project(ceat_filter_pdaf VERSION 0.1.0 LANGUAGES Fortran C)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Find target Python interpreter.
+if(Python3_EXECUTABLE)
+  file(TO_CMAKE_PATH "${Python3_EXECUTABLE}" Python3_EXECUTABLE)
+endif()
 set(Python_FIND_STRATEGY LOCATION)
 set(Python3_FIND_STRATEGY LOCATION)
 find_package(Python3 COMPONENTS Interpreter Development)

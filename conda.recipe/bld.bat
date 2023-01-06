@@ -1,7 +1,8 @@
 mkdir build
 REM mkdir install
 cd build
-cmake -DPython3_EXECUTABLE="%PYTHON%" -DCMAKE_BUILD_TYPE=Release %RECIPE_DIR%\.. -DFABM_BASE=%RECIPE_DIR%/../extern/fabm -DCMAKE_INSTALL_PREFIX=%PREFIX%
+set MKLROOT=%PREFIX%\Library
+cmake -DPython3_EXECUTABLE="%PYTHON%" -DCMAKE_BUILD_TYPE=Release %RECIPE_DIR%\.. -DCMAKE_INSTALL_PREFIX=%PREFIX%
 if errorlevel 1 exit 1
 cmake --build . --config Release --parallel %CPU_COUNT% --target install
 if errorlevel 1 exit 1
