@@ -8,6 +8,7 @@ program eat_model_gotm
    use mpi
    use eat_config
    use gotm, only: initialize_gotm, integrate_gotm, finalize_gotm
+   use cmdline
    use time, only: start,stop,timestep,julianday,fsecondsofday
    use time, only: MinN,MaxN
    use datetime_module, only: datetime, timedelta, clock, strptime
@@ -119,7 +120,10 @@ subroutine pre_model_initialize()
       have_filter=.false.
       have_obs=.false.
       ensemble_only=.true.
-      if (nprocs == 1) return
+      if (nprocs == 1) then
+         call parse_cmdline('eat-gotm')
+         return
+      end if
    end if
 
    output: block

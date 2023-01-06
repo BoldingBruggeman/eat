@@ -4,8 +4,8 @@ package:
 
 build:
   entry_points:
-    - eatpy-filter = eatpy.filter:main
-    - eatpy-gotm-gen = eatpy.gotm.generate_ensemble:main
+    - eat-filter = eatpy.filter:main
+    - eat-gotm-gen = eatpy.gotm.generate_ensemble:main
   ignore_run_exports:
     - mpi4py                     # only needed for types and access to MPI itself
 
@@ -39,9 +39,9 @@ test:
   imports:
     - eatpy
   commands:
-    - eatpy-filter -h
-    - eatpy-gotm-gen -h
-    #- eat_model_gotm -h
+    - eat-filter -h
+    - eat-gotm-gen -h
+    - eat-gotm -h
 
 about:
   home: https://github.com/BoldingBruggeman/eat

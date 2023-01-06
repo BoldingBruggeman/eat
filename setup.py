@@ -11,9 +11,9 @@ setup(
     zip_safe=False,
     entry_points = {
         'console_scripts': [
-            'eatpy-filter = eatpy.filter:main',
-            'eatpy-gotm-obs = eatpy.gotm.obs:main',
-            'eatpy-gotm-gen = eatpy.gotm.generate_ensemble:main',
+            'eat-filter = eatpy.filter:main',
+            'eat-gotm-obs = eatpy.gotm.obs:main',
+            'eat-gotm-gen = eatpy.gotm.generate_ensemble:main',
         ],
     }
 )

@@ -8,6 +8,3 @@ cmake --build . --config Release --parallel %CPU_COUNT% --target install
 if errorlevel 1 exit 1
 cd ..
 rmdir /S /Q build
-REM mkdir %SCRIPTS%
-REM copy install\bin\eat_model_gotm.exe %SCRIPTS%\
-

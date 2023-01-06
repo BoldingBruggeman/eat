@@ -12,7 +12,7 @@ EAT provides an easy method for generating and ensemble of model simulations - a
 
 The following command must be executed in the GOTM case folder. 
 
-`mpiexec --oversubscribe -np 11 $bindir/eat_model_gotm`
+`mpiexec --oversubscribe -np 11 $bindir/eat-gotm`
 
 The result will be:
 
@@ -26,7 +26,7 @@ The simulation can be split in time chunks according to times provided in the fi
 
 The simulation start and stop time are given in the YAML-configuration file. The date/times from *obs_times.dat* is used to split the simulation in shorter parts.
 
-`mpiexec --oversubscribe -np 1 python $reposdir/eat/models/gotm/eat_obs_gotm.py : -np 5 $bindir/eat_model_gotm`
+`mpiexec --oversubscribe -np 1 python $reposdir/eat/models/gotm/eat_obs_gotm.py : -np 5 $bindir/eat-gotm`
 
 ![ensemble_split](./ensemble_split.png)
 
@@ -40,6 +40,6 @@ As a new feature - the observation times are indicated in the log files as:
 
 To run the full assimilation scheme with EAT the following command is used:
 
-`mpiexec --oversubscribe -np 1 python $reposdir/eat/models/gotm/eat_obs_gotm.py : -np 1 $bindir/eat_filter_pdaf : -np 11  $bindir/eat_model_gotm`
+`mpiexec --oversubscribe -np 1 python $reposdir/eat/models/gotm/eat_obs_gotm.py : -np 1 $bindir/eat_filter_pdaf : -np 11  $bindir/eat-gotm`
 
 A total of 13 processes will be started.

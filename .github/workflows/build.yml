@@ -38,6 +38,6 @@ jobs:
           cd gotm-cases/nns_annual
           cp ../../tests/nns_annual/eat_pdaf.nml .
           cp ../../tests/nns_annual/eat_gotm.nml .
-          eat_model_gotm
-          eatpy-gotm-gen restart restart.nc 10 --exclude z --exclude zi --exclude h
-          mpiexec -n 10 eat_model_gotm
+          eat-gotm
+          eat-gotm-gen restart restart.nc 10 --exclude z --exclude zi --exclude h
+          mpiexec -n 10 eat-gotm
