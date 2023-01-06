@@ -49,6 +49,10 @@ option(EAT_USE_GOTM "Build the GOTM driver for EAT" ON)
 # Dependencies
 # ----------------------------
 
+if(MPI_msmpifec_LIBRARY)
+  file(TO_CMAKE_PATH "${MPI_msmpifec_LIBRARY}" MPI_msmpifec_LIBRARY)
+endif()
+
 if(EAT_USE_MPI)
 find_package(MPI REQUIRED)
 if(MPI_Fortran_INCLUDE_PATH)
