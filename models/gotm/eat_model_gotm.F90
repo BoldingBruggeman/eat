@@ -119,6 +119,7 @@ subroutine pre_model_initialize()
       have_filter=.false.
       have_obs=.false.
       ensemble_only=.true.
+      if (nprocs == 1) return
    end if
 
    output: block
