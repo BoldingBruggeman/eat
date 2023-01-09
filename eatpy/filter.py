@@ -80,7 +80,7 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
         logger.info("Running without models")
 
     # Receive size of state vector from lowest-ranking model
-    state_size = np.array(0, dtype="i4")
+    state_size = np.array(0, dtype=np.intc)
     if nmodel:
         comm_model.Recv(state_size, source=1, tag=MPI.ANY_TAG)
     model_states = np.empty((nmodel, state_size))

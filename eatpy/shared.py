@@ -20,7 +20,7 @@ TAG_ANALYSIS = 1
 TAG_FORECAST = 2
 
 
-def setup_mpi(color: int) -> Tuple[MPI.Comm, MPI.Comm, MPI.Comm, MPI.Comm]:
+def setup_mpi(color: int) -> Tuple[MPI.Comm, MPI.Comm]:
     """Set up MPI communicators."""
     comm_model = MPI.COMM_WORLD.Split(
         color=color if color == COLOR_MODEL else MPI.UNDEFINED
@@ -144,18 +144,16 @@ class Controller:
         # Set up parallel communication
         self.comm, self.comm_model = setup_mpi(COLOR_FILTER)
         self.nmodel = self.comm_model.size - self.comm.size
+        state_size = np.array(0, dtype=np.intc)
         if not self.nmodel:
             self.logger.info("Running without models")
+            self.variables = collections.OrderedDict()
         else:
             self.configure_model()
-
-        # Receive size of state vector from lowest-ranking model
-        state_size = np.array(0, dtype="i4")
-        if self.nmodel:
             self.comm_model.Recv(state_size, source=1, tag=MPI.ANY_TAG)
-        self.model_states = np.empty((self.nmodel, state_size))
+            self.variables = self.get_model_variables()
 
-        self.variables = self.get_model_variables()
+        self.model_states = np.empty((self.nmodel, state_size))
 
         # Provide all variables with pointers to the model data
         # and rename "start" key to "model_start"

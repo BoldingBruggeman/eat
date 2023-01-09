@@ -286,7 +286,7 @@ class GOTM(shared.Controller):
                 )
         self.values = np.array(self.values, dtype=float)
         self.sds = np.array(self.sds, dtype=float)
-        self.offsets = np.array(self.offsets, dtype="i4")
+        self.offsets = np.array(self.offsets, dtype=np.intc)
 
     def get_observations(self, variables) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Map observations collected by :meth:`collect_observations` to the model

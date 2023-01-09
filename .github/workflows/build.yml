@@ -39,3 +39,4 @@ jobs:
           eat-gotm   # this will write the restart that the next command operates on
           eat-gotm-gen restart restart.nc 10 --exclude z --exclude zi --exclude h
           mpiexec -n 2 eat-gotm
+          eat-filter -h
