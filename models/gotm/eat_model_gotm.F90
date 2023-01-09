@@ -100,7 +100,8 @@ program eat_model_gotm
       call MPI_RECV(n,1,MPI_INTEGER,0,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
       write(stderr,*) 'Adding ', n, ' FABM parameters to the model state as seen by filter'
       do i = 1, n
-         call MPI_RECV(fabm_parameters_in_state(i),len(fabm_parameters_in_state(i)),MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+         call MPI_RECV(fabm_parameters_in_state(i),len(fabm_parameters_in_state(i)),MPI_CHARACTER,0,MPI_ANY_TAG, &
+            EAT_COMM_model_filter,stat,ierr)
          write(stderr,*) '- ', trim(fabm_parameters_in_state(i))
       end do
    end if
