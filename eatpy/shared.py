@@ -189,7 +189,7 @@ class Controller:
 
         # Plugins can manipulate the state layout (add or remove variables);
         # keep a copy of all possible variables, needed by the observation handler
-        self.all_variables = self.variables.copy()
+        self.all_variables = collections.OrderedDict(self.variables)
         for plugin in self.plugins:
             plugin.initialize(self.variables, self.nmodel)
 
