@@ -146,8 +146,8 @@ class Controller:
         self.nmodel = self.comm_model.size - self.comm.size
         if not self.nmodel:
             self.logger.info("Running without models")
-
-        self.configure_model()
+        else:
+            self.configure_model()
 
         # Receive size of state vector from lowest-ranking model
         state_size = np.array(0, dtype="i4")
