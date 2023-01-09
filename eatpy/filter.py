@@ -1,5 +1,5 @@
 import collections
-from typing import Iterable, List, Mapping, Any
+from typing import Iterable
 import argparse
 import sys
 import importlib
@@ -10,7 +10,7 @@ from mpi4py import MPI
 
 from . import shared
 from . import output
-from .gotm import obs
+from . import models
 from .pdaf import PDAF
 
 
@@ -22,7 +22,7 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("filter")
 
-    obs_handler = obs.ObservationHandler(verbose=True)
+    obs_handler = models.GOTM()
 
     # Parse command line arguments if requested.
     # This may append plugins, e.g., for output.
