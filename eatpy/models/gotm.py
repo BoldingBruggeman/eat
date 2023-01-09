@@ -3,10 +3,13 @@
 import datetime
 import argparse
 import re
-import logging
-from typing import Optional, List, Tuple
+import collections
+from typing import Optional, List, Tuple, Mapping, Any, Iterable
 
 import numpy as np
+from mpi4py import MPI
+
+from .. import shared
 
 # Regular expression for ISO 8601 datetimes
 datetimere = re.compile(r"(\d\d\d\d).(\d\d).(\d\d) (\d\d).(\d\d).(\d\d)\s*")
@@ -97,23 +100,113 @@ class File:
             self.next = curtime, None, value, sd
 
 
-class ObservationHandler:
+class GOTM(shared.Controller):
     def __init__(
         self,
         start: Optional[datetime.datetime] = None,
         stop: Optional[datetime.datetime] = None,
-        verbose: bool = False,
-        logger: Optional[logging.Logger] = None,
+        diagnostics_in_state: Iterable[str] = (),
+        fabm_parameters_in_state: Iterable[str] = (),
     ):
-        self.logger = logger or logging.getLogger("obs")
-        if verbose:
-            self.logger.setLevel(logging.DEBUG)
+        self.diagnostics_in_state = diagnostics_in_state
+        self.fabm_parameters_in_state = fabm_parameters_in_state
 
-        self.start_time = start
-        self.stop_time = stop
+        super().__init__()
+
+        if start is not None:
+            self.start_time = max(self.start_time, start)
+        if stop is not None:
+            self.stop_time = min(self.stop_time, stop)
         self.time = None
 
         self.datasets: List[Tuple[str, File]] = []
+
+    def configure_model(self):
+        # Send names of diagnostics and FABM parameters that need to be added
+        # to the model state
+        parbuffers = [
+            np.frombuffer("{:<64s}".format(n).encode("ascii"), dtype="b")
+            for n in self.fabm_parameters_in_state
+        ]
+        diagbuffers = [
+            np.frombuffer("{:<64s}".format(n).encode("ascii"), dtype="b")
+            for n in self.diagnostics_in_state
+        ]
+        ndiag = np.array(len(diagbuffers), dtype=np.intc)
+        npar = np.array(len(parbuffers), dtype=np.intc)
+        reqs = []
+        for imodel in range(self.nmodel):
+            reqs.append(self.comm_model.Isend(ndiag, dest=imodel + 1))
+            for buf in diagbuffers:
+                reqs.append(self.comm_model.Isend(buf, dest=imodel + 1))
+            reqs.append(self.comm_model.Isend(npar, dest=imodel + 1))
+            for buf in parbuffers:
+                reqs.append(self.comm_model.Isend(buf, dest=imodel + 1))
+        MPI.Request.Waitall(reqs)
+
+        # Receive simulation start and stop
+        strtime = np.empty((19,), dtype="b")
+        self.comm_model.Recv(strtime, source=1)
+        self.start_time = datetime.datetime.strptime(
+            strtime.tobytes().decode("ascii"), "%Y-%m-%d %H:%M:%S"
+        )
+        self.comm_model.Recv(strtime, source=1)
+        self.stop_time = datetime.datetime.strptime(
+            strtime.tobytes().decode("ascii"), "%Y-%m-%d %H:%M:%S"
+        )
+        self.logger.info(
+            "Model simulated period: %s - %s"
+            % (self.start_time.isoformat(), self.stop_time.isoformat())
+        )
+
+    def get_model_variables(self) -> Mapping[str, Any]:
+        return collections.OrderedDict(shared.parse_memory_map("da_variables.dat"))
+
+    def add_observations(self, variable_name: str, path: str):
+        """
+        Args:
+            variable_name: name of the model variable that is observed
+                If this is a depth-explicit variable, the variable can optionally
+                be followed by a depth index between square brackets
+                (e.g., 0 for the bottom layer, -1 for the surface layer)
+            path: path of the file with observations
+                This must be a text file with 3 columns (datetime, value, sd) for
+                depth-INdependent variables, or 4 columns (datetime, depth, value, sd)
+                for depth-dependent variables. Values on a single line must be
+                whitespace-separated. The datetime must be in ISO 8601 format without
+                timezone designation, e.g., 1979-05-08 00:00:00.
+        """
+        # Ensure plugins are initialized, so that the final set of variables
+        # that can be observed is known
+        self.initialize_plugins()
+
+        # Extract depth index from variable name, if any
+        depth_index = None
+        full_variable_name = variable_name
+        if "[" in variable_name and variable_name[-1] == "]":
+            variable_name, depth_index = variable_name[:-1].split("[")
+
+        if variable_name not in self.variables:
+            raise Exception(
+                "Observed variable %s is not present in model state (after"
+                " processing by plugins, if any). Available: %s"
+                % (variable_name, ", ".join(sorted(self.variables)))
+            )
+
+        # Determine offset into state array
+        is_1d = self.variables[variable_name]["length"] > 1
+        offset = self.variables[variable_name]["start"]
+        if depth_index is not None:
+            offset += int(depth_index) % self.variables[variable_name]["length"]
+            is_1d = False
+
+        self.datasets.append((variable_name, File(path, is_1d=is_1d, sd=None), offset))
+
+        self.logger.info(
+            "Observations in %s mapped to model variable %s (%iD)."
+            " Offset in state array: %i"
+            % (path, full_variable_name, 1 if is_1d else 0, offset)
+        )
 
     def initialize(self, args, variables):
         # Determine time range for assimilation
@@ -128,33 +221,7 @@ class ObservationHandler:
 
         # Enumerate observed variables and their associated data files
         for variable_name, path in args.obs:
-            depth_index = None
-            if "[" in variable_name and variable_name[-1] == "]":
-                variable_name, depth_index = variable_name[:-1].split("[")
-
-            if variable_name not in variables:
-                raise Exception(
-                    "Observed variable %s is not present in model state (after"
-                    " processing by plugins, if any). Available: %s"
-                    % (variable_name, ", ".join(sorted(variables)))
-                )
-
-            # Determine offset into state array
-            is_1d = variables[variable_name]["length"] > 1
-            offset = variables[variable_name]["start"]
-            if depth_index is not None:
-                offset += int(depth_index) % variables[variable_name]["length"]
-                is_1d = False
-
-            self.datasets.append(
-                (variable_name, File(path, is_1d=is_1d, sd=None), offset)
-            )
-
-            self.logger.info(
-                "Observations in %s mapped to model variable %s (%iD)."
-                " Offset in state array: %i"
-                % (path, variable_name, 1 if is_1d else 0, offset)
-            )
+            self.add_observations(variable_name, path)
 
     def observations(self):
         """Iterate over all observation times"""

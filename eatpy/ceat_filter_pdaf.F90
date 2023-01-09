@@ -22,16 +22,17 @@ contains
       rms_obs => rms_obs_
    end subroutine
 
-   subroutine ceat_pdaf_init(EAT_COMM_filter, state_size, ensemble_size, cb_3dvar, p, stat) bind(c)
-      integer,        intent(in), value :: EAT_COMM_filter, state_size, ensemble_size
+   subroutine ceat_set_3dvar_callback(cb_3dvar) bind(c)
       type(c_funptr), intent(in), value :: cb_3dvar
-      type(c_ptr),    intent(out)       :: p
-      integer,        intent(out)       :: stat
+      call c_f_procpointer(cb_3dvar, pcvt_callback)
+   end subroutine
+
+   subroutine ceat_pdaf_get_ensemble_state_pointer(p) bind(c)
+      type(c_ptr), intent(out) :: p
 
       real(real64), pointer, contiguous :: model_states(:,:)
 
-      call c_f_procpointer(cb_3dvar, pcvt_callback)
-      call init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, stat)
+      call get_ensemble_state_pointer_pdaf(model_states)
       p = c_loc(model_states)
    end subroutine
 

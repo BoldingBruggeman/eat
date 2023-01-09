@@ -76,7 +76,8 @@ subroutine eat_init_pdaf()
    end if
 
 #ifdef _USE_PDAF_
-   CALL init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, ierr)
+   CALL init_pdaf(EAT_COMM_filter, state_size, ensemble_size, ierr)
+   CALL get_ensemble_state_pointer_pdaf(model_states)
    if (ierr /= 0) then
       call MPI_ABORT(MPI_COMM_WORLD,-1,ierr)
    else

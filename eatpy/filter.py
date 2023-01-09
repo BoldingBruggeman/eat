@@ -1,5 +1,5 @@
 import collections
-from typing import Iterable, Optional
+from typing import Iterable, List, Mapping, Any
 import argparse
 import sys
 import importlib
@@ -11,55 +11,7 @@ from mpi4py import MPI
 from . import shared
 from . import output
 from .gotm import obs
-from . import _eat_filter_pdaf
-
-
-class CvtHandler(shared.Plugin):
-    def cvt(self, iter: int, state: np.ndarray, v_p: np.ndarray) -> np.ndarray:
-        raise Exception(
-            "cvt called but not implemented; state shape = %s, v_p shape = %s"
-            % (state.shape, v_p.shape,)
-        )
-
-    def cvt_adj(self, iter: int, state: np.ndarray, Vv_p: np.ndarray) -> np.ndarray:
-        raise Exception(
-            "cvt_adj called but not implemented; state shape = %s, Vv_p shape = %s"
-            % (state.shape, Vv_p.shape,)
-        )
-
-    def cvt_ens(self, iter: int, state: np.ndarray, v_p: np.ndarray) -> np.ndarray:
-        raise Exception(
-            "cvt_ens called but not implemented; state shape = %s, v_p shape = %s"
-            % (state.shape, v_p.shape)
-        )
-
-    def cvt_adj_ens(self, iter: int, state: np.ndarray, Vv_p: np.ndarray) -> np.ndarray:
-        raise Exception(
-            "cvt_adj_ens called but not implemented; state shape = %s, Vv_p shape = %s"
-            % (state.shape, Vv_p.shape)
-        )
-
-
-class PDAF(shared.Filter):
-    """Filter class that wraps PDAF."""
-
-    def __init__(
-        self,
-        comm: MPI.Comm,
-        state_size: int,
-        ensemble_size: int,
-        cvt_handler: Optional[CvtHandler] = None,
-    ):
-        model_states = _eat_filter_pdaf.initialize(
-            comm, state_size, ensemble_size, cvt_handler or CvtHandler()
-        )
-        super().__init__(model_states)
-
-    def assimilate(self, iobs: np.ndarray, obs: np.ndarray, sds: np.ndarray):
-        _eat_filter_pdaf.assimilate(iobs, obs, sds)
-
-    def finalize(self):
-        _eat_filter_pdaf.finalize()
+from .pdaf import PDAF
 
 
 def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
@@ -183,16 +135,13 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
 
     # Create filter.
     # This will allocate an array to hold the state of all members: f.model_states
-    cvt_handler = None
-    for plugin in plugins:
-        if isinstance(plugin, CvtHandler):
-            cvt_handler = plugin
-    f = PDAF(comm, state_size, nmodel, cvt_handler)
+    f = PDAF()
+    f.initialize(comm, state_size, nmodel, plugins)
 
     # Create a mapping between state of the model and state as seen by the filter
     model2filter_state_map = []
     for info in variables.values():
-        info["filter_data"] = f.model_states[:, info["start"]:info["stop"]]
+        info["filter_data"] = f.model_states[:, info["start"] : info["stop"]]
         info["data"] = info["filter_data"]
         if "model_data" in info:
             model2filter_state_map.append((info["model_data"], info["filter_data"]))
@@ -227,12 +176,12 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
         # Ensure the model state has been received
         MPI.Request.Waitall(reqs)
 
-        logger.info('Ensemble spread (root-mean-square differences):')
+        logger.info("Ensemble spread (root-mean-square differences):")
         for name, info in all_variables.items():
-            d = info.get('model_data')
+            d = info.get("model_data")
             if d is not None:
                 rms = np.sqrt(np.mean(np.var(d, axis=0)))
-                logger.info('  %s: %.3g %s' % (name, rms, info['units']))
+                logger.info("  %s: %.3g %s" % (name, rms, info["units"]))
 
         # Select the parts of the model state that the filter will act upon
         for model_state, filter_state in model2filter_state_map:
@@ -252,22 +201,24 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
 
         if not np.isfinite(f.model_states).all():
             logger.error(
-                "Non-finite values in ensemble state state sent to PDAF (after plugin.before_analysis)"
+                "Non-finite values in ensemble state state sent to PDAF"
+                " (after plugin.before_analysis)"
             )
-            raise Exception('non-finite ensemble state')
+            raise Exception("non-finite ensemble state")
         if not np.isfinite(obs_values).all():
             logger.error(
-                "Non-finite values in observations sent to PDAF (after plugin.before_analysis)"
+                "Non-finite values in observations sent to PDAF"
+                " (after plugin.before_analysis)"
             )
-            raise Exception('non-finite observations')
+            raise Exception("non-finite observations")
         if not np.isfinite(obs_sds).all():
             logger.error(
-                "Non-finite values in observation s.d. sent to PDAF (after plugin.before_analysis)"
+                "Non-finite values in observation s.d. sent to PDAF"
+                " (after plugin.before_analysis)"
             )
-            raise Exception('non-finite observation errors')
+            raise Exception("non-finite observation errors")
 
-        # If we have observations, then perform assimilation.
-        # This updates f.model_states
+        # Perform assimilation. This updates f.model_states
         obs_indices += 1  # convert to 1-based indices for Fortran/PDAF
         f.assimilate(obs_indices, obs_values, obs_sds)
 

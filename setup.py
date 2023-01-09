@@ -12,8 +12,8 @@ setup(
     entry_points = {
         'console_scripts': [
             'eat-filter = eatpy.filter:main',
-            'eat-gotm-obs = eatpy.gotm.obs:main',
-            'eat-gotm-gen = eatpy.gotm.generate_ensemble:main',
+            'eat-gotm-obs = eatpy.models.gotm:main',
+            'eat-gotm-gen = eatpy.models.gotm_generate_ensemble:main',
         ],
     }
 )

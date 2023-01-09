@@ -7,7 +7,7 @@ program eat_model_gotm
    USE, INTRINSIC :: ISO_FORTRAN_ENV
    use mpi
    use eat_config
-   use gotm, only: initialize_gotm, integrate_gotm, finalize_gotm
+   use gotm, only: initialize_gotm, integrate_gotm, finalize_gotm, generate_restart_file
    use cmdline
    use time, only: start,stop,timestep,julianday,fsecondsofday
    use time, only: MinN,MaxN
@@ -51,6 +51,8 @@ program eat_model_gotm
    namelist /nml_eat_model/ verbosity,all_verbose,shared_gotm_yaml,shared_restart_file,extra_state, fabm_parameters_in_state
 
    type (type_field_set) :: field_set
+   integer :: i, n
+   character(len=1024) :: arg
 !-----------------------------------------------------------------------
    extra_state = ''
    fabm_parameters_in_state = ''
@@ -62,7 +64,20 @@ program eat_model_gotm
       if (verbosity >= warn) write(stderr,*) 'model(read namelist)'
    end if
 
-   fabm_parameter_pointers = any(fabm_parameters_in_state /= '')
+   n = command_argument_count()
+   i = 1
+   do while (i <= n)
+      call get_command_argument(i, arg)
+      select case (arg)
+      case ('--separate_gotm_yaml')
+         shared_gotm_yaml = .false.
+      case ('--separate_restart_file')
+         shared_restart_file = .false.
+      case ('--generate_restart_file')
+         generate_restart_file = .true.
+      end select
+      i = i+1
+   end do
 
    call init_eat_config(color_model+verbosity)
 
@@ -71,6 +86,26 @@ program eat_model_gotm
    if (.not. all_verbose .and. member /= 0) verbosity=silent
 
    call pre_model_initialize()
+
+   extra_state = ''
+   fabm_parameters_in_state = ''
+   if (have_filter) then
+      call MPI_RECV(n,1,MPI_INTEGER,0,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+      write(stderr,*) 'Adding ', n, ' diagnostics to the model state as seen by filter'
+      do i = 1, n
+         call MPI_RECV(extra_state(i),len(extra_state(i)),MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+         write(stderr,*) '- ', trim(extra_state(i))
+      end do
+
+      call MPI_RECV(n,1,MPI_INTEGER,0,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+      write(stderr,*) 'Adding ', n, ' FABM parameters to the model state as seen by filter'
+      do i = 1, n
+         call MPI_RECV(fabm_parameters_in_state(i),len(fabm_parameters_in_state(i)),MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+         write(stderr,*) '- ', trim(fabm_parameters_in_state(i))
+      end do
+   end if
+
+   fabm_parameter_pointers = any(fabm_parameters_in_state /= '')
 
    if (ensemble_only) then
       signal=signal_initialize+signal_integrate+signal_finalize
@@ -121,7 +156,8 @@ subroutine pre_model_initialize()
       have_obs=.false.
       ensemble_only=.true.
       if (nprocs == 1) then
-         call parse_cmdline('eat-gotm')
+         ! Behave like normal (non-EAT) GOTM running in serial
+         if (.not. generate_restart_file) call parse_cmdline('eat-gotm')
          return
       end if
    end if
@@ -156,6 +192,11 @@ subroutine post_model_initialize()
    character(len=64) :: fn='da_variables.dat'
    character(len=:), allocatable :: str_scale_factor
    class (type_key_value_pair), pointer :: pair
+
+   if (have_filter .and. rank_model_comm == 0) then
+      call MPI_SEND(start,19,MPI_CHARACTER,0,0,EAT_COMM_model_filter,stat,ierr)
+      call MPI_SEND(stop,19,MPI_CHARACTER,0,0,EAT_COMM_model_filter,stat,ierr)
+   end if
 
    sim_start = strptime(trim(start), time_format)
    sim_stop  = strptime(trim(stop), time_format)

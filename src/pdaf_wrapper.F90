@@ -17,7 +17,7 @@ module pdaf_wrapper
 
    private
 
-   public init_pdaf, assimilation_pdaf, finish_pdaf, iobs, obs, rms_obs, pcvt_callback
+   public init_pdaf, get_ensemble_state_pointer_pdaf, assimilation_pdaf, finish_pdaf, iobs, obs, rms_obs, pcvt_callback
 
    integer :: stderr=error_unit,stdout=output_unit
    integer :: verbosity=info
@@ -82,12 +82,11 @@ contains
 
 ! Below are the routines implemented to link to the PDAF library - pdaf-d.
 
-SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, stat)
+SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, stat) bind(c)
 
       !! Initialize various variable and call PDAF_init()
 
    integer, intent(in), value :: EAT_COMM_filter, state_size, ensemble_size
-   real(real64), pointer, contiguous :: model_states(:,:)
    integer, intent(out) :: stat
 
    INTEGER :: filter_param_i(7)
@@ -100,8 +99,8 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
    integer :: screen = 2
      !! Write screen output (1) for output, (2) add timings
    integer :: dim_state_p = -1
-   integer :: comm_couple, comm_filter, comm_model, n_modeltasks, task_id
-   logical :: filterpe=.true.
+   integer :: comm_couple, comm_filter, comm_model
+   logical, parameter :: filterpe=.true.
 
    ! Filter specific variables
    integer :: &
@@ -161,6 +160,10 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
                               dim_cvec, dim_cvec_ens, beta_3dvar, &
                               type_opt
 
+   integer, parameter :: step_null = 0
+   integer, parameter :: task_id = 1
+   integer, parameter :: n_modeltasks = 1
+
    ! values must be provided via namelist
    dim_cvec=-1
    dim_cvec_ens=ensemble_size
@@ -179,9 +182,6 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
    comm_couple=EAT_COMM_filter ! suggested by Lars
    comm_filter=EAT_COMM_filter
    comm_model=EAT_COMM_filter ! suggested by Lars
-   filterpe=.true.
-   task_id=1
-   n_modeltasks=1
 
    call PDAF_set_comm_pdaf(EAT_COMM_filter)
    select case (filtertype)
@@ -193,7 +193,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
          filter_param_i(4) = incremental ! Whether to perform incremental analysis
          filter_param_i(5) = 0           ! Smoother lag (not implemented here)
          filter_param_r(1) = forget      ! Forgetting factor
-         CALL PDAF_init(filtertype, subtype, 0, &
+         CALL PDAF_init(filtertype, subtype, step_null, &
               filter_param_i, 6,&
               filter_param_r, 2, &
               COMM_model, COMM_filter, COMM_couple, &
@@ -210,7 +210,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
          filter_param_i(6) = type_trans  ! Type of ensemble transformation
          filter_param_i(7) = type_sqrt   ! Type of transform square-root (SEIK-sub4/ESTKF)
          filter_param_r(1) = forget      ! Forgetting factor
-         CALL PDAF_init(filtertype, subtype, 0, &
+         CALL PDAF_init(filtertype, subtype, step_null, &
               filter_param_i, 7,&
               filter_param_r, 2, &
               COMM_model, COMM_filter, COMM_couple, &
@@ -229,7 +229,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
                   if (dim_cvec < 0) then
                      call abort('init_pdaf(): dim_cvec < 0')
                   end if
-                  CALL PDAF_init(filtertype, subtype, 0, &
+                  CALL PDAF_init(filtertype, subtype, step_null, &
                        filter_param_i, 5,&
                        filter_param_r, 1, &
                        COMM_model, COMM_filter, COMM_couple, &
@@ -239,7 +239,7 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
                   if (dim_cvec_ens < 0) then
                      call abort('init_pdaf(): dim_cvec_ens < 0')
                   end if
-                  CALL PDAF_init(filtertype, subtype, 0, &
+                  CALL PDAF_init(filtertype, subtype, step_null, &
                        filter_param_i, 5,&
                        filter_param_r, 2, &
                        COMM_model, COMM_filter, COMM_couple, &
@@ -256,8 +256,59 @@ SUBROUTINE init_pdaf(EAT_COMM_filter, state_size, ensemble_size, model_states, s
 
    stat=status_pdaf
 
-   call PDAF_set_ens_pointer(model_states, stat)
 END SUBROUTINE init_pdaf
+
+SUBROUTINE get_ensemble_state_pointer_pdaf(model_states)
+   real(real64), pointer, contiguous :: model_states(:,:)
+   integer :: status_pdaf
+
+   call PDAF_set_ens_pointer(model_states, status_pdaf)
+   if (status_pdaf /= 0) stop 'PDAF_set_ens_pointer(): status_pdaf /= 0'
+END SUBROUTINE
+
+SUBROUTINE init_pdaf_with_param(filtertype, subtype, filter_param_i, length_filter_param_i, filter_param_r, length_filter_param_r, &
+   EAT_COMM_filter, screen, status_pdaf) bind(c)
+   integer, intent(in), value :: EAT_COMM_filter, filtertype, subtype, screen, length_filter_param_i, length_filter_param_r
+   integer, intent(inout) :: filter_param_i(length_filter_param_i)
+   real(real64), intent(inout) :: filter_param_r(length_filter_param_r)
+   integer, intent(out) :: status_pdaf
+
+   integer, parameter :: step_null = 0
+   integer, parameter :: task_id = 1
+   integer, parameter :: n_modeltasks = 1
+   logical, parameter :: filterpe = .true.
+   integer :: comm_couple, comm_filter, comm_model
+   procedure(), pointer :: U_init
+
+   comm_couple=EAT_COMM_filter ! suggested by Lars
+   comm_filter=EAT_COMM_filter
+   comm_model=EAT_COMM_filter ! suggested by Lars
+
+   U_init => init_ens_pdaf
+   select case (filtertype)
+   case (13)
+      select case (subtype)
+      case (0) ! parameterized 3D-Var
+         U_init => init_3dvar_pdaf
+      end select
+   end select
+
+   CALL PDAF_init(filtertype, subtype, step_null, &
+         filter_param_i, length_filter_param_i,&
+         filter_param_r, length_filter_param_r, &
+         COMM_model, COMM_filter, COMM_couple, &
+         task_id, n_modeltasks, filterpe, U_init, &
+         screen, status_pdaf)
+   if (status_pdaf /= 0) then
+      write(stderr,*) 'PDAF_init returned non-zero status ',status_pdaf
+      return
+   end if
+
+   CALL PDAF_get_state(steps, timenow, doexit, next_observation_pdaf, &
+        distribute_state_pdaf, prepoststep_ens_pdaf, status_pdaf)
+   if (status_pdaf /= 0) write(stderr,*) 'PDAF_get_state returned non-zero status ',status_pdaf
+
+END SUBROUTINE init_pdaf_with_param
 
 !-----------------------------------------------------------------------
 

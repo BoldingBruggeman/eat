@@ -14,18 +14,34 @@ import yaml
 # Hack into yaml parser to preserve order of yaml nodes,
 # represent NULL by emoty string, skip interpretation of on/off as Boolean
 import collections
+
+
 def dict_representer(dumper, data):
-    return dumper.represent_mapping(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, data.items())
+    return dumper.represent_mapping(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, data.items()
+    )
+
+
 def dict_constructor(loader, node):
     return collections.OrderedDict(loader.construct_pairs(node))
+
+
 def none_representer(self, _):
-    return self.represent_scalar('tag:yaml.org,2002:null', '')
+    return self.represent_scalar("tag:yaml.org,2002:null", "")
+
+
 yaml_loader = yaml.SafeLoader
 yaml_dumper = yaml.SafeDumper
-del yaml_loader.yaml_implicit_resolvers['o']
-del yaml_loader.yaml_implicit_resolvers['O']
+
+# Do not convert on/off to bool
+# [done by pyyaml according to YAML 1.1, dropped from YAML 1.2]
+del yaml_loader.yaml_implicit_resolvers["o"]
+del yaml_loader.yaml_implicit_resolvers["O"]
+
 yaml.add_representer(collections.OrderedDict, dict_representer, Dumper=yaml_dumper)
-yaml.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, dict_constructor, Loader=yaml_loader)
+yaml.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, dict_constructor, Loader=yaml_loader
+)
 yaml.add_representer(type(None), none_representer, Dumper=yaml_dumper)
 
 
@@ -84,7 +100,7 @@ def perturb_yaml(
 
 def main():
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(dest="cmd")
+    subparsers = parser.add_subparsers(dest="cmd", required=True)
 
     parser_restart = subparsers.add_parser("restart")
     parser_restart.add_argument("file", help="path to restart file")

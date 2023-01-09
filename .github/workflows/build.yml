@@ -36,8 +36,6 @@ jobs:
           source ${CONDA}/etc/profile.d/conda.sh
           conda activate eat
           cd gotm-cases/nns_annual
-          cp ../../tests/nns_annual/eat_pdaf.nml .
-          cp ../../tests/nns_annual/eat_gotm.nml .
-          eat-gotm
+          eat-gotm   # this will write the restart that the next command operates on
           eat-gotm-gen restart restart.nc 10 --exclude z --exclude zi --exclude h
-          mpiexec -n 10 eat-gotm
+          mpiexec -n 2 eat-gotm
