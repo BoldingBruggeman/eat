@@ -549,7 +549,7 @@ output:
       operators:
       groups:
       variables:
-      - source: *                            # variable name in model
+      - source: /*                            # variable name in model
         time_method: point                   # treatment of time dimension [point=instantaneous, mean, integrated; default=point]
         xtype: default                       # data type [default, single=32-bit float, double=64-bit double; default=default]
         prefix:                              # name prefix used in output [default=]
