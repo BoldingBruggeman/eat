@@ -18,7 +18,7 @@ program eat_model_gotm
    use memory_output
    use register_all_variables, only: fm
    use fabm_types, only: fabm_parameter_pointers
-   
+
    IMPLICIT NONE
 
    integer :: ierr
@@ -195,8 +195,8 @@ subroutine post_model_initialize()
    class (type_key_value_pair), pointer :: pair
 
    if (have_filter .and. rank_model_comm == 0) then
-      call MPI_SEND(start,19,MPI_CHARACTER,0,0,EAT_COMM_model_filter,stat,ierr)
-      call MPI_SEND(stop,19,MPI_CHARACTER,0,0,EAT_COMM_model_filter,stat,ierr)
+      call MPI_SEND(start,19,MPI_CHARACTER,0,0,EAT_COMM_model_filter,ierr)
+      call MPI_SEND(stop,19,MPI_CHARACTER,0,0,EAT_COMM_model_filter,ierr)
    end if
 
    sim_start = strptime(trim(start), time_format)
