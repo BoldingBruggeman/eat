@@ -234,11 +234,11 @@ subroutine post_model_initialize()
                allocate(item)
                str_scale_factor = ''
                if (value%scale_factor /= 1.0) str_scale_factor = '*' // format_real(value%scale_factor)
-               call fm%register(pair%name,value%units//str_scale_factor,value%long_name,data0d=value%pvalue,field=item%field)
                item%name = trim(fabm_parameters_in_state(i))
                do j=1,len_trim(item%name)
                   if (item%name(j:j) == '/') item%name(j:j) = '_'
                end do
+               call fm%register(item%name, value%units//str_scale_factor, value%long_name, data0d=value%pvalue, field=item%field)
                call memory_file%append_item(item)
             class default
                write(stderr,*) 'Fatal error (MODEL): ',trim(fabm_parameters_in_state(i)),' is not a real-valued FABM parameter'
