@@ -4,7 +4,7 @@ import datetime
 import argparse
 import re
 import collections
-from typing import Optional, List, Tuple, Mapping, Any, Iterable
+from typing import Optional, List, Tuple, Mapping, Any, Iterable, Iterator
 
 import numpy as np
 from mpi4py import MPI
@@ -15,9 +15,31 @@ from .. import shared
 datetimere = re.compile(r"(\d\d\d\d).(\d\d).(\d\d) (\d\d).(\d\d).(\d\d)\s*")
 
 
+def parse_memory_map(path: str):
+    """Parse file describing layout of state in memory. This file is written by GOTM."""
+    with open(path, "r") as f:
+        for line in f:
+            name, long_name, units, category, dims, start, length = line.split("\t")
+            dim2length = collections.OrderedDict()
+            for dim in dims.split(","):
+                dimname, dimlength = dim.split("=")
+                dimlength = int(dimlength)
+                dim2length[dimname] = None if dimlength == -1 else dimlength
+            yield name, {
+                "long_name": long_name,
+                "units": units,
+                "dimensions": dim2length,
+                "start": int(start) - 1,  # 1-based in Fortran, convert to 0-based
+                "length": int(length),
+            }
+
+
 class File:
     def __init__(
-        self, path: str, is_1d: bool = False, sd: Optional[float] = None,
+        self,
+        path: str,
+        is_1d: bool = False,
+        sd: Optional[float] = None,
     ):
         self.path = path
         self.f = open(path, "r")
@@ -119,7 +141,7 @@ class GOTM(shared.Experiment):
             self.stop_time = min(self.stop_time, stop)
         self.time = None
 
-        self.datasets: List[Tuple[str, File]] = []
+        self.datasets: List[Tuple[str, File, int]] = []
 
     def configure_model(self):
         # Send names of diagnostics and FABM parameters that need to be added
@@ -160,7 +182,7 @@ class GOTM(shared.Experiment):
         )
 
     def get_model_variables(self) -> Mapping[str, Any]:
-        return collections.OrderedDict(shared.parse_memory_map("da_variables.dat"))
+        return collections.OrderedDict(parse_memory_map("da_variables.dat"))
 
     def add_observations(self, variable_name: str, path: str):
         """
@@ -223,7 +245,7 @@ class GOTM(shared.Experiment):
         for variable_name, path in args.obs:
             self.add_observations(variable_name, path)
 
-    def observations(self):
+    def observations(self) -> Iterator[datetime.datetime]:
         """Iterate over all observation times"""
         while True:
             # Find time of next observation
@@ -288,7 +310,9 @@ class GOTM(shared.Experiment):
         self.sds = np.array(self.sds, dtype=float)
         self.offsets = np.array(self.offsets, dtype=np.intc)
 
-    def get_observations(self, variables) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def get_observations(
+        self, variables: Mapping[str, Any]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Map observations collected by :meth:`collect_observations` to the model
         state space and return them."""
         z_model = variables["z"]["model_data"][0, :]

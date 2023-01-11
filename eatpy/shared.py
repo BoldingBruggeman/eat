@@ -1,4 +1,4 @@
-from typing import Mapping, Any, Tuple, Sequence, List
+from typing import Mapping, Any, Tuple, Sequence, List, Iterator
 import datetime
 import collections
 import logging
@@ -40,25 +40,6 @@ def setup_mpi(color: int) -> Tuple[MPI.Comm, MPI.Comm]:
         {COLOR_MODEL: comm_model, COLOR_FILTER: comm_filter}[color],
         comm_model_filter,
     )
-
-
-def parse_memory_map(path: str):
-    """Parse file describing layout of state in memory. This file is written by GOTM."""
-    with open(path, "r") as f:
-        for line in f:
-            name, long_name, units, category, dims, start, length = line.split("\t")
-            dim2length = collections.OrderedDict()
-            for dim in dims.split(","):
-                dimname, dimlength = dim.split("=")
-                dimlength = int(dimlength)
-                dim2length[dimname] = None if dimlength == -1 else dimlength
-            yield name, {
-                "long_name": long_name,
-                "units": units,
-                "dimensions": dim2length,
-                "start": int(start) - 1,  # 1-based in Fortran, convert to 0-based
-                "length": int(length),
-            }
 
 
 class Filter:
@@ -182,8 +163,7 @@ class Experiment:
         pass
 
     def initialize_plugins(self):
-        """Initialize plugins.
-        """
+        """Initialize plugins."""
         if self._plugins_initialized:
             return
 
@@ -212,7 +192,7 @@ class Experiment:
             if "model_start" in info:
                 start = info["model_start"]
                 stop = start + info["length"]
-                model_loc = "%i:%i in model" % (start, stop,)
+                model_loc = "%i:%i in model" % (start, stop)
             info["start"] = self.state_size
             self.state_size += info["length"]
             info["stop"] = self.state_size
@@ -222,6 +202,18 @@ class Experiment:
             )
 
         self._plugins_initialized = True
+
+    def observations(self) -> Iterator[datetime.datetime]:
+        raise NotImplementedError
+
+    def collect_observations(self):
+        """Collect observations for the upcoming time while the models are running."""
+        pass
+
+    def get_observations(
+        self, variables: Mapping[str, Any]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        raise NotImplementedError
 
     def run(self, filter: Filter):
         self.initialize_plugins()

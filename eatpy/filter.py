@@ -22,7 +22,7 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("filter")
 
-    obs_handler = models.GOTM()
+    experiment = models.GOTM()
 
     # Parse command line arguments if requested.
     # This may append plugins, e.g., for output.
@@ -44,7 +44,7 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
             action="append",
             default=[],
         )
-        obs_handler.add_arguments(parser)
+        experiment.add_arguments(parser)
         args = parser.parse_args()
         if args.debug:
             logger.setLevel(logging.DEBUG)
@@ -86,7 +86,7 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
     model_states = np.empty((nmodel, state_size))
 
     # Get state layout from the model
-    variables = collections.OrderedDict(shared.parse_memory_map("da_variables.dat"))
+    variables = experiment.get_model_variables()
 
     # Provide all variables with pointers to the model data
     # and rename "start" key to "model_start"
@@ -131,7 +131,7 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
 
     # Let the observation handler verify whether the model state and the set of
     # observed variables are compatible
-    obs_handler.initialize(args, variables)
+    experiment.initialize(args, variables)
 
     # Create filter.
     # This will allocate an array to hold the state of all members: f.model_states
@@ -146,7 +146,7 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
         if "model_data" in info:
             model2filter_state_map.append((info["model_data"], info["filter_data"]))
 
-    for time in obs_handler.observations():
+    for time in experiment.observations():
         strtime = time.strftime("%Y-%m-%d %H:%M:%S").encode("ascii")
         logger.info("(-> model) {}".format(strtime))
 
@@ -171,7 +171,7 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
 
         # While we are waiting for the model, collect all observations
         # for the current time
-        obs_handler.collect_observations()
+        experiment.collect_observations()
 
         # Ensure the model state has been received
         MPI.Request.Waitall(reqs)
@@ -188,7 +188,7 @@ def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
             filter_state[...] = model_state
 
         # Get observations mapped to to state indices
-        obs_indices, obs_values, obs_sds = obs_handler.get_observations(all_variables)
+        obs_indices, obs_values, obs_sds = experiment.get_observations(all_variables)
         logger.debug(
             "Observations: %s (sd %s) @ %s" % (obs_values, obs_sds, obs_indices)
         )
