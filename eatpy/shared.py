@@ -131,7 +131,7 @@ class TestPlugin(Plugin):
         print("TestPlugin.finalize")
 
 
-class Controller:
+class Experiment:
     state_size: int
 
     def __init__(self):

@@ -100,7 +100,7 @@ class File:
             self.next = curtime, None, value, sd
 
 
-class GOTM(shared.Controller):
+class GOTM(shared.Experiment):
     def __init__(
         self,
         start: Optional[datetime.datetime] = None,

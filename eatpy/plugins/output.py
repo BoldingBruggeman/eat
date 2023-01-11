@@ -1,10 +1,9 @@
 from typing import List, Tuple, Mapping, Any, Optional
 import datetime
 
-import numpy as np
 import netCDF4
 
-from . import shared
+from .. import shared
 
 
 class NetCDF(shared.Plugin):

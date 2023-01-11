@@ -3,7 +3,7 @@ import datetime
 
 import numpy as np
 
-from . import shared
+from .. import shared
 
 
 class Log(shared.Plugin):
