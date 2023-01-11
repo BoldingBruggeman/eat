@@ -9,7 +9,7 @@ import numpy as np
 from mpi4py import MPI
 
 from . import shared
-from . import output
+from .plugins import output
 from . import models
 from .pdaf import PDAF
 
