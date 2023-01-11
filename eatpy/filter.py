@@ -1,4 +1,3 @@
-import collections
 from typing import Iterable
 import argparse
 import sys
@@ -11,7 +10,7 @@ from mpi4py import MPI
 from . import shared
 from .plugins import output
 from . import models
-from .pdaf import PDAF
+from .pdaf import PDAF, CvtHandler
 
 
 def main(parse_args: bool = True, plugins: Iterable[shared.Plugin] = ()):
