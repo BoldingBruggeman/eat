@@ -45,13 +45,12 @@ class File:
         self.f = open(path, "r")
         self.is_1d = is_1d
         self.iline = 0
-        self.next = ""
         self.sd = sd
-        self.read()
+        self.read(first=True)
 
-    def read(self):
-        if self.next is None:
-            # EOF reached previously
+    def read(self, first: bool = False):
+        if not first and self.next is None:
+            # end-of-file reached previously
             return
 
         line = None
@@ -147,13 +146,9 @@ class GOTM(shared.Experiment):
         # Send names of diagnostics and FABM parameters that need to be added
         # to the model state
         parbuffers = [
-            np.frombuffer("{:<64s}".format(n).encode("ascii"), dtype="b")
-            for n in self.fabm_parameters_in_state
+            n.ljust(64).encode("ascii") for n in self.fabm_parameters_in_state
         ]
-        diagbuffers = [
-            np.frombuffer("{:<64s}".format(n).encode("ascii"), dtype="b")
-            for n in self.diagnostics_in_state
-        ]
+        diagbuffers = [n.ljust(64).encode("ascii") for n in self.diagnostics_in_state]
         ndiag = np.array(len(diagbuffers), dtype=np.intc)
         npar = np.array(len(parbuffers), dtype=np.intc)
         reqs = []
@@ -167,18 +162,18 @@ class GOTM(shared.Experiment):
         MPI.Request.Waitall(reqs)
 
         # Receive simulation start and stop
-        strtime = np.empty((19,), dtype="b")
-        self.comm_model.Recv(strtime, source=1)
+        timebuf = bytearray(19)
+        self.comm_model.Recv(timebuf, source=1)
         self.start_time = datetime.datetime.strptime(
-            strtime.tobytes().decode("ascii"), "%Y-%m-%d %H:%M:%S"
+            timebuf.decode("ascii"), "%Y-%m-%d %H:%M:%S"
         )
-        self.comm_model.Recv(strtime, source=1)
+        self.comm_model.Recv(timebuf, source=1)
         self.stop_time = datetime.datetime.strptime(
-            strtime.tobytes().decode("ascii"), "%Y-%m-%d %H:%M:%S"
+            timebuf.decode("ascii"), "%Y-%m-%d %H:%M:%S"
         )
         self.logger.info(
             "Model simulated period: %s - %s"
-            % (self.start_time.isoformat(), self.stop_time.isoformat())
+            % (self.start_time.isoformat(" "), self.stop_time.isoformat(" "))
         )
 
     def get_model_variables(self) -> Mapping[str, Any]:
@@ -230,21 +225,6 @@ class GOTM(shared.Experiment):
             % (path, full_variable_name, 1 if is_1d else 0, offset)
         )
 
-    def initialize(self, args, variables):
-        # Determine time range for assimilation
-        # Before the start time, the model will effectively be spinning up
-        # After the stop time, it will run in forecast-only model
-        if args.start is not None:
-            self.start_time = datetime.datetime.strptime(
-                args.start, "%Y-%m-%d %H:%M:%S"
-            )
-        if args.stop is not None:
-            self.stop_time = datetime.datetime.strptime(args.stop, "%Y-%m-%d %H:%M:%S")
-
-        # Enumerate observed variables and their associated data files
-        for variable_name, path in args.obs:
-            self.add_observations(variable_name, path)
-
     def observations(self) -> Iterator[datetime.datetime]:
         """Iterate over all observation times"""
         while True:
@@ -264,14 +244,12 @@ class GOTM(shared.Experiment):
                 self.stop_time is None or self.time <= self.stop_time
             ):
                 self.logger.debug(
-                    "next observation time: %s"
-                    % self.time.strftime("%Y-%m-%d %H:%M:%S")
+                    "next observation time: %s" % self.time.isoformat(" ")
                 )
                 yield self.time
             else:
                 self.logger.debug(
-                    "skipping observations at time %s"
-                    % self.time.strftime("%Y-%m-%d %H:%M:%S")
+                    "skipping observations at time %s" % self.time.isoformat(" ")
                 )
                 for _, obsfile, _ in self.datasets:
                     while obsfile.next is not None and obsfile.next[0] == self.time:
@@ -281,9 +259,9 @@ class GOTM(shared.Experiment):
         """Collect observations applicable to the current time
         (the last time yielded by :meth:`observations`)."""
         self.depth_map = []
-        self.values = []
-        self.sds = []
-        self.offsets = []
+        values = []
+        sds = []
+        offsets = []
         for variable, obsfile, offset in self.datasets:
             zs = []
             while obsfile.next is not None and obsfile.next[0] == self.time:
@@ -292,9 +270,9 @@ class GOTM(shared.Experiment):
                     "- %s%s = %s (sd = %s)"
                     % (variable, "" if z is None else (" @ %.2f m" % z), value, sd)
                 )
-                self.values.append(value)
-                self.sds.append(sd)
-                self.offsets.append(offset)
+                values.append(value)
+                sds.append(sd)
+                offsets.append(offset)
                 if obsfile.is_1d:
                     zs.append(z)
                 obsfile.read()
@@ -302,13 +280,13 @@ class GOTM(shared.Experiment):
                 self.depth_map.append(
                     (
                         variable,
-                        slice(len(self.values) - len(zs), len(self.values)),
+                        slice(len(values) - len(zs), len(values)),
                         np.array(zs),
                     )
                 )
-        self.values = np.array(self.values, dtype=float)
-        self.sds = np.array(self.sds, dtype=float)
-        self.offsets = np.array(self.offsets, dtype=np.intc)
+        self.values = np.array(values, dtype=float)
+        self.sds = np.array(sds, dtype=float)
+        self.offsets = np.array(offsets, dtype=np.intc)
 
     def get_observations(
         self, variables: Mapping[str, Any]
@@ -331,8 +309,3 @@ class GOTM(shared.Experiment):
                 )
             )
         return self.offsets, self.values, self.sds
-
-    def add_arguments(self, parser: argparse.ArgumentParser):
-        parser.add_argument("-o", "--obs", nargs=2, action="append", default=[])
-        parser.add_argument("--start")
-        parser.add_argument("--stop")

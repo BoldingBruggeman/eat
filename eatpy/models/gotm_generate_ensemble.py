@@ -12,7 +12,7 @@ import yaml
 
 
 # Hack into yaml parser to preserve order of yaml nodes,
-# represent NULL by emoty string, skip interpretation of on/off as Boolean
+# represent NULL by empty string, skip interpretation of on/off as Boolean
 import collections
 
 

@@ -123,14 +123,7 @@ class PDAF(shared.Filter):
         for plugin in plugins:
             if isinstance(plugin, CvtHandler):
                 cvt_handler = plugin
-        if self.filtertype == FilterType._3DVar:
-            if cvt_handler is None:
-                raise Exception(
-                    "To use filtertype 3D-Var (%i),"
-                    " one of your plugins must derive from eatpy.pdaf.CvtHandler"
-                    % FilterType._3DVar.value
-                )
-        elif cvt_handler is not None:
+        if self.filtertype != FilterType._3DVar and cvt_handler is not None:
             raise Exception(
                 "One of your plugins implements the CvtHandler routines,"
                 " but these are only used when using filtertype 3D-Var (13)."
@@ -148,6 +141,12 @@ class PDAF(shared.Filter):
             ]
             filter_param_r = [self.forget]
         elif self.filtertype == FilterType._3DVar:
+            if cvt_handler is None:
+                raise Exception(
+                    "To use filtertype 3D-Var (%i),"
+                    " one of your plugins must derive from eatpy.pdaf.CvtHandler"
+                    % FilterType._3DVar.value
+                )
             _eat_filter_pdaf.cvt_handler = cvt_handler
 
             if self.subtype in (0, 6, 7) and cvt_handler.dim_cvec is None:
@@ -187,6 +186,7 @@ class PDAF(shared.Filter):
         )
 
     def assimilate(self, iobs: np.ndarray, obs: np.ndarray, sds: np.ndarray):
+        iobs = iobs + 1   # convert to 1-based indices for Fortran/PDAF
         _eat_filter_pdaf.assimilate(iobs, obs, sds)
 
     def finalize(self):

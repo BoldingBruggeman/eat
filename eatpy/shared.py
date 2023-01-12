@@ -67,7 +67,7 @@ class Filter:
     ):
         raise NotImplementedError
 
-    def assimilate(self, iobs: np.ndarray, obs: np.ndarray, cvt_handler=None):
+    def assimilate(self, iobs: np.ndarray, obs: np.ndarray, sds: np.ndarray):
         raise NotImplementedError
 
     def finalize(self):
@@ -127,7 +127,7 @@ class Experiment:
         else:
             self.configure_model()
             self.comm_model.Recv(state_size, source=1, tag=MPI.ANY_TAG)
-            self.variables = self.get_model_variables()
+            self.variables = collections.OrderedDict(self.get_model_variables())
 
         self.model_states = np.empty((self.nmodel, state_size))
 
@@ -144,7 +144,7 @@ class Experiment:
 
     def add_plugin(self, plugin: Plugin, name: Optional[str] = None):
         if not isinstance(plugin, Plugin):
-            raise Exception('plugins must be a subclass of eatpy.Plugin')
+            raise Exception("Plugins must be a subclass of eatpy.Plugin")
         if self._plugins_initialized:
             raise Exception(
                 "You cannot add any more plugins after observations have been added."
@@ -233,35 +233,45 @@ class Experiment:
             if "model_data" in info:
                 model2filter_state_map.append((info["model_data"], info["filter_data"]))
 
+        timebuf = bytearray(19)
+
+        # Create persistent MPI requests
+        comm = self.comm_model
+        send_time_reqs = []
+        recv_state_reqs = []
+        send_state_reqs = []
+        for imodel in range(self.nmodel):
+            rank = imodel + 1
+            state = self.model_states[imodel, :]
+            send_time_reqs.append(comm.Send_init(timebuf, dest=rank, tag=TAG_TIMESTR))
+            recv_state_reqs.append(comm.Recv_init(state, source=rank, tag=TAG_FORECAST))
+            send_state_reqs.append(comm.Send_init(state, dest=rank, tag=TAG_ANALYSIS))
+        all_forecast_wait_reqs = send_state_reqs + send_time_reqs + recv_state_reqs
+        all_final_wait_reqs = send_state_reqs + send_time_reqs
+
+        # On the first iteration, we have no updated [analyzed] state yet,
+        # so we skip sending that to the ensemble members
+        forecast_reqs = forecast_wait_reqs = send_time_reqs + recv_state_reqs
+        final_wait_reqs = send_time_reqs
+
         for time in self.observations():
-            strtime = time.strftime("%Y-%m-%d %H:%M:%S").encode("ascii")
-            self.logger.info("(-> model) {}".format(strtime))
+            strtime = time.strftime("%Y-%m-%d %H:%M:%S")
+            timebuf[:] = strtime.encode("ascii")
+            self.logger.info(f"Requesting forecast until {strtime}")
 
-            # Send time of next observation to all ensemble members,
-            # so they can integrate to that point
-            MPI.Request.Waitall(
-                [
-                    self.comm_model.Issend(
-                        [strtime, MPI.CHARACTER], dest=imodel + 1, tag=TAG_TIMESTR
-                    )
-                    for imodel in range(self.nmodel)
-                ]
-            )
-
-            # Start receiving state from models
-            reqs = [
-                self.comm_model.Irecv(
-                    self.model_states[imodel, :], source=imodel + 1, tag=TAG_FORECAST
-                )
-                for imodel in range(self.nmodel)
-            ]
+            # Start forecast by ensemble members:
+            # * send time of next observation, which members should integrate up to
+            # * receive updated [forecasted] model state
+            MPI.Prequest.Startall(forecast_reqs)
 
             # While we are waiting for the model, collect all observations
             # for the current time
             self.collect_observations()
 
-            # Ensure the model state has been received
-            MPI.Request.Waitall(reqs)
+            # Ensure the model-forecasted state has been received
+            # One all but the first iteration, this also (first) waits
+            # for the ensemble members to received the updated [analyzed] state
+            MPI.Request.Waitall(forecast_wait_reqs)
 
             self.logger.info("Ensemble spread (root-mean-square differences):")
             for name, info in self.all_variables.items():
@@ -305,44 +315,39 @@ class Experiment:
                 )
                 raise Exception("non-finite observation errors")
 
-            # Perform assimilation. This updates f.model_states
-            obs_indices += 1  # convert to 1-based indices for Fortran/PDAF
+            # Perform assimilation. This updates filter.model_states
             filter.assimilate(obs_indices, obs_values, obs_sds)
 
             # Allow plugins to act before analysis state is sent back to models
             for plugin in reversed(self.plugins):
                 plugin.after_analysis(filter.model_states)
 
-            # Select the parts of the model state that the filter has acted upon
+            # Update the parts of the model state that the filter has acted upon
             for model_state, filter_state in model2filter_state_map:
                 model_state[...] = filter_state
 
-            # Return state to models
-            MPI.Request.Waitall(
-                [
-                    self.comm_model.Isend(
-                        self.model_states[imodel, :], dest=imodel + 1, tag=TAG_ANALYSIS
-                    )
-                    for imodel in range(self.nmodel)
-                ]
-            )
+            # Start sending the the updated state
+            # Also update the set of requests that the next Waitall will process,
+            # so that it includes the send_state_reqs that we are now starting
+            MPI.Prequest.Startall(send_state_reqs)
+            forecast_wait_reqs = all_forecast_wait_reqs
+            final_wait_reqs = all_final_wait_reqs
 
         # Tell ensemble members to integrate to the end of the configured
         # simulation period
-        for imodel in range(self.nmodel):
-            self.comm_model.Send(
-                [b"0000-00-00 00:00:00", MPI.CHARACTER],
-                dest=imodel + 1,
-                tag=TAG_TIMESTR,
-            )
-
         self.logger.info("No more observations to assimilate")
+        timebuf[:] = b"0000-00-00 00:00:00"
+        MPI.Prequest.Startall(send_time_reqs)
+
+        # Allow plugins and filter to clean-up
+        self.logger.info("Finalizing plugins...")
+        for plugin in self.plugins:
+            plugin.finalize()
+        filter.finalize()
+
         self.logger.info(
             "Waiting for ensemble members to finish forecast-only remainder"
             " of the simulation..."
         )
 
-        # Allow plugins and filter to clean-up
-        for plugin in self.plugins:
-            plugin.finalize()
-        filter.finalize()
+        MPI.Request.Waitall(final_wait_reqs)
