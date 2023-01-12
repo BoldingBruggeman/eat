@@ -35,7 +35,7 @@ jobs:
         run: |
           source ${CONDA}/etc/profile.d/conda.sh
           conda activate eat
-          cd gotm-cases/nns_annual
+          cd tests/nns_annual
           eat-gotm   # this will write the restart that the next command operates on
           eat-gotm-gen restart restart.nc 2 --exclude z --exclude zi --exclude h
           mpiexec -n 2 eat-gotm --separate_gotm_restart
