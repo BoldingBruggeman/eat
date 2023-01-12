@@ -37,6 +37,8 @@ jobs:
           conda activate eat
           cd gotm-cases/nns_annual
           eat-gotm   # this will write the restart that the next command operates on
-          eat-gotm-gen restart restart.nc 10 --exclude z --exclude zi --exclude h
-          mpiexec -n 2 eat-gotm
-          eat-filter -h
+          eat-gotm-gen restart restart.nc 2 --exclude z --exclude zi --exclude h
+          mpiexec -n 2 eat-gotm --separate_gotm_restart
+          eat-gotm-gen yaml gotm.yaml 2 -p surface/u10/scale_factor 0.2 -p surface/v10/scale_factor 0.2 -p turbulence/turb_param/k_min 0.2
+          mpiexec -1 python run.py : -n 2 eat-gotm --separate_gotm_yaml
+
