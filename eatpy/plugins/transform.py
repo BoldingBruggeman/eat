@@ -1,4 +1,4 @@
-from typing import Mapping, Any, List
+from typing import Any, List, MutableMapping
 import datetime
 
 import numpy as np
@@ -11,7 +11,7 @@ class Log(shared.Plugin):
         self.variable_names = frozenset(variable_names)
         self.variable_metadata: List[Any] = []
 
-    def initialize(self, variables: Mapping[str, Any], *args, **kwargs):
+    def initialize(self, variables: MutableMapping[str, Any], *args, **kwargs):
         for name in self.variable_names:
             self.variable_metadata.append(variables[name])
 

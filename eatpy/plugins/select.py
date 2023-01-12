@@ -1,4 +1,4 @@
-from typing import Mapping, Any, Union, Iterable
+from typing import MutableMapping, Any, Union, Iterable
 import fnmatch
 
 from .. import shared
@@ -11,7 +11,7 @@ class Select(shared.Plugin):
         self.include = include if not isinstance(include, str) else (include,)
         self.exclude = exclude if not isinstance(exclude, str) else (exclude,)
 
-    def initialize(self, variables: Mapping[str, Any], *args, **kwargs):
+    def initialize(self, variables: MutableMapping[str, Any], *args, **kwargs):
         eliminate = set()
         for name in variables:
             use = False
@@ -24,4 +24,5 @@ class Select(shared.Plugin):
             if not use:
                 eliminate.add(name)
         for name in eliminate:
+            self.logger.info('Dropping %s from state presented to filter' % name)
             del variables[name]

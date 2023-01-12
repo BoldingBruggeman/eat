@@ -1,4 +1,4 @@
-from typing import List, Tuple, Mapping, Any, Optional
+from typing import List, Tuple, MutableMapping, Any, Optional
 import datetime
 
 import netCDF4
@@ -17,7 +17,7 @@ class NetCDF(shared.Plugin):
         self.reftime: Optional[datetime.datetime] = None
         self.nctime: Optional[netCDF4.Variable] = None
 
-    def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
+    def initialize(self, variables: MutableMapping[str, Any], ensemble_size: int):
         self.nc.createDimension("da_step", 2)
         self.nc.createDimension("member", ensemble_size)
         for name, metadata in variables.items():

@@ -1,4 +1,13 @@
-from typing import Mapping, Any, Tuple, Sequence, List, Iterator
+from typing import (
+    Mapping,
+    Any,
+    Tuple,
+    Sequence,
+    List,
+    Iterator,
+    Optional,
+    MutableMapping,
+)
 import datetime
 import collections
 import logging
@@ -72,12 +81,12 @@ class Plugin:
     update: receives the current model forecast and analysis states.
     """
 
-    def __init__(self, name=None):
-        self.logger = logging.getLogger(
-            name or "filter.plugin.%s" % self.__class__.__name__
-        )
+    logger: logging.Logger
 
-    def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
+    def __init__(self, name: Optional[str] = None):
+        self.name = name or self.__class__.__name__
+
+    def initialize(self, variables: MutableMapping[str, Any], ensemble_size: int):
         pass
 
     def before_analysis(
@@ -96,20 +105,6 @@ class Plugin:
 
     def finalize(self):
         pass
-
-
-class TestPlugin(Plugin):
-    def initialize(self, variables: Mapping[str, Any], ensemble_size: int):
-        print("TestPlugin.initialize")
-
-    def before_analysis(self, *args, **kwargs):
-        print("TestPlugin.before_analysis")
-
-    def after_analysis(self, *args, **kwargs):
-        print("TestPlugin.after_analysis")
-
-    def finalize(self):
-        print("TestPlugin.finalize")
 
 
 class Experiment:
@@ -147,11 +142,15 @@ class Experiment:
 
         self._plugins_initialized = False
 
-    def add_plugin(self, plugin: Plugin):
+    def add_plugin(self, plugin: Plugin, name: Optional[str] = None):
+        if not isinstance(plugin, Plugin):
+            raise Exception('plugins must be a subclass of eatpy.Plugin')
         if self._plugins_initialized:
             raise Exception(
                 "You cannot add any more plugins after observations have been added."
             )
+        if name is not None:
+            plugin.name = name
         self.plugins.append(plugin)
 
     def get_model_variables(self) -> Mapping[str, Any]:
@@ -171,6 +170,10 @@ class Experiment:
         # keep a copy of all possible variables, needed by the observation handler
         self.all_variables = collections.OrderedDict(self.variables)
         for plugin in self.plugins:
+            if getattr(plugin, "name", None) is None:
+                plugin.name = plugin.__class__.__name__
+            plugin.logger = self.logger.getChild("plugins.%s" % plugin.name)
+            plugin.logger.info("Initializing...")
             plugin.initialize(self.variables, self.nmodel)
 
         # Add any new variables created by plugins
