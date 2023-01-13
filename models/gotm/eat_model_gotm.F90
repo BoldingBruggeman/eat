@@ -168,7 +168,7 @@ subroutine pre_model_initialize()
    end if
 
    output: block
-      use gotm, only: yaml_file,restart_file,output_id
+      use gotm, only: yaml_file,restart_file,output_id,force_restart_offline
       character(len=128) :: fname,strbuf
       write(strbuf, "(A,I0.4)") 'gotm_', member+1
       fname = TRIM(strbuf) // '.stderr'
@@ -181,6 +181,7 @@ subroutine pre_model_initialize()
       write(output_id, "(A,I0.4)") '_', member+1
       if ( .not. shared_restart_file) then
          write(restart_file, "(A,I0.4)") 'restart_', member+1
+         force_restart_offline = .true.
       end if
    end block output
 end subroutine pre_model_initialize
