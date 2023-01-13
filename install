@@ -7,7 +7,7 @@ REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Build eat
 WORK_DIR=`mktemp -d`
 cd ${WORK_DIR}
-cmake ${REPO_DIR} -DFABM_BASE=$REPO_DIR/extern/fabm
+cmake ${REPO_DIR}
 make -j4 install
 cd -
 rm -rf ${WORK_DIR}
