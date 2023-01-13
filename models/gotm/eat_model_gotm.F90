@@ -91,17 +91,21 @@ program eat_model_gotm
    fabm_parameters_in_state = ''
    if (have_filter) then
       call MPI_RECV(n,1,MPI_INTEGER,0,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+      if(ierr /= MPI_SUCCESS) call fatal_error('Unable to receive number of diagnostics to be added to state')
       write(stderr,*) 'Adding ', n, ' diagnostics to the model state as seen by filter'
       do i = 1, n
          call MPI_RECV(extra_state(i),len(extra_state(i)),MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+         if(ierr /= MPI_SUCCESS) call fatal_error('Unable to receive diagnostic to be added to state')
          write(stderr,*) '- ', trim(extra_state(i))
       end do
 
       call MPI_RECV(n,1,MPI_INTEGER,0,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
+      if(ierr /= MPI_SUCCESS) call fatal_error('Unable to receive number of FABM parameter to be added to state')
       write(stderr,*) 'Adding ', n, ' FABM parameters to the model state as seen by filter'
       do i = 1, n
          call MPI_RECV(fabm_parameters_in_state(i),len(fabm_parameters_in_state(i)),MPI_CHARACTER,0,MPI_ANY_TAG, &
             EAT_COMM_model_filter,stat,ierr)
+         if(ierr /= MPI_SUCCESS) call fatal_error('Unable to receive FABM parameter to be added to state')
          write(stderr,*) '- ', trim(fabm_parameters_in_state(i))
       end do
    end if
@@ -196,7 +200,9 @@ subroutine post_model_initialize()
 
    if (have_filter .and. rank_model_comm == 0) then
       call MPI_SEND(start,19,MPI_CHARACTER,0,0,EAT_COMM_model_filter,ierr)
+      if(ierr /= MPI_SUCCESS) call fatal_error('Unable to send time of simulation start')
       call MPI_SEND(stop,19,MPI_CHARACTER,0,0,EAT_COMM_model_filter,ierr)
+      if(ierr /= MPI_SUCCESS) call fatal_error('Unable to send time of simulation stop')
    end if
 
    sim_start = strptime(trim(start), time_format)
@@ -223,11 +229,8 @@ subroutine post_model_initialize()
       ! Optionally extend state with user-selected variables
       do i = 1, size(fabm_parameters_in_state)
          if (fabm_parameters_in_state(i) /= '') then
-            if (.not. associated(fabm_model)) then
-               write(stderr,*) 'Fatal error (MODEL): FABM is not used in this GOTM configuration'
-               call flush(stderr)
-               call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-            end if
+            if (.not. associated(fabm_model)) call fatal_error('Cannot add FABM parameters to state &
+                  &because FABM is not used in this GOTM configuration')
             pair => fabm_model%settings%get_node(trim(fabm_parameters_in_state(i)))
             select type (value => pair%value)
             class is (type_real_setting)
@@ -241,9 +244,7 @@ subroutine post_model_initialize()
                call fm%register(item%name, value%units//str_scale_factor, value%long_name, data0d=value%pvalue, field=item%field)
                call memory_file%append_item(item)
             class default
-               write(stderr,*) 'Fatal error (MODEL): ',trim(fabm_parameters_in_state(i)),' is not a real-valued FABM parameter'
-               call flush(stderr)
-               call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+               call fatal_error(trim(fabm_parameters_in_state(i)) // ' is not a real-valued FABM parameter')
             end select
          end if
       end do
@@ -270,6 +271,7 @@ subroutine post_model_initialize()
 
       if (have_filter .and. rank_model_comm == 0) then
          call MPI_SSEND(size(memory_file%data),1,MPI_INTEGER,0,10,EAT_COMM_model_filter,ierr)
+         if(ierr /= MPI_SUCCESS) call fatal_error('Unable to send size of model state')
       end if
 
       signal=signal_integrate
@@ -284,24 +286,14 @@ subroutine pre_model_integrate()
    if (ensemble_only) return
 
    if (have_filter .and. iand(signal,signal_recv_state) == signal_recv_state) then
-      call MPI_IRECV(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,request,ierr)
-      if(ierr /= MPI_SUCCESS) THEN
-         write(stderr,*) 'Fatal error (MODEL): Unable to receive: ',member; call flush(stderr)
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
-      call MPI_WAIT(request,stat,ierr)
-      if(ierr /= MPI_SUCCESS) THEN
-         write(stderr,*) 'Fatal error (MODEL): Unable to wait: ',member; call flush(stderr)
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
+      call MPI_RECV(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_analysis,EAT_COMM_model_filter,stat,ierr)
+      if(ierr /= MPI_SUCCESS) call fatal_error('Unable to receive model state')
       call memory_file%restore()
       signal=signal-signal_recv_state
    end if
 
    call MPI_RECV(timestr,19,MPI_CHARACTER,0,MPI_ANY_TAG,EAT_COMM_model_filter,stat,ierr)
-   if (ierr /= MPI_SUCCESS) then
-      call MPI_ABORT(MPI_COMM_WORLD,2,ierr)
-   end if
+   if(ierr /= MPI_SUCCESS) call fatal_error('Unable to receive time of next forecast')
    if (verbosity >= debug) write(stderr,*) 'model(<-- time)  ',trim(timestr)
 
    if(trim(timestr) == "0000-00-00 00:00:00") then
@@ -313,11 +305,8 @@ subroutine pre_model_integrate()
    end if
    td = stop_time-sim_start
    MaxN=int(td%total_seconds()/timestep)
-   if (MaxN < 0) then
-      write(stderr,*) 'New stop time ', timestr, ' precedes start time (overall simulation start&
-         & or end of previous time slice)',member; call flush(stderr)
-      call MPI_Abort(MPI_COMM_WORLD,1,ierr)
-   end if
+   if (MaxN < 0) call fatal_error('New stop time ' // timestr // ' precedes start time &
+      &(overall simulation start or end of previous time slice)')
 end subroutine pre_model_integrate
 
 !-----------------------------------------------------------------------
@@ -327,16 +316,8 @@ subroutine post_model_integrate()
 
    if (have_filter .and. iand(signal,signal_send_state) == signal_send_state) then
       call memory_file%save(julianday,int(fsecondsofday),int(mod(fsecondsofday,1._real64)*1000000))
-      call MPI_ISEND(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,request,ierr)
-      if(ierr /= MPI_SUCCESS) THEN
-         write(stderr,*) 'Fatal error (MODEL): Unable to send: ',member; call flush(stderr)
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
-      call MPI_WAIT(request,stat,ierr)
-      if(ierr /= MPI_SUCCESS) THEN
-         write(stderr,*) 'Fatal error (MODEL): Unable to send: ',member; call flush(stderr)
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
+      call MPI_SEND(memory_file%data,size(memory_file%data),MPI_DOUBLE,0,tag_forecast,EAT_COMM_model_filter,ierr)
+      if(ierr /= MPI_SUCCESS) call fatal_error('Unable to send model state')
       signal=signal-signal_send_state
    end if
    if (have_filter) then
@@ -344,6 +325,14 @@ subroutine post_model_integrate()
    end if
    MinN=MaxN+1
 end subroutine post_model_integrate
+
+subroutine fatal_error(msg)
+   character(len=*), intent(in) :: msg
+
+   write(stderr,*) 'Fatal error: ', msg
+   call flush(stderr)
+   call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+end subroutine fatal_error
 
 !-----------------------------------------------------------------------
 
