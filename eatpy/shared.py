@@ -110,11 +110,11 @@ class Plugin:
 class Experiment:
     state_size: int
 
-    def __init__(self):
+    def __init__(self, log_level=logging.INFO):
         self.plugins: List[Plugin] = []
 
         # Ensure logging goes to console
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=log_level)
         self.logger = logging.getLogger()
 
         # Set up parallel communication
@@ -257,7 +257,7 @@ class Experiment:
         for time in self.observations():
             strtime = time.strftime("%Y-%m-%d %H:%M:%S")
             timebuf[:] = strtime.encode("ascii")
-            self.logger.info(f"Requesting forecast until {strtime}")
+            self.logger.info(f"Forecasting until {strtime}")
 
             # Start forecast by ensemble members:
             # * send time of next observation, which members should integrate up to
@@ -269,16 +269,9 @@ class Experiment:
             self.collect_observations()
 
             # Ensure the model-forecasted state has been received
-            # One all but the first iteration, this also (first) waits
+            # On all but the first iteration, this also first waits
             # for the ensemble members to received the updated [analyzed] state
             MPI.Request.Waitall(forecast_wait_reqs)
-
-            self.logger.info("Ensemble spread (root-mean-square differences):")
-            for name, info in self.all_variables.items():
-                d = info.get("model_data")
-                if d is not None:
-                    rms = np.sqrt(np.mean(np.var(d, axis=0)))
-                    self.logger.info("  %s: %.3g %s" % (name, rms, info["units"]))
 
             # Select the parts of the model state that the filter will act upon
             for model_state, filter_state in model2filter_state_map:
@@ -295,25 +288,6 @@ class Experiment:
                 plugin.before_analysis(
                     time, filter.model_states, obs_indices, obs_values, obs_sds, filter
                 )
-
-            if not np.isfinite(filter.model_states).all():
-                self.logger.error(
-                    "Non-finite values in ensemble state state sent to PDAF"
-                    " (after plugin.before_analysis)"
-                )
-                raise Exception("non-finite ensemble state")
-            if not np.isfinite(obs_values).all():
-                self.logger.error(
-                    "Non-finite values in observations sent to PDAF"
-                    " (after plugin.before_analysis)"
-                )
-                raise Exception("non-finite observations")
-            if not np.isfinite(obs_sds).all():
-                self.logger.error(
-                    "Non-finite values in observation s.d. sent to PDAF"
-                    " (after plugin.before_analysis)"
-                )
-                raise Exception("non-finite observation errors")
 
             # Perform assimilation. This updates filter.model_states
             filter.assimilate(obs_indices, obs_values, obs_sds)

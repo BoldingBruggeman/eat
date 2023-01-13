@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import datetime
-import argparse
 import re
 import collections
+import logging
 from typing import Optional, List, Tuple, Mapping, Any, Iterable, Iterator
 
 import numpy as np
@@ -36,10 +36,7 @@ def parse_memory_map(path: str):
 
 class File:
     def __init__(
-        self,
-        path: str,
-        is_1d: bool = False,
-        sd: Optional[float] = None,
+        self, path: str, is_1d: bool = False, sd: Optional[float] = None,
     ):
         self.path = path
         self.f = open(path, "r")
@@ -128,11 +125,15 @@ class GOTM(shared.Experiment):
         stop: Optional[datetime.datetime] = None,
         diagnostics_in_state: Iterable[str] = (),
         fabm_parameters_in_state: Iterable[str] = (),
+        log_level: int = logging.INFO,
     ):
         self.diagnostics_in_state = diagnostics_in_state
         self.fabm_parameters_in_state = fabm_parameters_in_state
 
-        super().__init__()
+        # Note: the __init__ of the superclass will call configure_model,
+        # so any variables needed there (diagnostics_in_state, fabm_parameters_in_state)
+        # need to have been set before.
+        super().__init__(log_level=log_level)
 
         if start is not None:
             self.start_time = max(self.start_time, start)
@@ -278,11 +279,7 @@ class GOTM(shared.Experiment):
                 obsfile.read()
             if zs:
                 self.depth_map.append(
-                    (
-                        variable,
-                        slice(len(values) - len(zs), len(values)),
-                        np.array(zs),
-                    )
+                    (variable, slice(len(values) - len(zs), len(values)), np.array(zs),)
                 )
         self.values = np.array(values, dtype=float)
         self.sds = np.array(sds, dtype=float)

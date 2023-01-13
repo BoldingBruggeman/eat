@@ -5,6 +5,8 @@ gotm = eatpy.models.GOTM()
 filter = eatpy.PDAF(eatpy.pdaf.FilterType.ESTKF, 0)
 
 #gotm.add_plugin(eatpy.plugins.output.NetCDF('da.nc'))
+gotm.add_plugin(eatpy.plugins.report.Spread())
+gotm.add_plugin(eatpy.plugins.check.Finite())
 
 gotm.add_observations("temp[-1]", "cci_sst.dat")
 
