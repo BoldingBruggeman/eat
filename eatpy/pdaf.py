@@ -158,7 +158,7 @@ class PDAF(shared.Filter):
                 state_size,
                 ensemble_size,
                 self.type_opt,
-                cvt_handler.dim_cvec,
+                cvt_handler.dim_cvec or -1,
                 cvt_handler.dim_cvec_ens or ensemble_size,
             ]
             filter_param_r = [self.forget, self.beta_3dvar]
