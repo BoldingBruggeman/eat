@@ -4,7 +4,7 @@ import os.path
 import fnmatch
 import shutil
 import argparse
-from typing import Iterable, Tuple
+from typing import Iterable, Tuple, Mapping
 
 import numpy.random
 import netCDF4
@@ -69,31 +69,46 @@ def perturb_restart(
 
 
 def perturb_yaml(
-    path, n: int, params: Iterable[Tuple[str, float]], postfix: str = "_%04i"
+    path,
+    n: int,
+    params: Iterable[Tuple[str, float]],
+    files: Iterable[str],
+    postfix: str = "_%04i",
 ):
+    def find_parameter(root, par) -> Tuple[Mapping, str]:
+        comps = par.split("/")
+        for comp in comps[:-1]:
+            assert comp in root, "Parameter %s not found in %s" % (par, path)
+            root = root[comp]
+        return root, comps[-1]
+
     with open(path) as f:
         info = yaml.load(f, yaml_loader)
     par2value = {}
-    for par, _ in params:
-        root = info
-        for comp in par.split("/"):
-            assert comp in root, "Parameter %s not found in %s" % (par, path)
-            root = root[comp]
-        par2value[par] = float(root)
+    for par in [p[0] for p in params]:
+        root, parname = find_parameter(info, par)
+        assert parname in root, "Parameter %s not found in %s" % (par, path)
+        par2value[par] = float(root[parname])
+    for par in files:
+        root, parname = find_parameter(info, par)
+        assert parname in root, "Parameter %s not found in %s" % (par, path)
+        par2value[par] = root[parname]
 
     name, ext = os.path.splitext(path)
-    outpaths = [name + postfix % (i + 1) + ext for i in range(n)]
-
-    for outpath in outpaths:
+    for i in range(n):
+        outpath = name + postfix % (i + 1) + ext
         print("Writing %s..." % outpath)
         for par, sigma in params:
             value = numpy.random.lognormal(sigma=float(sigma)) * par2value[par]
-            root = info
-            comps = par.split("/")
-            for comp in comps[:-1]:
-                root = root[comp]
+            root, parname = find_parameter(info, par)
             print("  %s: %s" % (par, value))
-            root[comps[-1]] = value
+            root[parname] = value
+        for par in files:
+            root, parname = find_parameter(info, par)
+            filename, ext = os.path.splitext(par2value[par])
+            value = filename + postfix % (i + 1) + ext
+            print("  %s: %s" % (par, value))
+            root[parname] = value
         with open(outpath, "w") as f:
             yaml.dump(info, f, yaml_dumper)
 
@@ -136,12 +151,20 @@ def main():
         ),
         default=[],
     )
+    parser_yaml.add_argument(
+        "-f",
+        "--file",
+        action="append",
+        help=("parameter containing a file path to perturb"),
+        dest="files",
+        default=[],
+    )
 
     args = parser.parse_args()
     if args.cmd == "restart":
         perturb_restart(args.file, args.N, sigma=args.sigma, exclude=args.exclude)
     else:
-        perturb_yaml(args.file, args.N, args.param)
+        perturb_yaml(args.file, args.N, args.param, args.files)
 
 
 if __name__ == "__main__":
