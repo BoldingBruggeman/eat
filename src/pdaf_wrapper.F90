@@ -266,8 +266,8 @@ SUBROUTINE get_ensemble_state_pointer_pdaf(model_states)
    if (status_pdaf /= 0) stop 'PDAF_set_ens_pointer(): status_pdaf /= 0'
 END SUBROUTINE
 
-SUBROUTINE init_pdaf_with_param(filtertype_, subtype_, filter_param_i, length_filter_param_i, filter_param_r, length_filter_param_r, &
-   EAT_COMM_filter, screen, status_pdaf) bind(c)
+SUBROUTINE init_pdaf_with_param(filtertype_, subtype_, filter_param_i, length_filter_param_i, &
+   filter_param_r, length_filter_param_r, EAT_COMM_filter, screen, status_pdaf) bind(c)
    integer, intent(in), value :: EAT_COMM_filter, filtertype_, subtype_, screen, length_filter_param_i, length_filter_param_r
    integer, intent(inout) :: filter_param_i(length_filter_param_i)
    real(real64), intent(inout) :: filter_param_r(length_filter_param_r)
