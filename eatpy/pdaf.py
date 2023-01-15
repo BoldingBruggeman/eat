@@ -33,28 +33,28 @@ class CvtHandler(shared.Plugin):
         self.dim_cvec = dim_cvec
         self.dim_cvec_ens = dim_cvec_ens
 
-    def cvt(self, iter: int, state: np.ndarray, v_p: np.ndarray) -> np.ndarray:
+    def cvt(self, iter: int, state: np.ndarray, v: np.ndarray) -> np.ndarray:
         raise Exception(
-            "cvt called but not implemented; state shape = %s, v_p shape = %s"
-            % (state.shape, v_p.shape,)
+            "cvt called but not implemented; state shape = %s, v shape = %s"
+            % (state.shape, v.shape,)
         )
 
-    def cvt_adj(self, iter: int, state: np.ndarray, Vv_p: np.ndarray) -> np.ndarray:
+    def cvt_adj(self, iter: int, state: np.ndarray, Vv: np.ndarray) -> np.ndarray:
         raise Exception(
-            "cvt_adj called but not implemented; state shape = %s, Vv_p shape = %s"
-            % (state.shape, Vv_p.shape,)
+            "cvt_adj called but not implemented; state shape = %s, Vv shape = %s"
+            % (state.shape, Vv.shape,)
         )
 
-    def cvt_ens(self, iter: int, state: np.ndarray, v_p: np.ndarray) -> np.ndarray:
+    def cvt_ens(self, iter: int, state: np.ndarray, v: np.ndarray) -> np.ndarray:
         raise Exception(
             "cvt_ens called but not implemented; state shape = %s, v_p shape = %s"
-            % (state.shape, v_p.shape)
+            % (state.shape, v.shape)
         )
 
-    def cvt_adj_ens(self, iter: int, state: np.ndarray, Vv_p: np.ndarray) -> np.ndarray:
+    def cvt_adj_ens(self, iter: int, state: np.ndarray, Vv: np.ndarray) -> np.ndarray:
         raise Exception(
             "cvt_adj_ens called but not implemented; state shape = %s, Vv_p shape = %s"
-            % (state.shape, Vv_p.shape)
+            % (state.shape, Vv.shape)
         )
 
 
