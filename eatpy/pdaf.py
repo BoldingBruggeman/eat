@@ -90,9 +90,8 @@ class PDAF(shared.Filter):
                 random orthonomal matrix with eigenvector (1,...,1)^T)
             type_sqrt: type of transformation matrix square root
                 (0: symmetric, 1: Cholesky decomposition)
-            type_opt: optimization method (solver)
-                (0: LBFGS, 1: CG+, 2: direct implementation of CG, 3: direct
-                implementation of CG with decomposed control vector)
+            type_opt: optimization method (solver) for 3D-Var
+                (1: LBFGS, 2: CG+, 3: plain CG)
             rank_analysis_enkf: maximum rank for inversion of HPH^T
                 (if 0, HPH is inverted by solving the representer equation)
                 (if set to >=ensemble size, it is reset to ensemble size - 1)
