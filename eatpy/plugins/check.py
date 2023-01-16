@@ -16,8 +16,8 @@ class Finite(Plugin):
         filter: Filter,
     ):
         finite = True
-        if not np.isfinite(filter.model_states).all():
-            self.logger.error("Non-finite values in ensemble state state")
+        if not np.isfinite(state).all():
+            self.logger.error("Non-finite values in ensemble state")
             finite = False
         if not np.isfinite(obs).all():
             self.logger.error("Non-finite values in observations")
