@@ -72,7 +72,13 @@ class File:
         refvals = map(
             int, datematch.group(1, 2, 3, 4, 5, 6)
         )  # Convert matched strings into integers
-        curtime = datetime.datetime(*refvals)
+        try:
+            curtime = datetime.datetime(*refvals)
+        except ValueError:
+            raise Exception(
+                "%s line %i: %s is not a valid time"
+                % (self.path, self.iline, line[:19])
+            )
         data = line[datematch.end() :].rstrip("\n").split()
         if self.is_1d:
             # Depth-explicit variable (on each line: time, depth, value)
