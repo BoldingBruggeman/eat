@@ -528,7 +528,7 @@ restart:
    load: false                               # initialize simulation with state stored in restart.nc [default=false]
    allow_missing_variable: false             # warn but not abort if a variable is missing from restart file [default=false]
 output:
-   nns_annual:                               # path of output file, excluding extension
+   result:                               # path of output file, excluding extension
       use: true                              # write output to this file [default=true]
       format: netcdf                         # format [text, netcdf; default=netcdf]
       title: GOTM Simulation                 # title [default=GOTM Simulation]
