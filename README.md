@@ -4,7 +4,7 @@
 
 ## Installation and use
 
-Instructions for using EAT with GOTM-FABM are given on [the EAT wiki](https://github.com/BoldingBruggeman/eat/wiki/Using-EAT-for-data-assimilation-with-GOTM)
+Instructions for using EAT with GOTM-FABM are given on [the EAT wiki](https://github.com/BoldingBruggeman/eat/wiki/)
 
 ## Design
 
