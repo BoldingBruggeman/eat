@@ -7,9 +7,10 @@ from .. import shared
 
 
 class Log(shared.Plugin):
-    def __init__(self, *variable_names):
+    def __init__(self, *variable_names, transform_obs: bool=True):
         self.variable_names = frozenset(variable_names)
         self.variable_metadata: List[Any] = []
+        self.transform_obs = transform_obs
 
     def initialize(self, variables: MutableMapping[str, Any], *args, **kwargs):
         for name in self.variable_names:
@@ -26,7 +27,7 @@ class Log(shared.Plugin):
     ):
         for metadata in self.variable_metadata:
             affected_obs = (iobs >= metadata["start"]) & (iobs < metadata["stop"])
-            if affected_obs.any():
+            if self.transform_obs and affected_obs.any():
                 obs[affected_obs] = np.log10(obs[affected_obs])
             metadata["data"][...] = np.log10(metadata["data"])
 
