@@ -44,6 +44,7 @@ set(PDAF_USE_MPI ${EAT_USE_MPI} CACHE BOOL "Compile PDAF with MPI support" FORCE
 option(EAT_USE_PDAF "Include support for the PDAF library" ON)
 
 option(EAT_USE_GOTM "Build the GOTM driver for EAT" ON)
+option(USE_DEFAULT_GOTM "Use submodule provided GOTM - otherwise set GOTM_BASE" ON)
 
 # ----------------------------
 # Dependencies
@@ -75,12 +76,10 @@ if(EAT_USE_PDAF)
 endif(EAT_USE_PDAF)
 
 if(EAT_USE_GOTM)
-#KB    find_package(gotm REQUIRED CONFIG HINTS "${GOTM_PREFIX}" NO_DEFAULT_PATH)
-#KB    mark_as_advanced(CLEAR GOTM_PREFIX)
-#KB    add_subdirectory("models/gotm" EXCLUDE_FROM_ALL)
-#KB    set(GOTM_BUILD_LIBRARIES_ONLY ON)
     set(FABM_BASE "${CMAKE_CURRENT_LIST_DIR}/extern/fabm" CACHE PATH "FABM source directory")
-    add_subdirectory("extern/gotm" EXCLUDE_FROM_ALL)
+    find_path(GOTM_BASE NAMES src/gotm/gotm.F90 HINTS ENV EAT_GOTM_BASE PATHS "extern/gotm" NO_DEFAULT_PATH)
+    add_subdirectory("${GOTM_BASE}" extern/gotm EXCLUDE_FROM_ALL)
+    message("GOTM folder: " "${GOTM_BASE}")
     add_subdirectory("models/gotm")
 endif(EAT_USE_GOTM)
 
