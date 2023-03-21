@@ -64,7 +64,7 @@ class PDAF(shared.Filter):
     def __init__(
         self,
         filtertype: Union[int, FilterType],
-        subtype: int,
+        subtype: int = 0,
         *,
         incremental: int = 0,
         forget: float = 1.0,
