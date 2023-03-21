@@ -1,1 +1,2 @@
-from .gotm import GOTM
+from . import gotm
+GOTM = gotm.GOTM

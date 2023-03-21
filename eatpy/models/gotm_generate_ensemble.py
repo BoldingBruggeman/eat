@@ -1,116 +1,11 @@
 #!/usr/bin/env python
 
 import os.path
-import fnmatch
-import shutil
 import argparse
-from typing import Iterable, Tuple, Mapping
 
 import numpy.random
-import netCDF4
-import yaml
 
-
-# Hack into yaml parser to preserve order of yaml nodes,
-# represent NULL by empty string, skip interpretation of on/off as Boolean
-import collections
-
-
-def dict_representer(dumper, data):
-    return dumper.represent_mapping(
-        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, data.items()
-    )
-
-
-def dict_constructor(loader, node):
-    return collections.OrderedDict(loader.construct_pairs(node))
-
-
-def none_representer(self, _):
-    return self.represent_scalar("tag:yaml.org,2002:null", "")
-
-
-yaml_loader = yaml.SafeLoader
-yaml_dumper = yaml.SafeDumper
-
-# Do not convert on/off to bool
-# [done by pyyaml according to YAML 1.1, dropped from YAML 1.2]
-del yaml_loader.yaml_implicit_resolvers["o"]
-del yaml_loader.yaml_implicit_resolvers["O"]
-
-yaml.add_representer(collections.OrderedDict, dict_representer, Dumper=yaml_dumper)
-yaml.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, dict_constructor, Loader=yaml_loader
-)
-yaml.add_representer(type(None), none_representer, Dumper=yaml_dumper)
-
-
-def perturb_restart(
-    path,
-    n: int,
-    variable: str = "*",
-    postfix: str = "_%04i",
-    sigma: float = 0.1,
-    exclude: Iterable[str] = (),
-):
-    name, ext = os.path.splitext(path)
-    outpaths = [name + postfix % (i + 1) + ext for i in range(n)]
-    for outpath in outpaths:
-        print("Writing %s..." % outpath)
-        shutil.copyfile(path, outpath)
-        with netCDF4.Dataset(outpath, "r+") as nc:
-            for name in fnmatch.filter(nc.variables.keys(), variable):
-                ncvar = nc.variables[name]
-                if name in exclude or (name in nc.dimensions and ncvar.ndim == 1):
-                    continue
-                values = ncvar[...]
-                scale_factor = numpy.random.lognormal(sigma=sigma, size=values.shape)
-                ncvar[...] = scale_factor * values
-
-
-def perturb_yaml(
-    path,
-    n: int,
-    params: Iterable[Tuple[str, float]],
-    files: Iterable[str],
-    postfix: str = "_%04i",
-):
-    def find_parameter(root, par) -> Tuple[Mapping, str]:
-        comps = par.split("/")
-        for comp in comps[:-1]:
-            assert comp in root, "Parameter %s not found in %s" % (par, path)
-            root = root[comp]
-        return root, comps[-1]
-
-    with open(path) as f:
-        info = yaml.load(f, yaml_loader)
-    par2value = {}
-    for par in [p[0] for p in params]:
-        root, parname = find_parameter(info, par)
-        assert parname in root, "Parameter %s not found in %s" % (par, path)
-        par2value[par] = float(root[parname])
-    for par in files:
-        root, parname = find_parameter(info, par)
-        assert parname in root, "Parameter %s not found in %s" % (par, path)
-        par2value[par] = root[parname]
-
-    name, ext = os.path.splitext(path)
-    for i in range(n):
-        outpath = name + postfix % (i + 1) + ext
-        print("Writing %s..." % outpath)
-        for par, sigma in params:
-            value = numpy.random.lognormal(sigma=float(sigma)) * par2value[par]
-            root, parname = find_parameter(info, par)
-            print("  %s: %s" % (par, value))
-            root[parname] = value
-        for par in files:
-            root, parname = find_parameter(info, par)
-            filename, ext = os.path.splitext(par2value[par])
-            value = filename + postfix % (i + 1) + ext
-            print("  %s: %s" % (par, value))
-            root[parname] = value
-        with open(outpath, "w") as f:
-            yaml.dump(info, f, yaml_dumper)
+from .gotm import YAMLEnsemble, RestartEnsemble
 
 
 def main():
@@ -162,9 +57,21 @@ def main():
 
     args = parser.parse_args()
     if args.cmd == "restart":
-        perturb_restart(args.file, args.N, sigma=args.sigma, exclude=args.exclude)
+        with RestartEnsemble(args.file, args.N) as f:
+            for name, ncvar in f.template.items():
+                if name in args.exclude or name in ncvar.dimensions:
+                    continue
+                shape = (f.n,) + ncvar.shape
+                scale_factor = numpy.random.lognormal(sigma=args.sigma, size=shape)
+                f[name] = scale_factor * f[name]
     else:
-        perturb_yaml(args.file, args.N, args.param, args.files)
+        with YAMLEnsemble(args.file, args.N) as f:
+            for par, sigma in args.param:
+                scale_factor = numpy.random.lognormal(sigma=float(sigma), size=f.n)
+                f[par] = scale_factor * f.template[par]
+            for par in args.files:
+                filename, ext = os.path.splitext(f.template[par])
+                f[par] = [filename + f.postfix % (i + 1) + ext for i in range(f.n)]
 
 
 if __name__ == "__main__":

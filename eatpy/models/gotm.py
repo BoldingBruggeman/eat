@@ -4,12 +4,48 @@ import datetime
 import re
 import collections
 import logging
+import copy
+import os
+import shutil
 from typing import Optional, List, Tuple, Mapping, Any, Iterable, Iterator
 
 import numpy as np
 from mpi4py import MPI
+import yaml
+import netCDF4
 
 from .. import shared
+
+
+# Hack into yaml parser to preserve order of yaml nodes,
+# represent NULL by empty string, skip interpretation of on/off as Boolean
+def dict_representer(dumper, data):
+    return dumper.represent_mapping(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, data.items()
+    )
+
+
+def dict_constructor(loader, node):
+    return collections.OrderedDict(loader.construct_pairs(node))
+
+
+def none_representer(self, _):
+    return self.represent_scalar("tag:yaml.org,2002:null", "")
+
+
+yaml_loader = yaml.SafeLoader
+yaml_dumper = yaml.SafeDumper
+
+# Do not convert on/off to bool
+# [done by pyyaml according to YAML 1.1, dropped from YAML 1.2]
+del yaml_loader.yaml_implicit_resolvers["o"]
+del yaml_loader.yaml_implicit_resolvers["O"]
+
+yaml.add_representer(collections.OrderedDict, dict_representer, Dumper=yaml_dumper)
+yaml.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, dict_constructor, Loader=yaml_loader
+)
+yaml.add_representer(type(None), none_representer, Dumper=yaml_dumper)
 
 # Regular expression for ISO 8601 datetimes
 datetimere = re.compile(r"(\d\d\d\d).(\d\d).(\d\d) (\d\d).(\d\d).(\d\d)\s*")
@@ -312,3 +348,121 @@ class GOTM(shared.Experiment):
                 )
             )
         return self.offsets, self.values, self.sds
+
+
+class YAMLFile:
+    def __init__(self, path: str):
+        with open(path) as f:
+            self.root = yaml.load(f, yaml_loader)
+        self.path = path
+
+    def _find(self, variable_path: str, optional: bool = False) -> Tuple[dict, str]:
+        root = self.root
+        comps = variable_path.split("/")
+        for comp in comps[:-1]:
+            if comp not in root:
+                raise KeyError("%s not found in %s" % (variable_path, self.path))
+            root = root[comp]
+        if comps[-1] not in root and not optional:
+            raise KeyError("%s not found in %s" % (variable_path, self.path))
+        return root, comps[-1]
+
+    def __getitem__(self, key: str):
+        parent, name = self._find(key)
+        return parent[name]
+
+    def __setitem__(self, key: str, value):
+        parent, name = self._find(key, optional=True)
+        parent[name] = value
+
+    def __contains__(self, key: str):
+        try:
+            self[key]
+        except KeyError:
+            return False
+        return True
+
+
+class Ensemble:
+    def __init__(self, n: int):
+        self.n = n
+        self.variable2values = collections.OrderedDict()
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger()
+
+    def __getitem__(self, key: str):
+        if key in self.variable2values:
+            return self.variable2values[key]
+        return self.template[key]
+
+
+class YAMLEnsemble(Ensemble):
+    def __init__(self, template_path: str, n: int, postfix: str = "_%04i"):
+        super().__init__(n)
+        self.template = YAMLFile(template_path)
+        self.postfix = postfix
+
+    def __setitem__(self, name: str, values):
+        assert len(values) == self.n
+        if name not in self.template:
+            raise Exception(f"{name} not present in template {self.template.path}")
+        if isinstance(values, np.ndarray):
+            values = values.tolist()
+        self.variable2values[name] = values
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        root_backup = copy.deepcopy(self.template.root)
+        name, ext = os.path.splitext(self.template.path)
+        self.logger.info(f"Using template {self.template.path}...")
+        for variable in self.variable2values:
+            self.logger.info(f"  {variable}: {self.template[variable]}")
+        for i in range(self.n):
+            outpath = name + self.postfix % (i + 1) + ext
+            self.logger.info(f"Writing {outpath}...")
+            for variable, values in self.variable2values.items():
+                self.logger.info(f"  {variable}: {values[i]}")
+                self.template[variable] = values[i]
+            with open(outpath, "w") as f:
+                yaml.dump(self.template.root, f, yaml_dumper)
+        self.template.root = root_backup
+
+
+class RestartEnsemble(Ensemble):
+    def __init__(self, template_path: str, n: int, postfix: str = "_%04i"):
+        super().__init__(n)
+        self.template_nc = netCDF4.Dataset(template_path)
+        self.template = self.template_nc.variables
+        self.template_path = template_path
+        self.postfix = postfix
+
+    def __setitem__(self, name: str, values):
+        values = np.array(values)
+        assert values.shape[0] == self.n
+        if name not in self.template:
+            raise Exception(f"{name} not present in template {self.template_path}")
+        self.variable2values[name] = values
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.logger.info(f"Using template {self.template_path}...")
+        for variable in self.variable2values:
+            original = self.template[variable]
+            self.logger.info(f"  {variable}: {np.min(original)} - {np.max(original)}")
+        self.template_nc.close()
+        name, ext = os.path.splitext(self.template_path)
+        for i in range(self.n):
+            outpath = name + self.postfix % (i + 1) + ext
+            self.logger.info(f"Writing {outpath}...")
+            shutil.copyfile(self.template_path, outpath)
+            with netCDF4.Dataset(outpath, "r+") as nc:
+                for variable, values in self.variable2values.items():
+                    nc.variables[variable] = values[i, ...]
+                    self.logger.info(
+                        f"  {variable}: {values[i, ...].min()} - {values[i, ...].max()}"
+                    )
+
