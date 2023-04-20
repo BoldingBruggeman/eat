@@ -8,7 +8,7 @@ module pdaf_wrapper
    !! A wrapper around 'PDAF'
 
    USE, INTRINSIC :: ISO_FORTRAN_ENV
-   use eat_config, only: info, debug
+   use eat_config, only: info, debug_eat => debug
    use PDAF_mod_filter
    use PDAF_interfaces_module
    use iso_c_binding, only: c_ptr, c_null_ptr, c_loc, c_int, c_double
@@ -408,11 +408,11 @@ SUBROUTINE assimilation_pdaf() bind(c)
          end select
    end select
    if (status_pdaf /= 0) stop 'assimilation_pdaf(): status_pdaf /= 0'
-   if (verbosity >= debug) write(stderr,*) 'PDAF PUT STATUS= ',status_pdaf
+   if (verbosity >= debug_eat) write(stderr,*) 'PDAF PUT STATUS= ',status_pdaf
 
    CALL PDAF_get_state(steps, timenow, doexit, next_observation_pdaf, &
         distribute_state_pdaf, prepoststep_ens_pdaf, status_pdaf)
-   if (verbosity >= debug) write(stderr,*) 'PDAF GET STATUS= ',status_pdaf
+   if (verbosity >= debug_eat) write(stderr,*) 'PDAF GET STATUS= ',status_pdaf
 END SUBROUTINE assimilation_pdaf
 
 !-----------------------------------------------------------------------
@@ -452,14 +452,14 @@ SUBROUTINE init_ens_pdaf(filtertype,dim_p,dim_ens,state_p,Uinv,ens_p,flag)
    INTEGER, INTENT(inout) :: flag
      !! PDAF status flag
 
-   if (verbosity >= debug) write(stderr,*) 'init_ens_pdaf() ',filtertype,dim_p,dim_ens
+   if (verbosity >= debug_eat) write(stderr,*) 'init_ens_pdaf() ',filtertype,dim_p,dim_ens
 END SUBROUTINE init_ens_pdaf
 
 !-----------------------------------------------------------------------
 
 SUBROUTINE init_3dvar_pdaf()
    ! initialized via Python plugin
-   if (verbosity >= debug) write(stderr,*) 'init_3dvar_pdaf()'
+   if (verbosity >= debug_eat) write(stderr,*) 'init_3dvar_pdaf()'
 END SUBROUTINE init_3dvar_pdaf
 
 !-----------------------------------------------------------------------
@@ -470,7 +470,7 @@ SUBROUTINE collect_state_pdaf(dim_p, state_p)
    INTEGER, INTENT(inout) :: state_p(dim_p)
 
    ! can be empty as all states have already been collected
-   if (verbosity >= debug) write(stderr,*) 'collect_state_pdaf()'
+   if (verbosity >= debug_eat) write(stderr,*) 'collect_state_pdaf()'
 END SUBROUTINE collect_state_pdaf
 
 !-----------------------------------------------------------------------
@@ -481,7 +481,7 @@ SUBROUTINE distribute_state_pdaf(dim_p, state_p)
    INTEGER, INTENT(inout) :: state_p(dim_p)
 
    ! can be empty as all states have already been distrubuted
-   if (verbosity >= debug) write(stderr,*) 'distribute_state_pdaf()'
+   if (verbosity >= debug_eat) write(stderr,*) 'distribute_state_pdaf()'
 END SUBROUTINE distribute_state_pdaf
 
 !-----------------------------------------------------------------------
@@ -493,7 +493,7 @@ SUBROUTINE init_dim_obs_pdaf(step, dim_obs_p)
    INTEGER, INTENT(out) :: dim_obs_p
      !! Dimension of observation vector
 
-   if (verbosity >= debug) write(stderr,*) 'init_dim_obs_pdaf() ',step,dim_obs_p
+   if (verbosity >= debug_eat) write(stderr,*) 'init_dim_obs_pdaf() ',step,dim_obs_p
    dim_obs_p = size(obs)
 END SUBROUTINE init_dim_obs_pdaf
 
@@ -514,7 +514,7 @@ SUBROUTINE obs_op_pdaf(step, dim_p, dim_obs_p, state_p, m_state_p)
 
    integer :: i
 
-   if (verbosity >= debug) write(stderr,*) 'obs_op_pdaf() ',dim_p, dim_obs_p
+   if (verbosity >= debug_eat) write(stderr,*) 'obs_op_pdaf() ',dim_p, dim_obs_p
    DO i = 1, dim_obs_p
       m_state_p(i) = state_p(iobs(i))
    END DO
@@ -531,7 +531,7 @@ SUBROUTINE init_obs_pdaf(step, dim_obs_f, observation_f)
    REAL(REAL64), INTENT(out) :: observation_f(dim_obs_f)
      !! Full observation vector
 
-   if (verbosity >= debug) write(stderr,*) 'init_obs_pdaf() ',dim_obs_f,size(observation_f)
+   if (verbosity >= debug_eat) write(stderr,*) 'init_obs_pdaf() ',dim_obs_f,size(observation_f)
    observation_f = obs(1:dim_obs_f)
 END SUBROUTINE init_obs_pdaf
 
@@ -583,7 +583,7 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
    CHARACTER(len=3) :: anastr
      !! String for call type (initial, forecast, analysis)
 
-   if (verbosity >= debug) write(stderr,*) 'prepoststep_ens_pdaf()',dim_p, dim_ens, dim_ens_p, dim_obs_p
+   if (verbosity >= debug_eat) write(stderr,*) 'prepoststep_ens_pdaf()',dim_p, dim_ens, dim_ens_p, dim_obs_p
 
 ! **********************
 ! *** INITIALIZATION ***
@@ -652,7 +652,7 @@ SUBROUTINE prepoststep_ens_pdaf(step, dim_p, dim_ens, dim_ens_p, dim_obs_p,state
    mean=s/dim_obs_p
    var=(ss-s*s/dim_obs_p)/(dim_obs_p-1)
    std=sqrt(var)
-   if (verbosity >= debug) then
+   if (verbosity >= debug_eat) then
       write(stderr,*) 'prepoststep_ens_pdaf() - mean, var, std',steps,mean,var,std
    end if
    end block
@@ -701,7 +701,7 @@ END SUBROUTINE prepoststep_ens_pdaf
 !-----------------------------------------------------------------------
 
 SUBROUTINE prepoststep_3dvar_pdaf()
-   if (verbosity >= debug) write(stderr,*) 'prepoststep_3dvar_pdaf()'
+   if (verbosity >= debug_eat) write(stderr,*) 'prepoststep_3dvar_pdaf()'
 END SUBROUTINE prepoststep_3dvar_pdaf
 
 !-----------------------------------------------------------------------
@@ -717,7 +717,7 @@ SUBROUTINE init_obsvar_pdaf(step, dim_obs_p, obs_p, meanvar)
    REAL(REAL64), INTENT(out) :: meanvar
      !! Mean observation error variance
 
-   if (verbosity >= debug) write(stderr,*) 'init_obsvar_pdaf() ',rms_obs
+   if (verbosity >= debug_eat) write(stderr,*) 'init_obsvar_pdaf() ',rms_obs
    stop 'KB - init_obsvar_pdaf()'
 !KB   meanvar = rms_obs ** 2
 END SUBROUTINE init_obsvar_pdaf
@@ -734,7 +734,7 @@ SUBROUTINE next_observation_pdaf(stepnow, nsteps, doexit, time)
    REAL(REAL64), INTENT(out) :: time
      !! Current model (physical) time
 
-   if (verbosity >= debug) write(stderr,*) 'next_observation_pdaf() '
+   if (verbosity >= debug_eat) write(stderr,*) 'next_observation_pdaf() '
    nsteps=1
    doexit=1
 END SUBROUTINE next_observation_pdaf
@@ -808,7 +808,7 @@ SUBROUTINE prodRinvA_pdaf(step, dim_obs_p, rank, obs_p, A_p, C_p)
    integer :: i,j
    REAL(REAL64) :: ivariance_obs
 
-   if (verbosity >= debug) write(stderr,*) 'prodRinvA_pdaf() ',dim_obs_p,rank,rms_obs
+   if (verbosity >= debug_eat) write(stderr,*) 'prodRinvA_pdaf() ',dim_obs_p,rank,rms_obs
 #if 0
 !KB   ivariance_obs = 1.0 / rms_obs ** 2
    DO j = 1, rank
@@ -936,7 +936,7 @@ SUBROUTINE obs_op_adj_pdaf(step, dim_p, dim_obs_p, m_state_p, state_p)
    !! local variables
    integer :: i
 
-   if (verbosity >= debug) write(stderr,*) 'obs_op_adj_pdaf() ',dim_p, dim_obs_p
+   if (verbosity >= debug_eat) write(stderr,*) 'obs_op_adj_pdaf() ',dim_p, dim_obs_p
    state_p = 0.0
    DO i = 1, dim_obs_p
       state_p(iobs(i)) = m_state_p(i)
