@@ -125,9 +125,9 @@ class PDAF(shared.Filter):
         if self.filtertype != FilterType._3DVar and cvt_handler is not None:
             raise Exception(
                 "One of your plugins implements the CvtHandler routines,"
-                " but these are only used when using filtertype 3D-Var (13)."
+                " but these are only used when using filtertype 3D-Var (%i)."
                 " You are currently using filtertype %s (%i)"
-                % (self.filtertype.name, self.filtertype.value)
+                % (FilterType._3DVar.value, self.filtertype.name, self.filtertype.value)
             )
 
         if self.filtertype == FilterType.EnKF:
@@ -185,7 +185,7 @@ class PDAF(shared.Filter):
         )
 
     def assimilate(self, iobs: np.ndarray, obs: np.ndarray, sds: np.ndarray):
-        iobs = iobs + 1   # convert to 1-based indices for Fortran/PDAF
+        iobs = iobs + 1  # convert to 1-based indices for Fortran/PDAF
         _eat_filter_pdaf.assimilate(iobs, obs, sds)
 
     def finalize(self):
