@@ -2,14 +2,14 @@ name: eat
 channels:
   - conda-forge
 dependencies:
-  - python=3.8
+  - python=3.9
   - pip
   - fortran-compiler
-  - netcdf-fortran=4.5.3
+  - netcdf-fortran #=4.5.3
   - jupyterlab
   - cmake
   - numpy
-  - matplotlib=3.4.*
+  - matplotlib #=3.4.*
   - scipy
   - ipympl
   - netcdf4
