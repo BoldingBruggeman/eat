@@ -42,6 +42,8 @@ option(EAT_USE_MPI "Enable MPI parallelization" ON)
 set(PDAF_USE_MPI ${EAT_USE_MPI} CACHE BOOL "Compile PDAF with MPI support" FORCE)
 
 option(EAT_USE_PDAF "Include support for the PDAF library" ON)
+set(PDAF_VERSION "v1.16" CACHE STRING "Specify version of PDAF")
+set_property(CACHE PDAF_VERSION PROPERTY STRINGS "v1.16" "v2.1")
 
 option(EAT_USE_GOTM "Build the GOTM driver for EAT" ON)
 option(USE_DEFAULT_GOTM "Use submodule provided GOTM - otherwise set GOTM_BASE" ON)
@@ -71,8 +73,9 @@ endif()
 if(EAT_USE_PDAF)
    # PDAF naming scheme changed from V2.0 "-D" was dropped
    find_path(PDAF_BASE NAMES src/PDAF_init.F90 src/PDAF-D_init.F90 HINTS ${EAT_PDAF_BASE} extern/pdaf DOC "Path to PDAF source directory." NO_CMAKE_FIND_ROOT_PATH)
-   message("${PDAF_BASE}")
-   add_subdirectory(${PDAF_BASE} "extern/pdaf" EXCLUDE_FROM_ALL)
+   #message("${PDAF_BASE}")
+   #add_subdirectory(${PDAF_BASE} "extern/pdaf" EXCLUDE_FROM_ALL)
+   add_subdirectory("pdaf" EXCLUDE_FROM_ALL)
 endif(EAT_USE_PDAF)
 
 if(EAT_USE_GOTM)

@@ -1,0 +1,8 @@
+#define _VERSION_ '@pdaf_VERSION@'
+#define _MPI_VERSION_ '@MPI_VERSION@'
+#define _MPI_Fortran_INCLUDE_PATH_ '@MPI_Fortran_INCLUDE_PATH@'
+#define _MPI_Fortran_LINK_LIBRARIES_ '@MPI_Fortran_LINK_FLAGS@'
+#define _MPI_Fortran_LIBRARIES_ '@MPI_Fortran_LIBRARIES@'
+#define _BLAS_LIBRARIES_ '@BLAS_LIBRARIES@'
+#define _LAPACK_LIBRARIES_ '@LAPACK_LIBRARIES@'
+
