@@ -9,11 +9,17 @@ Anyway here is the recipe:
 1) Not specifying any -DPDAF_BASE during configuration will use the 
 git submodule PDAF version checked out as part of a standard EAT cloning process. No further considerations are necessary.
 
-2) When specifying -DPDAF_BASE it must be ensured that the PDAF configuration version pointed to by PDAF_BASE is corresponds to what is in .../pdaf/CMakeLists.txt.
+2) When specifying -DPDAF_BASE it must be ensured that the PDAF configuration version pointed to by PDAF_BASE is correct. This can be done using -DPDAF_VERSION=v2.1 during configuration.  In this case the version of PDAF in the PDAF_BASE folder **must** be v2.1. The version number is used to pick the correct set of CMakeLists.txt files in the pdaf/-folder.
 
 The second point is mainly for developers and unless there is a good reason just configure with default settings.
 
-It is possible to compile an executable that will show some configuration details. It works like this (using make as an example).
+It is possible to compile an executable that will show some PDAF configuration details. It works like this (using make as an example and a non-default PDAF version).
+After configuration similar to this:
+
+```
+mkdir build && cd build && cmake -B . -S .. -DPDAF_BASE="~/source/repos/PDAF" -DPDAF_VERSION=v2.1
+```
+
 In the build directory:
 
 ```
