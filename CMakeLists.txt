@@ -44,7 +44,6 @@ set(PDAF_USE_MPI ${EAT_USE_MPI} CACHE BOOL "Compile PDAF with MPI support" FORCE
 option(EAT_USE_PDAF "Include support for the PDAF library" ON)
 
 option(EAT_USE_GOTM "Build the GOTM driver for EAT" ON)
-option(USE_DEFAULT_GOTM "Use submodule provided GOTM - otherwise set GOTM_BASE" ON)
 
 # ----------------------------
 # Dependencies
