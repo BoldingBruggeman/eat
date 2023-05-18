@@ -12,3 +12,13 @@
 	path = extern/fabm
 	url = ../../fabm-model/fabm.git
 	branch = yaml-settings
+[submodule "extern/pisces"]
+	path = extern/pisces
+	url = ../fabm-pisces
+[submodule "extern/ersem"]
+	path = extern/ersem
+	url = ../../pmlmodelling/ersem
+[submodule "extern/bfm"]
+	path = extern/ogs
+	url = ../../inogs/bfmforfabm.git
+	branch = dev_monospectral
