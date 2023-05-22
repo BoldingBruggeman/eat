@@ -382,6 +382,10 @@ class YAMLFile:
             return False
         return True
 
+    def get(self, key: str, default: Any=None):
+        if key in self:
+            return self[key]
+        return default
 
 class Ensemble:
     def __init__(self, n: int):
@@ -405,7 +409,7 @@ class YAMLEnsemble(Ensemble):
     def __setitem__(self, name: str, values):
         assert len(values) == self.n
         if name not in self.template:
-            raise Exception(f"{name} not present in template {self.template.path}")
+            self.logger.warning(f"{name} not present in template {self.template.path}")
         if isinstance(values, np.ndarray):
             values = values.tolist()
         self.variable2values[name] = values
@@ -418,7 +422,8 @@ class YAMLEnsemble(Ensemble):
         name, ext = os.path.splitext(self.template.path)
         self.logger.info(f"Using template {self.template.path}...")
         for variable in self.variable2values:
-            self.logger.info(f"  {variable}: {self.template[variable]}")
+            value = self.template.get(variable, "NOT PRESENT")
+            self.logger.info(f"  {variable}: {value}")
         for i in range(self.n):
             outpath = name + self.postfix % (i + 1) + ext
             self.logger.info(f"Writing {outpath}...")
