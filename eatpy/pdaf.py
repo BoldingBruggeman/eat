@@ -9,10 +9,10 @@ from . import shared
 try:
     from . import _eat_filter_pdaf
 except ImportError as e:
-    raise Exception(
-        "Import of _eat_filter_pdaf failed."
-        " Are MPI, BLAS and LAPACK libraries on your PATH? %s" % e
-    )
+        raise Exception(
+            "Import of _eat_filter_pdaf failed."
+            " Are MPI, BLAS and LAPACK libraries on your PATH? %s" % e
+        )
 
 
 class FilterType(enum.IntEnum):
@@ -74,7 +74,7 @@ class PDAF(shared.Filter):
         type_opt: int = 0,
         rank_analysis_enkf: int = 0,
         beta_3dvar: float = 0.5,
-        screen: int = 1,
+        screen: int = 0,
     ):
         """Initialize PDAF. To get a description of all available option for a
         given filtertype, use subtype = -1
