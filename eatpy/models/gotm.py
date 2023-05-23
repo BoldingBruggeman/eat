@@ -441,7 +441,7 @@ class RestartEnsemble(Ensemble):
         self.template_nc = netCDF4.Dataset(template_path)
         self.template = self.template_nc.variables
         self.template_path = template_path
-        name, ext = os.path.splitext(self.template.path)
+        name, ext = os.path.splitext(self.template_path)
         self.file_paths = [name + postfix % (i + 1) + ext for i in range(self.n)]
 
     def __setitem__(self, name: str, values):
