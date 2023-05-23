@@ -382,10 +382,11 @@ class YAMLFile:
             return False
         return True
 
-    def get(self, key: str, default: Any=None):
+    def get(self, key: str, default: Any = None):
         if key in self:
             return self[key]
         return default
+
 
 class Ensemble:
     def __init__(self, n: int):
@@ -404,7 +405,8 @@ class YAMLEnsemble(Ensemble):
     def __init__(self, template_path: str, n: int, postfix: str = "_%04i"):
         super().__init__(n)
         self.template = YAMLFile(template_path)
-        self.postfix = postfix
+        name, ext = os.path.splitext(self.template.path)
+        self.file_paths = [name + postfix % (i + 1) + ext for i in range(self.n)]
 
     def __setitem__(self, name: str, values):
         assert len(values) == self.n
@@ -419,13 +421,11 @@ class YAMLEnsemble(Ensemble):
 
     def __exit__(self, exc_type, exc_value, traceback):
         root_backup = copy.deepcopy(self.template.root)
-        name, ext = os.path.splitext(self.template.path)
         self.logger.info(f"Using template {self.template.path}...")
         for variable in self.variable2values:
             value = self.template.get(variable, "NOT PRESENT")
             self.logger.info(f"  {variable}: {value}")
-        for i in range(self.n):
-            outpath = name + self.postfix % (i + 1) + ext
+        for i, outpath in enumerate(self.file_paths):
             self.logger.info(f"Writing {outpath}...")
             for variable, values in self.variable2values.items():
                 self.logger.info(f"  {variable}: {values[i]}")
@@ -441,7 +441,8 @@ class RestartEnsemble(Ensemble):
         self.template_nc = netCDF4.Dataset(template_path)
         self.template = self.template_nc.variables
         self.template_path = template_path
-        self.postfix = postfix
+        name, ext = os.path.splitext(self.template.path)
+        self.file_paths = [name + postfix % (i + 1) + ext for i in range(self.n)]
 
     def __setitem__(self, name: str, values):
         values = np.array(values)
@@ -459,9 +460,7 @@ class RestartEnsemble(Ensemble):
             original = self.template[variable]
             self.logger.info(f"  {variable}: {np.min(original)} - {np.max(original)}")
         self.template_nc.close()
-        name, ext = os.path.splitext(self.template_path)
-        for i in range(self.n):
-            outpath = name + self.postfix % (i + 1) + ext
+        for i, outpath in enumerate(self.file_paths):
             self.logger.info(f"Writing {outpath}...")
             shutil.copyfile(self.template_path, outpath)
             with netCDF4.Dataset(outpath, "r+") as nc:
