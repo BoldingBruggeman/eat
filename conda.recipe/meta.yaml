@@ -43,4 +43,10 @@ test:
 
 about:
   home: https://github.com/BoldingBruggeman/eat
+  summary: Ensemble and Assimilation Tool
+  description: |
+    EAT is a 1D testbed for physical-biogeochemical data assimilation
+    in marine and freshwater systems
   license: GPL
+  doc_url: https://github.com/BoldingBruggeman/eat/wiki
+  dev_url: https://github.com/BoldingBruggeman/eat
