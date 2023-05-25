@@ -10,5 +10,5 @@ conflict reported during the testing phase. This happened 2022-11-29 with Python
 
 `conda-build <RECIPEDIR> -c conda-forge`
 
-If VS2017 is installed, this command should work on a normal command prompt.
-(no need to load MSVC or Intel-specific environments)
+If VS2017 or VS2019 + MSVC v141 is installed, this command should work on a
+normal command prompt. (no need to load MSVC or Intel-specific environments)
