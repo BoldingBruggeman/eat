@@ -39,7 +39,7 @@ program eat_model_gotm
    logical :: have_obs=.true.
    logical :: have_filter=.true.
    integer :: stderr=error_unit,stdout=output_unit
-   integer :: verbosity=info
+   integer :: verbosity=warn
    character(len=*), parameter :: nmlfile='eat_gotm.nml'
    character(len=128) :: extra_state(64)
    character(len=128) :: fabm_parameters_in_state(64)

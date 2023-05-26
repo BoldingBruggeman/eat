@@ -1,6 +1,6 @@
 package:
   name: eatpy
-  version: "0.9.2"
+  version: "0.9.3"
 
 build:
   entry_points:
@@ -43,4 +43,10 @@ test:
 
 about:
   home: https://github.com/BoldingBruggeman/eat
+  summary: Ensemble and Assimilation Tool
+  description: |
+    EAT is a 1D testbed for physical-biogeochemical data assimilation
+    in marine and freshwater systems
   license: GPL
+  doc_url: https://github.com/BoldingBruggeman/eat/wiki
+  dev_url: https://github.com/BoldingBruggeman/eat

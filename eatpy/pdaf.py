@@ -1,18 +1,33 @@
 from typing import Optional, Sequence, Union
 import enum
+import os
 
 import numpy as np
 from mpi4py import MPI
 
 from . import shared
 
-try:
-    from . import _eat_filter_pdaf
-except ImportError as e:
+
+def import_pdaf():
+    global _eat_filter_pdaf
+    try:
+        from . import _eat_filter_pdaf
+    except ImportError as e:
         raise Exception(
             "Import of _eat_filter_pdaf failed."
             " Are MPI, BLAS and LAPACK libraries on your PATH? %s" % e
         )
+
+
+try:
+    import_pdaf()
+except Exception:
+    if "MKLROOT" in os.environ and hasattr(os, "add_dll_directory"):
+        mkldir = os.path.join(os.environ["MKLROOT"], "redist/intel64")
+        with os.add_dll_directory(mkldir):
+            import_pdaf()
+    else:
+        raise
 
 
 class FilterType(enum.IntEnum):

@@ -290,7 +290,8 @@ class Experiment:
                 )
 
             # Perform assimilation. This updates filter.model_states
-            filter.assimilate(obs_indices, obs_values, obs_sds)
+            if obs_values.size > 0:
+                filter.assimilate(obs_indices, obs_values, obs_sds)
 
             # Allow plugins to act before analysis state is sent back to models
             for plugin in reversed(self.plugins):

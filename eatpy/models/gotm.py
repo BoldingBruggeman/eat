@@ -7,7 +7,7 @@ import logging
 import copy
 import os
 import shutil
-from typing import Optional, List, Tuple, Mapping, Any, Iterable, Iterator
+from typing import Optional, List, Tuple, Mapping, Any, Iterable, Iterator, Sequence
 
 import numpy as np
 from mpi4py import MPI
@@ -70,7 +70,38 @@ def parse_memory_map(path: str):
             }
 
 
-class File:
+class Observations:
+    def __init__(self):
+        self.next_time: Optional[datetime.datetime] = None
+        self.next_data: Tuple[Optional[float], Optional[float], Optional[float]] = None, None, None
+        self._move_to_next()
+
+    def get_next(self) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+        if self.next_time is None:
+            raise Exception('No more data.')
+        current = self.next_data
+        self._move_to_next()
+        return current
+
+    def _move_to_next(self):
+        raise NotImplementedError
+
+
+class DummyTimes(Observations):
+    def __init__(self, times: Sequence = ()):
+        self.times = times
+        self.itime = -1
+        super().__init__()
+
+    def _move_to_next(self):
+        self.itime += 1
+        if self.itime == len(self.times):
+            self.next_time = None
+        else:
+            self.next_time = self.times[self.itime]
+
+
+class File(Observations):
     def __init__(
         self, path: str, is_1d: bool = False, sd: Optional[float] = None,
     ):
@@ -79,19 +110,15 @@ class File:
         self.is_1d = is_1d
         self.iline = 0
         self.sd = sd
-        self.read(first=True)
+        super().__init__()
 
-    def read(self, first: bool = False):
-        if not first and self.next is None:
-            # end-of-file reached previously
-            return
-
+    def _move_to_next(self):
         line = None
         while line is None:
             line = self.f.readline()
             if line == "":
                 # EOF
-                self.next = None
+                self.next_time = None
                 return
             self.iline += 1
             line = line.split("#", 1)[0].strip()
@@ -109,7 +136,7 @@ class File:
             int, datematch.group(1, 2, 3, 4, 5, 6)
         )  # Convert matched strings into integers
         try:
-            curtime = datetime.datetime(*refvals)
+            self.next_time = datetime.datetime(*refvals)
         except ValueError:
             raise Exception(
                 "%s line %i: %s is not a valid time"
@@ -139,7 +166,7 @@ class File:
                 )
             value = float(data[1])
             sd = self.sd if self.sd is not None else float(data[2])
-            self.next = curtime, z, value, sd
+            self.next_data = z, value, sd
         else:
             # Depth-independent variable (on each line: time, value)
             if len(data) not in (1, 2):
@@ -157,7 +184,7 @@ class File:
                 )
             value = float(data[0])
             sd = self.sd if self.sd is not None else float(data[1])
-            self.next = curtime, None, value, sd
+            self.next_data = None, value, sd
 
 
 class GOTM(shared.Experiment):
@@ -268,16 +295,18 @@ class GOTM(shared.Experiment):
             % (path, full_variable_name, 1 if is_1d else 0, offset)
         )
 
+    def add_dummy_observations(self, times: Sequence):
+        self.datasets.append((None, DummyTimes(times), None))
+
     def observations(self) -> Iterator[datetime.datetime]:
         """Iterate over all observation times"""
         while True:
             # Find time of next observation
             self.time = None
             for _, obsfile, _ in self.datasets:
-                if obsfile.next is not None:
-                    current_time = obsfile.next[0]
-                    if self.time is None or current_time < self.time:
-                        self.time = current_time
+                if obsfile.next_time is not None:
+                    if self.time is None or obsfile.next_time < self.time:
+                        self.time = obsfile.next_time
 
             if self.time is None:
                 # No more observations
@@ -295,8 +324,8 @@ class GOTM(shared.Experiment):
                     "skipping observations at time %s" % self.time.isoformat(" ")
                 )
                 for _, obsfile, _ in self.datasets:
-                    while obsfile.next is not None and obsfile.next[0] == self.time:
-                        obsfile.read()
+                    while obsfile.next_time is not None and obsfile.next_time == self.time:
+                        obsfile.get_next()
 
     def collect_observations(self):
         """Collect observations applicable to the current time
@@ -307,8 +336,10 @@ class GOTM(shared.Experiment):
         offsets = []
         for variable, obsfile, offset in self.datasets:
             zs = []
-            while obsfile.next is not None and obsfile.next[0] == self.time:
-                _, z, value, sd = obsfile.next
+            while obsfile.next_time is not None and obsfile.next_time == self.time:
+                z, value, sd = obsfile.get_next()
+                if value is None:
+                    continue
                 self.logger.debug(
                     "- %s%s = %s (sd = %s)"
                     % (variable, "" if z is None else (" @ %.2f m" % z), value, sd)
@@ -318,7 +349,6 @@ class GOTM(shared.Experiment):
                 offsets.append(offset)
                 if obsfile.is_1d:
                     zs.append(z)
-                obsfile.read()
             if zs:
                 self.depth_map.append(
                     (variable, slice(len(values) - len(zs), len(values)), np.array(zs),)
