@@ -495,7 +495,7 @@ class RestartEnsemble(Ensemble):
             shutil.copyfile(self.template_path, outpath)
             with netCDF4.Dataset(outpath, "r+") as nc:
                 for variable, values in self.variable2values.items():
-                    nc.variables[variable] = values[i, ...]
+                    nc.variables[variable][...] = values[i, ...]
                     self.logger.info(
                         f"  {variable}: {values[i, ...].min()} - {values[i, ...].max()}"
                     )
