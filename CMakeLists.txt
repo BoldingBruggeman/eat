@@ -78,7 +78,7 @@ if(EAT_USE_GOTM)
     set(FABM_BASE "${CMAKE_CURRENT_LIST_DIR}/extern/fabm" CACHE PATH "FABM source directory")
     find_path(GOTM_BASE NAMES src/gotm/gotm.F90 HINTS ENV EAT_GOTM_BASE "extern/gotm" NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
     add_subdirectory("${GOTM_BASE}" extern/gotm EXCLUDE_FROM_ALL)
-    message("GOTM folder: " "${GOTM_BASE}")
+    message(STATUS "GOTM folder: " "${GOTM_BASE}")
     add_subdirectory("models/gotm")
 endif(EAT_USE_GOTM)
 
