@@ -15,8 +15,8 @@ requirements:
     - pip
     - setuptools
     #- numpy>=1.17               # only needed if "cimport numpy" is done in a pyx file
-    - blas
-    - lapack                     # [not win] on Windows, LAPACK from MKL is used, which is already imported by BLAS dependency
+    - blas-devel
+    - liblapack
     - netcdf-fortran             # [not win] not needed on Windows because it gets netcdf from GOTM
     - {{ mpi }}
     - mpi4py                     # because eatpy/_eat_filter_pdaf.pyx does "cimport mpi4py.xxx"
