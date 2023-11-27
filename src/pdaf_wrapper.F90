@@ -839,9 +839,9 @@ SUBROUTINE cvt_pdaf(iter, dim_p, dim_cvec, v_p, Vv_p)
      !!< PE-local observation dimension
    INTEGER, INTENT(in) :: dim_cvec
      !!< Dimension of control vector
-   REAL, TARGET, INTENT(in)    :: v_p(dim_cvec)
+   REAL(REAL64), TARGET, INTENT(in)    :: v_p(dim_cvec)
      !!< PE-local control vector
-   REAL, TARGET, INTENT(inout) :: Vv_p(dim_p)
+   REAL(REAL64), TARGET, INTENT(inout) :: Vv_p(dim_p)
      !!< PE-local result vector
 
    IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(1, iter, dim_p, -1, dim_cvec, &
@@ -860,9 +860,9 @@ SUBROUTINE cvt_adj_pdaf(iter, dim_p, dim_cvec, Vv_p, v_p)
      !!< PE-local observation dimension
    INTEGER, INTENT(in) :: dim_cvec
      !!< Dimension of control vector
-   REAL, TARGET, INTENT(in)    :: Vv_p(dim_p)
+   REAL(REAL64), TARGET, INTENT(in)    :: Vv_p(dim_p)
      !!< PE-local input vector
-   REAL, TARGET, INTENT(inout) :: v_p(dim_cvec)
+   REAL(REAL64), TARGET, INTENT(inout) :: v_p(dim_cvec)
      !!< PE-local result vector
 
    IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(2, iter, dim_p, -1, dim_cvec, &
@@ -882,11 +882,11 @@ SUBROUTINE cvt_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, v_p, Vv_p)
      !!< Ensemble size
    INTEGER, INTENT(in) :: dim_cvec_ens
      !!< Dimension of control vector
-   REAL, TARGET, INTENT(in) :: ens_p(dim_p, dim_ens)
+   REAL(REAL64), TARGET, INTENT(in) :: ens_p(dim_p, dim_ens)
      !!< PE-local ensemble
-   REAL, TARGET, INTENT(in) :: v_p(dim_cvec_ens)
+   REAL(REAL64), TARGET, INTENT(in) :: v_p(dim_cvec_ens)
      !!< PE-local control vector
-   REAL, TARGET, INTENT(inout) :: Vv_p(dim_p)
+   REAL(REAL64), TARGET, INTENT(inout) :: Vv_p(dim_p)
      !!< PE-local state increment
 
    IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(3, iter, dim_p, dim_ens, dim_cvec_ens, &
@@ -907,11 +907,11 @@ SUBROUTINE cvt_adj_ens_pdaf(iter, dim_p, dim_ens, dim_cvec_ens, ens_p, Vv_p, v_p
      !!< Ensemble size
    INTEGER, INTENT(in) :: dim_cvec_ens
      !!< Number of columns in HV_p
-   REAL, TARGET, INTENT(in) :: ens_p(dim_p, dim_ens)
+   REAL(REAL64), TARGET, INTENT(in) :: ens_p(dim_p, dim_ens)
      !!< PE-local ensemble
-   REAL, TARGET, INTENT(in)    :: Vv_p(dim_p)
+   REAL(REAL64), TARGET, INTENT(in)    :: Vv_p(dim_p)
      !!< PE-local input vector
-   REAL, TARGET, INTENT(inout) :: v_p(dim_cvec_ens)
+   REAL(REAL64), TARGET, INTENT(inout) :: v_p(dim_cvec_ens)
      !!< PE-local result vector
 
    IF (ASSOCIATED(pcvt_callback)) CALL pcvt_callback(4, iter, dim_p, dim_ens, dim_cvec_ens, &
