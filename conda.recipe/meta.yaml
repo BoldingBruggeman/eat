@@ -1,6 +1,9 @@
 package:
   name: eatpy
-  version: "0.9.5"
+  version: "0.9.6"
+
+source:
+  git_url: https://github.com/BoldingBruggeman/eat.git
 
 build:
   entry_points:
