@@ -4,6 +4,7 @@ package:
 
 source:
   git_url: https://github.com/BoldingBruggeman/eat.git
+  git_rev: seamless
 
 build:
   entry_points:
