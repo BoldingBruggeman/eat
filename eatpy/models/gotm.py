@@ -73,12 +73,16 @@ def parse_memory_map(path: str):
 class Observations:
     def __init__(self):
         self.next_time: Optional[datetime.datetime] = None
-        self.next_data: Tuple[Optional[float], Optional[float], Optional[float]] = None, None, None
+        self.next_data: Tuple[Optional[float], Optional[float], Optional[float]] = (
+            None,
+            None,
+            None,
+        )
         self._move_to_next()
 
     def get_next(self) -> Tuple[Optional[float], Optional[float], Optional[float]]:
         if self.next_time is None:
-            raise Exception('No more data.')
+            raise Exception("No more data.")
         current = self.next_data
         self._move_to_next()
         return current
@@ -103,7 +107,10 @@ class DummyTimes(Observations):
 
 class File(Observations):
     def __init__(
-        self, path: str, is_1d: bool = False, sd: Optional[float] = None,
+        self,
+        path: str,
+        is_1d: bool = False,
+        sd: Optional[float] = None,
     ):
         self.path = path
         self.f = open(path, "r")
@@ -324,7 +331,9 @@ class GOTM(shared.Experiment):
                     "skipping observations at time %s" % self.time.isoformat(" ")
                 )
                 for _, obsfile, _ in self.datasets:
-                    while obsfile.next_time is not None and obsfile.next_time == self.time:
+                    while (
+                        obsfile.next_time is not None and obsfile.next_time == self.time
+                    ):
                         obsfile.get_next()
 
     def collect_observations(self):
@@ -351,7 +360,11 @@ class GOTM(shared.Experiment):
                     zs.append(z)
             if zs:
                 self.depth_map.append(
-                    (variable, slice(len(values) - len(zs), len(values)), np.array(zs),)
+                    (
+                        variable,
+                        slice(len(values) - len(zs), len(values)),
+                        np.array(zs),
+                    )
                 )
         self.values = np.array(values, dtype=float)
         self.sds = np.array(sds, dtype=float)
@@ -432,10 +445,13 @@ class Ensemble:
 
 
 class YAMLEnsemble(Ensemble):
-    def __init__(self, template_path: str, n: int, postfix: str = "_%04i"):
+    def __init__(
+        self, template_path: str, n: int, postfix: str = "_%04i", outdir: str = "."
+    ):
         super().__init__(n)
         self.template = YAMLFile(template_path)
-        name, ext = os.path.splitext(self.template.path)
+        path = os.path.join(outdir, os.path.basename(self.template.path))
+        name, ext = os.path.splitext(path)
         self.file_paths = [name + postfix % (i + 1) + ext for i in range(self.n)]
 
     def __setitem__(self, name: str, values):
@@ -466,12 +482,15 @@ class YAMLEnsemble(Ensemble):
 
 
 class RestartEnsemble(Ensemble):
-    def __init__(self, template_path: str, n: int, postfix: str = "_%04i"):
+    def __init__(
+        self, template_path: str, n: int, postfix: str = "_%04i", outdir: str = "."
+    ):
         super().__init__(n)
         self.template_nc = netCDF4.Dataset(template_path)
         self.template = self.template_nc.variables
         self.template_path = template_path
-        name, ext = os.path.splitext(self.template_path)
+        path = os.path.join(outdir, os.path.basename(template_path))
+        name, ext = os.path.splitext(path)
         self.file_paths = [name + postfix % (i + 1) + ext for i in range(self.n)]
 
     def __setitem__(self, name: str, values):
@@ -499,4 +518,3 @@ class RestartEnsemble(Ensemble):
                     self.logger.info(
                         f"  {variable}: {values[i, ...].min()} - {values[i, ...].max()}"
                     )
-
