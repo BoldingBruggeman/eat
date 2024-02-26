@@ -6,16 +6,12 @@ REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 external_model_dir=$REPO_DIR/extern
 
-default_institutes="akvaplan;au;bb;csiro;examples;gotm;iow;jrc;msi;nersc;niva;pclake;pml;selma;su;uhh"
-external_institutes="ersem;ogs;pisces"
-fabm_institutes="-DFABM_INSTITUTES=$default_institutes;$external_institutes"
-
-model_dirs="-DFABM_ERSEM_BASE=$external_model_dir/ersem -DFABM_OGS_BASE=$external_model_dir/ogs -DFABM_PISCES_BASE=$external_model_dir/pisces"
+extra_institutes="-DFABM_EXTRA_INSTITUTES=ogs -DFABM_OGS_BASE=$external_model_dir/ogs"
 
 # Build eat
 WORK_DIR=`mktemp -d`
 cd ${WORK_DIR}
-cmake ${REPO_DIR} $fabm_institutes $model_dirs $@
+cmake ${REPO_DIR} $extra_institutes $@
 make -j4 install
 cd -
 rm -rf ${WORK_DIR}
