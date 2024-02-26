@@ -10,5 +10,4 @@
 	url = ../pdaf-temp.git
 [submodule "extern/fabm"]
 	path = extern/fabm
-	url = ../../fabm-model/fabm.git
-	branch = yaml-settings
+	url = ../../fabm-model/fabm-plus.git
