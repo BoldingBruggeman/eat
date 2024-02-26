@@ -11,12 +11,6 @@
 [submodule "extern/fabm"]
 	path = extern/fabm
 	url = ../../fabm-model/fabm-plus.git
-[submodule "extern/pisces"]
-	path = extern/pisces
-	url = ../fabm-pisces
-[submodule "extern/ersem"]
-	path = extern/ersem
-	url = ../../pmlmodelling/ersem
 [submodule "extern/bfm"]
 	path = extern/ogs
 	url = ../../inogs/bfmforfabm.git
