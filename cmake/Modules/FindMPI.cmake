@@ -934,9 +934,11 @@ function(_MPI_guess_settings LANG)
         # Next, we attempt to locate the MPI header. Note that for Fortran we know that mpif.h is a way
         # MSMPI can be used and therefore that header has to be present.
         if(NOT MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS)
-          get_filename_component(MPI_MSMPI_INC_DIR "$ENV{MSMPI_INC}" REALPATH)
-          set(MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS "${MPI_MSMPI_INC_DIR}" CACHE STRING "MPI ${LANG} additional include directories" FORCE)
-          unset(MPI_MSMPI_INC_DIR)
+          find_path(MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS
+            NAMES "mpif.h"
+            HINTS "$ENV{MSMPI_INC}"
+            DOC "MPI ${LANG} additional include directories"
+            FORCE)
         endif()
 
         # For MSMPI, one can compile the MPI module by building the mpi.f90 shipped with the MSMPI SDK,
@@ -985,23 +987,33 @@ function(_MPI_guess_settings LANG)
             endforeach()
           endforeach()
           if(NOT MPI_${LANG}_LIB_NAMES)
-            set(MPI_${LANG}_LIB_NAMES "msmpi;msmpifec" CACHE STRING "MPI ${LANG} libraries to link against" FORCE)
+            set(MPI_${LANG}_LIB_NAMES "msmpifec;msmpi" CACHE STRING "MPI ${LANG} libraries to link against" FORCE)
           endif()
 
           # At this point we're *not* done. MSMPI requires an additional include file for Fortran giving the value
           # of MPI_AINT. This file is called mpifptr.h located in the x64 and x86 subfolders, respectively.
           find_path(MPI_mpifptr_INCLUDE_DIR
             NAMES "mpifptr.h"
-            HINTS "${MPI_MSMPI_INC_PATH_EXTRA}"
+            HINTS "${MPI_MSMPI_INC_PATH_EXTRA}" ${MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS}
             DOC "Location of the mpifptr.h extra header for Microsoft MPI")
           if(NOT MPI_${LANG}_ADDITIONAL_INCLUDE_VARS)
             set(MPI_${LANG}_ADDITIONAL_INCLUDE_VARS "mpifptr" CACHE STRING "MPI ${LANG} additional include directory variables, given in the form MPI_<name>_INCLUDE_DIR." FORCE)
           endif()
           mark_as_advanced(MPI_${LANG}_ADDITIONAL_INCLUDE_VARS MPI_mpifptr_INCLUDE_DIR)
 
-          get_filename_component(MPI_MSMPI_INC_DIR "$ENV{MSMPI_INC}" REALPATH)
-          set(MPI_${LANG}_ADDITIONAL_SOURCES "${MPI_MSMPI_INC_DIR}/mpi.f90" CACHE STRING "MPI ${LANG} additional sources" FORCE)
-          unset(MPI_MSMPI_INC_DIR)
+          if(WIN32 AND ${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
+            string(REPLACE "." ";" VERSION_LIST ${CMAKE_Fortran_COMPILER_VERSION})
+            list(GET VERSION_LIST 0 VERSION_MAJOR)
+            if (${VERSION_MAJOR} LESS "11")
+              enable_language(C)
+              try_compile(CFGUARD_COMPILE_RESULT ${CMAKE_CURRENT_BINARY_DIR}/cfguard ${CMAKE_CURRENT_LIST_DIR}/cfguard cfguard
+              )
+              find_library(MPI_cfguard_LIBRARY cfguard HINTS ${CMAKE_CURRENT_BINARY_DIR}/cfguard)
+              set(MPI_${LANG}_LIB_NAMES "${MPI_${LANG}_LIB_NAMES};cfguard" CACHE STRING "MPI ${LANG} libraries to link against" FORCE)
+            endif()
+          endif()
+
+          find_file(MPI_${LANG}_ADDITIONAL_SOURCES mpi.f90 HINTS ${MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS} CACHE STRING "MPI ${LANG} additional sources")
         else()
           if(NOT MPI_${LANG}_LIB_NAMES)
             set(MPI_${LANG}_LIB_NAMES "msmpi" CACHE STRING "MPI ${LANG} libraries to link against" FORCE)
