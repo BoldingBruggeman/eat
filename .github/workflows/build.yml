@@ -20,6 +20,8 @@ jobs:
         with:
           environment-file: environment.yml
           activate-environment: eat
+      - name: Force MPI release
+        run: conda install -c conda-forge mpich
       - name: Compile
         run: source ./install
       # - name: Run 2d test case
