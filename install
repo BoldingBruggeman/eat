@@ -10,8 +10,6 @@ extra_institutes="-DFABM_EXTRA_INSTITUTES=ogs -DFABM_OGS_BASE=$external_model_di
 
 # Build eat
 WORK_DIR=`mktemp -d`
-cd ${WORK_DIR}
-cmake ${REPO_DIR} $extra_institutes $@
-make -j4 install
-cd -
+cmake -S ${REPO_DIR} -B ${WORK_DIR} $extra_institutes $@
+cmake --build ${WORK_DIR} --parallel 4 --target install
 rm -rf ${WORK_DIR}
