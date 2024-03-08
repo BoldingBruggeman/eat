@@ -62,13 +62,13 @@ class CvtHandler(shared.Plugin):
 
     def cvt_ens(self, iter: int, state: np.ndarray, v: np.ndarray) -> np.ndarray:
         raise Exception(
-            "cvt_ens called but not implemented; state shape = %s, v_p shape = %s"
+            "cvt_ens called but not implemented; state shape = %s, v shape = %s"
             % (state.shape, v.shape)
         )
 
     def cvt_adj_ens(self, iter: int, state: np.ndarray, Vv: np.ndarray) -> np.ndarray:
         raise Exception(
-            "cvt_adj_ens called but not implemented; state shape = %s, Vv_p shape = %s"
+            "cvt_adj_ens called but not implemented; state shape = %s, Vv shape = %s"
             % (state.shape, Vv.shape)
         )
 
