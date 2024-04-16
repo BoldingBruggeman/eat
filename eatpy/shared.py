@@ -13,6 +13,10 @@ import collections
 import logging
 
 import numpy as np
+
+import mpi4py.rc
+mpi4py.rc.initialize = False
+
 from mpi4py import MPI
 
 # FOR MPI_SPLIT - MUST MATCH COLORS DEFINED IN EAT_CONFIG.F90
@@ -112,6 +116,9 @@ class Experiment:
 
     def __init__(self, log_level=logging.INFO):
         self.plugins: List[Plugin] = []
+
+        if not MPI.Is_initialized():
+            MPI.Init()
 
         # Ensure logging goes to console
         logging.basicConfig(level=log_level)
