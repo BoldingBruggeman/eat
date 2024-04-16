@@ -339,7 +339,7 @@ class Experiment:
 
 
 def finalize_MPI():
-    if not MPI.Is_finalized():
+    if MPI.Is_initialized() and not MPI.Is_finalized():
         MPI.Finalize()
 
 
