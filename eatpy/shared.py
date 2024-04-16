@@ -35,6 +35,8 @@ TAG_OBS = 3
 TAG_ANALYSIS = 1
 TAG_FORECAST = 2
 
+MPI_initialized = False
+
 
 def setup_mpi(color: int) -> Tuple[MPI.Comm, MPI.Comm]:
     """Set up MPI communicators."""
@@ -121,7 +123,9 @@ class Experiment:
         self.plugins: List[Plugin] = []
 
         if not MPI.Is_initialized():
+            global MPI_initialized
             MPI.Init()
+            MPI_initialized = True
 
         # Ensure logging goes to console
         logging.basicConfig(level=log_level)
@@ -339,7 +343,7 @@ class Experiment:
 
 
 def finalize_MPI():
-    if MPI.Is_initialized() and not MPI.Is_finalized():
+    if MPI_initialized and not MPI.Is_finalized():
         MPI.Finalize()
 
 
