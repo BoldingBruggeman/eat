@@ -11,11 +11,14 @@ from typing import (
 import datetime
 import collections
 import logging
+import atexit
 
 import numpy as np
 
 import mpi4py.rc
+
 mpi4py.rc.initialize = False
+mpi4py.rc.finalize = False
 
 from mpi4py import MPI
 
@@ -333,3 +336,11 @@ class Experiment:
         )
 
         MPI.Request.Waitall(final_wait_reqs)
+
+
+def finalize_MPI():
+    if not MPI.Is_finalized():
+        MPI.Finalize()
+
+
+atexit.register(finalize_MPI)
