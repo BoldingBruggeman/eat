@@ -14,4 +14,4 @@
 [submodule "extern/bfm"]
 	path = extern/ogs
 	url = ../../inogs/bfmforfabm.git
-	branch = dev_monospectral
+	branch = master
