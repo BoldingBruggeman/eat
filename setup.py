@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='eatpy',
-    version='0.9.7',
+    version='1.0.0',
     author='Bolding-Bruggeman ApS',
     author_email='karsten@bolding-bruggeman.com',
     license='GPL',
