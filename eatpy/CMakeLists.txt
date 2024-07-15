@@ -1,5 +1,5 @@
 # Copyright (C) 2021 Bolding & Bruggeman
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.15)
 
 # Create main project.
 project(ceat_filter_pdaf VERSION 0.1.0 LANGUAGES Fortran C)
@@ -11,8 +11,6 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 if(Python3_EXECUTABLE)
   file(TO_CMAKE_PATH "${Python3_EXECUTABLE}" Python3_EXECUTABLE)
 endif()
-set(Python_FIND_STRATEGY LOCATION)
-set(Python3_FIND_STRATEGY LOCATION)
 find_package(Python3 COMPONENTS Interpreter Development)
 
 add_library(ceat_filter_pdaf ceat_filter_pdaf.F90)
