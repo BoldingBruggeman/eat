@@ -18,7 +18,5 @@ dependencies:
   - blas
   - lapack
   - mpi4py
-  - pyqt
   - cython
-  - pip:
-      - pyncview
+  - pyncview
