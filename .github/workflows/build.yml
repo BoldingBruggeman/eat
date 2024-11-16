@@ -21,8 +21,14 @@ jobs:
           auto-update-conda: true
           environment-file: environment.yml
           activate-environment: eat
-      - name: Compile
+      - name: Compile (Linux, Mac)
         run: source ./install
+        if: matrix.os != 'windows-latest'
+      - name: Compile (Windows)
+        run:
+          conda instal -c conda-forge ninja
+          source ./install -G Ninja
+        if: matrix.os == 'windows-latest'
       # - name: Run 2d test case
       #   run: |
       #     source ${CONDA}/etc/profile.d/conda.sh
