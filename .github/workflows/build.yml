@@ -26,8 +26,8 @@ jobs:
         if: matrix.os != 'windows-latest'
       - name: Compile (Windows)
         run:
-          conda instal -c conda-forge ninja
-          source ./install -G Ninja
+          conda install -c conda-forge ninja
+          source ./install -G Ninja -DCMAKE_Fortran_COMPILER=gfortran
         if: matrix.os == 'windows-latest'
       # - name: Run 2d test case
       #   run: |
