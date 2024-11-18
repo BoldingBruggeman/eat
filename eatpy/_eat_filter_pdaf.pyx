@@ -2,10 +2,15 @@
 
 cimport cython
 
+# https://github.com/Unidata/netcdf4-python/blob/a371621e919b665460a71c25a70cd68491f455f1/include/mpi-compat.h#L19
 cdef extern from *:
     """
     #include <mpi.h>
-    
+
+    #ifdef MSMPI_VER
+    #define PyMPI_HAVE_MPI_Message 1
+    #endif
+
     #if (MPI_VERSION < 3) && !defined(PyMPI_HAVE_MPI_Message)
     typedef void *PyMPI_MPI_Message;
     #define MPI_Message PyMPI_MPI_Message
