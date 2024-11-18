@@ -1,0 +1,14 @@
+diff --git a/src/bioptimod_memory.f90 b/src/bioptimod_memory.f90
+index 31935f8..98ef263 100644
+--- a/extern/fabm/extern/ogs/Forward_Adjoint/src/bioptimod_memory.f90
++++ b/extern/fabm/extern/ogs/Forward_Adjoint/src/bioptimod_memory.f90
+@@ -99,7 +99,8 @@ end subroutine allocate_bio_optical_parameters
+          msg = ''
+          read(command_line,nml = cmd,iostat = io,iomsg = msg)
+          if (io/=0) then
+-           error stop "Error parsing the command line or cmd.conf " // msg
++           write (*,*) "Error parsing the command line or cmd.conf " // msg
++           error stop
+          end if
+        end if
+      end subroutine

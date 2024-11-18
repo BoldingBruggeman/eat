@@ -1,6 +1,6 @@
 set REPO_DIR=%~dp0
 set WORK_DIR=%TEMP%\build-eat-%RANDOM%
-cmake -B "%WORK_DIR%" -S "%REPO_DIR%" -DCMAKE_INSTALL_PREFIX="%CONDA_PREFIX%" %*
+cmake -B "%WORK_DIR%" -S "%REPO_DIR%." -DCMAKE_INSTALL_PREFIX="%CONDA_PREFIX%" %*
 if errorlevel 1 exit /b 1
 cmake --build "%WORK_DIR%" --parallel 4 --target install --config Release
 if errorlevel 1 exit /b 1

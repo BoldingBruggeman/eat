@@ -2,7 +2,11 @@ name: Build
 on: push
 jobs:
    main:
-      runs-on: ubuntu-latest
+      strategy:
+        fail-fast: false
+        matrix:
+          os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+      runs-on: ${{ matrix.os }}
       defaults:
         run:
           shell: bash -el {0}
@@ -17,10 +21,21 @@ jobs:
           auto-update-conda: true
           environment-file: environment.yml
           activate-environment: eat
-      - name: Force MPI release
-        run: conda install -c conda-forge -y mpich
-      - name: Compile
+      - name: Compile (Linux, Mac)
         run: source ./install
+        if: matrix.os != 'windows-latest'
+      - name: Compile (Windows)
+        run: |
+          conda install -c conda-forge m2w64-toolchain msmpi openblas libpython
+          patch -p1 < .github/workflows/datetime.patch
+          patch -p1 < .github/workflows/ersem.patch
+          patch -p1 < .github/workflows/ogs.patch
+          source ./install -DCMAKE_Fortran_COMPILER=gfortran
+        env:
+          CMAKE_GENERATOR: "MinGW Makefiles"
+          FFLAGS: "-fno-range-check"
+          CFLAGS: "-DMS_WIN64"
+        if: matrix.os == 'windows-latest'
       # - name: Run 2d test case
       #   run: |
       #     source ${CONDA}/etc/profile.d/conda.sh
