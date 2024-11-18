@@ -27,7 +27,9 @@ jobs:
       - name: Compile (Windows)
         run: |
           conda install -c conda-forge m2w64-toolchain msmpi
-          source ./install -G "MinGW Makefiles" -DCMAKE_Fortran_COMPILER=gfortran
+          source ./install -DCMAKE_Fortran_COMPILER=gfortran
+        env:
+          CMAKE_GENERATOR: "MinGW Makefiles"
         if: matrix.os == 'windows-latest'
       # - name: Run 2d test case
       #   run: |
