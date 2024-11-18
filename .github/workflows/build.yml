@@ -27,8 +27,8 @@ jobs:
       - name: Compile (Windows)
         run: |
           conda install -c conda-forge m2w64-toolchain msmpi openblas libpython
-          patch -p1 < .github\workflows\datetime.patch
-          patch -p1 < .github\workflows\ersem.patch
+          patch -p1 < .github/workflows/datetime.patch
+          patch -p1 < .github/workflows/ersem.patch
           source ./install -DCMAKE_Fortran_COMPILER=gfortran
         env:
           CMAKE_GENERATOR: "MinGW Makefiles"
