@@ -4,7 +4,7 @@ channels:
 dependencies:
   - python>=3.9
   - pip
-  - gfortran
+  - fortran-compiler
   - netcdf-fortran #=4.5.3
   - jupyterlab
   - cmake
