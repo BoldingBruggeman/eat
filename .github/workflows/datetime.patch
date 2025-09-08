@@ -2,7 +2,14 @@ diff --git a/CMakeLists.txt b/CMakeLists.txt
 index d643b0f..549ef7a 100644
 --- a/extern/datetime-fortran/CMakeLists.txt
 +++ b/extern/datetime-fortran/CMakeLists.txt
-@@ -26,7 +26,7 @@ endif()
+@@ -20,13 +20,13 @@ set_property(TARGET datetime PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_B
+
+ if(NOT HAVE_C_STRPTIME)
+   enable_language(CXX)
+-  set(CMAKE_CXX_STANDARD 11)
++  set_property(TARGET datetime PROPERTY CXX_STANDARD 11)
+   target_sources(datetime PRIVATE src/strptime.cpp)
+ endif()
 
  # MinGW GCC needs this for strftime to work
  # https://sourceforge.net/p/mingw-w64/bugs/793/
