@@ -38,6 +38,7 @@ jobs:
           CMAKE_GENERATOR: "MinGW Makefiles"
           FFLAGS: "-fno-range-check"
           CFLAGS: "-DMS_WIN64"
+          VERBOSE: "ON"
         if: matrix.os == 'windows-latest'
       # - name: Run 2d test case
       #   run: |
