@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.15)
 cmake_policy(SET CMP0091 NEW)
 
-project(eat VERSION 0.1.0 LANGUAGES Fortran)
+project(eat VERSION 1.1.2 LANGUAGES Fortran)
 
 # In principle the code should be fixed - but here we provide a working fix
 # Set -fallow-argument-mismatch for major version >= 10

@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.15)
 
 # Create main project.
-project(ceat_filter_pdaf VERSION 0.1.0 LANGUAGES Fortran C)
+project(ceat_filter_pdaf VERSION 1.1.2 LANGUAGES Fortran C)
 
 # Use solution folders in IDEs
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
