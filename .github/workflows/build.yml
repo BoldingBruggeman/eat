@@ -21,6 +21,7 @@ jobs:
           auto-update-conda: true
           environment-file: environment.yml
           activate-environment: eat
+          python-version: "3.12"
       - name: Force use of mpich because impi is not working without impi-devel (Linux, Mac)
         run: conda install -c conda-forge mpich
         if: matrix.os != 'windows-latest'
