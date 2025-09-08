@@ -9,3 +9,5 @@ WORK_DIR=`mktemp -d`
 cmake -S ${REPO_DIR} -B ${WORK_DIR} -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" $@
 cmake --build ${WORK_DIR} --parallel 4 --target install
 rm -rf ${WORK_DIR}
+
+set +e
